@@ -6,19 +6,23 @@ Based on vehicle_state.py: http://python.dronekit.io/examples/vehicle_state.html
 """
 from dronekit import connect, VehicleMode
 import time
-import socket
+from socket import *
 
 myIP = "192.168.0.100" #ethernet for now
 sendPort = 5001
 BUFFER_SIZE = 20 # Normally 1024, but we want fast response
 
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.bind((TCP_IP, TCP_PORT))
-s.listen(1)
+#s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+##s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
+#s.bind((myIP, sendPort))
+#s.listen(1)
+s=socket(AF_INET,SOCK_DGRAM)
+s.bind(('', 0))
+s.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
 
 print "Waiting for connection"
-conn, addr = s.accept()
-print 'Connection address:', addr
+#conn, addr = s.accept()
+#print 'Connection address:', addr
 
 
 #Set up option parsing to get connection string
@@ -100,9 +104,11 @@ while not vehicle.home_location:
     cmds.wait_ready()
     if not vehicle.home_location:
         print " Waiting for home location ..."
-		print "sendingRoll"
-		toSend = "Roll: "  + vehicle.attitude.roll.toString()
-		conn.send(data) 
+	print "sendingRoll"
+	print 
+	toSend = "Roll: "  + str(vehicle.attitude.roll) + "\n"
+#	conn.send(toSend) 
+	s.sendto(toSend, ('<broadcast>' ,sendPort))
 		
 # We have a home location, so print it!        
 print "\n Home location: %s" % vehicle.home_location
