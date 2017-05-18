@@ -1,8 +1,8 @@
 %Receive any UDP packets on port 5001
 
 
-fclose(instrfindall);
-u = udp('192.168.1.1','LocalPort',5001);
+%fclose(instrfindall);
+u = udp('192.168.0.101','LocalPort',5001);
 fopen(u);
 disp('Port opened')
 
