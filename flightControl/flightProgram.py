@@ -3,36 +3,33 @@ import time
 import socket
 import os
 import Queue
-import threading
-import json	
+import threading	
+import transmit, control, receive
 
 
 import argparse 
  
 #get enviromental variables
 AdHocIP = os.environ['ADHOCIP']
-peerReadPort = os.environ['PORT']
+peerReadPort = int(os.environ['PORT'])
 myAddr = (AdHocIP, peerReadPort)
 logPath = os.environ["LOGPATH"]
 broadcastIP = os.environ["BROADCASTIP"]
 transmitAddress = (broadcastIP,peerReadPort)
 
 #set up socket for UDP broadcast
-s=socket(AF_INET,SOCK_DGRAM)
+s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 s.bind(myAddr)
-s.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
 #create message queues
 loggingQueue= Queue.Queue()
 transmitQueue = Queue.Queue()
 receiveQueue = Queue.Queue()
 
-receiveThread = Receiver(s,receiveQueue)
-transmitThread = Transmitter(s,transmitQueue,sendAddress)
-
-
-controlThread = Controller(loggingQueue,transmitQueue,receiveQueue, vehicle, defaultParams)
+receiveThread = receive.Receiver(s,receiveQueue)
+transmitThread = transmit.Transmitter(s,transmitQueue,transmitAddress)
 
 #Parse the connection arg and connect to the vehicle
 parser = argparse.ArgumentParser(description='Print out vehicle state information. Connects to SITL on local PC by default.')
@@ -55,3 +52,8 @@ print "\nConnecting to vehicle on: %s" % connection_string
 vehicle = connect(connection_string, wait_ready=True)
 
 vehicle.wait_ready('autopilot_version')
+
+controlThread = control.Controller(loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams)
+
+receiveThread.start()
+

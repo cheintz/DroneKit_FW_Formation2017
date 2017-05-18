@@ -5,27 +5,11 @@ import collections
 from vehicleState import *
 import os
 import Queue
+import threading
 
-acceptableControlMode = (Vehicle.FlightMode["FBWB"\])
+acceptableControlMode = VehicleMode("FBWB")
 
 logging.basicConfig(level=logging.WARNING)
-
-
-
-#Start SITL if no connection string specified
-if not connection_string:
-    import dronekit_sitl
-    sitl = dronekit_sitl.start_default()
-    connection_string = sitl.connection_string()
-
-
-# Connect to the Vehicle. 
-#   Set `wait_ready=True` to ensure default attributes are populated before `connect()` returns.
-print "\nConnecting to vehicle on: %s" % connection_string
-vehicle = connect(connection_string, wait_ready=True)
-
-vehicle.wait_ready('autopilot_version')
-
 
 def getVehicleState(vehicle, vehicleState):		
 	vehicleState.attitude=vehicle.attitude
@@ -36,7 +20,7 @@ def getVehicleState(vehicle, vehicleState):
 	vehiicleState.mode = vehicle.mode
 class Controller(threading.Thread):
 	
-	def __init__(self,loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams)
+	def __init__(self,loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams):
 		threading.Thread.__init__(self)
 		self.isRunning=True
 		self.loggingQueue = loggingQueue
@@ -53,7 +37,7 @@ class Controller(threading.Thread):
 	def run(self):
 		while not self.stoprequest.isSet():
 			print "executing control"
-			while(!self.receiveQueue.empty()):
+			while(not self.receiveQueue.empty()):
 				try:
 					msg = self.receiveQueue.get(False)
 					self.updateGlobalStateWithData(msg)
@@ -63,7 +47,7 @@ class Controller(threading.Thread):
 			self.getVehicleState() #Get update from the Pixhawk
 			self.checkAbort()
 			
-			if(!self.isFlocking): #Should we engage flocking
+			if(not self.isFlocking): #Should we engage flocking
 				checkEngageFlocking(self)
 			if(self.isFlocking):
 				self.computeControl() #writes the control values to self.vehicleState
@@ -77,14 +61,14 @@ class Controller(threading.Thread):
 	
 
 	def updateGlobalStateWithData(self,msg):
-		if msg.type == "UAV":
-			 self.parseUAVMessage(msg):
-		 else: #From GCS
+		if (msg.type == "UAV"):
+			yself.parseUAVMessage(msg)
+		else: #From GCS
 			self.parseGCSMessage(msg)
 		
 	def parseUAVMessage(self,msg):
 		if(msg.MAVID>0):
-			self.state.vehicle(msg.MAVID) = msg.content.vehicleState
+			self.state.vehicle[msg.MAVID] = msg.content.vehicleState
 			
 			
 	def scaleAndWriteCommands(self,cmd,vehicle):
@@ -96,7 +80,7 @@ class Controller(threading.Thread):
 		vehicle.channels.overrides = {}
 		
 	def checkAbort(self,vehicle):
-		if (!self.vehicle.mode in acceptableControlModes): #if switched out of acceptable modes
+		if (not (self.vehicle.mode in acceptableControlModes)): #if switched out of acceptable modes
 			self.isFlocking = False
 			self.readyForFlocking = False
 			self.abortReason = "Control Mode" #Elaborate on this to detect RTL due to failsafe
@@ -119,10 +103,10 @@ class Controller(threading.Thread):
 		if(self.vehicle.channels['5'] > 1700 and self.vehicle.channels['5'] < 1900):
 			return False
 		#Check configuration
-		if(!self.parameters.self.parameters.isComplete):
+		if(not self.parameters.self.parameters.isComplete):
 			return False
 		#check expected number of peers
-		if(len(self.state.vehicles) != self.parameters.expectedMAVs)
+		if(len(self.state.vehicles) != self.parameters.expectedMAVs):
 			return False	
 		return true
 			
@@ -146,12 +130,13 @@ class Controller(threading.Thread):
 		self.releaseControl()
 	def checkTimeouts(self):
 		didTimeOut = False
-		if(time.time() - self.lastGCSContact> self.parameters.GCSTimeout )
+		if(time.time() - self.lastGCSContact> self.parameters.GCSTimeout ):
 			self.vehicleState.timeout.gcsTimeoutTime = time.time()
 			didTimeOut = True
-		for(vs in self.state.vehicles)
-			if(vs.lastPX4RxTime>self.parameters.peerTimeout)
-				self.vehicleState.timeout.peerTimeoutTime{vs.ID}=time.time()
+		for vs in self.state.vehicles :
+			print "works"
+#			if(vs.lastPX4RxTime>self.parameters.peerTimeout):
+#				self.vehicleState.timeout.peerTimeoutTime{vs.ID}=time.time()
 		
 		return didTimeOut
 	def parseGCSMessage(self, msg):

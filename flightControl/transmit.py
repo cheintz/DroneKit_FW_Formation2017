@@ -1,9 +1,10 @@
-import collection
+import collections
 from vehicleState import *
 import socket
 import Queue
 import logging
-import cpickle
+import threading
+import cPickle
 
 class Transmitter(threading.Thread):
 
@@ -15,7 +16,7 @@ class Transmitter(threading.Thread):
 	def run(self):
 		while not self.stoprequest.isSet():
 			print "Sending any packets"
-			while(!self.transmitQueue.empty()):
+			while( not self.transmitQueue.empty()):
 				try:
 					msg = self.transmitQueue.get(False)
 					self.sendMessage(msg)
@@ -23,7 +24,7 @@ class Transmitter(threading.Thread):
 				except Queue.Empty:
 					break #no more messages.
 	def sendMessage(self, msg):
-		mp = cpickle.dumps(msg)
+		mp = cPickle.dumps(msg)
 		s.sendto(mp,self.senAddress);
 		
 		
