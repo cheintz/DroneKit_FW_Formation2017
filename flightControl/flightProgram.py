@@ -10,11 +10,11 @@ import json
 import argparse 
  
 #get enviromental variables
-AdHocIP = os.environ['AdHocIP']
-peerReadPort = os.environ['PeerReadPort']
-myAddr = (AdHocIP, os.environ['PeerSendPort'])
-logPath = os.environ["LogPath"]
-broadcastIP = os.environ["BroadcastIP"]
+AdHocIP = os.environ['ADHOCIP']
+peerReadPort = os.environ['PORT']
+myAddr = (AdHocIP, peerReadPort)
+logPath = os.environ["LOGPATH"]
+broadcastIP = os.environ["BROADCASTIP"]
 transmitAddress = (broadcastIP,peerReadPort)
 
 #set up socket for UDP broadcast
