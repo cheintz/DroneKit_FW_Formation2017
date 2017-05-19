@@ -1,7 +1,6 @@
 from dronekit import connect, VehicleMode
 import time
 import logging
-import collections
 from vehicleState import *
 import os
 import Queue
@@ -11,13 +10,6 @@ acceptableControlMode = VehicleMode("FBWB")
 
 logging.basicConfig(level=logging.WARNING)
 
-def getVehicleState(vehicle, vehicleState):		
-	vehicleState.attitude=vehicle.attitude
-	vehicleState.channels = vehicle.channels
-	vehicleState.position = vehicle.location.global_frame
-	vehicleState.velocity = vehicle.velocity
-	vehicleState.isArmable = vehicle.is_armable
-	vehiicleState.mode = vehicle.mode
 class Controller(threading.Thread):
 	
 	def __init__(self,loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams):
@@ -30,7 +22,7 @@ class Controller(threading.Thread):
 		self.vehicle=vehicle
 		self.parameters = defaultParams
 		self.vehicleState = VehicleState()
-		self.commands = Commands()
+		self.command = Command()
 		self.stoprequest = threading.Event()
 		self.lastGCSContact = -1
 		
@@ -48,7 +40,7 @@ class Controller(threading.Thread):
 			self.checkAbort()
 			
 			if(not self.isFlocking): #Should we engage flocking
-				checkEngageFlocking(self)
+				self.checkEngageFlocking()
 			if(self.isFlocking):
 				self.computeControl() #writes the control values to self.vehicleState
 				self.scaleAndWriteCommands()
@@ -76,11 +68,11 @@ class Controller(threading.Thread):
 		yPWM = cmd.climbRate*self.parameters.climbGain + self.parameters.climbOffset
 		zPWM = cmd.airspeed*self.parameters.speedGain + self.parameters.speedOffset
 		vehicle.channels.overrides = {'1': xPWM, '2': yPWM,'3': zPWM}
-	def releaseControl(self,vehicle):
-		vehicle.channels.overrides = {}
+	def releaseControl(self):
+		self.vehicle.channels.overrides = {}
 		
-	def checkAbort(self,vehicle):
-		if (not (self.vehicle.mode in acceptableControlModes)): #if switched out of acceptable modes
+	def checkAbort(self):
+		if (not (self.vehicle.mode == acceptableControlMode)): #if switched out of acceptable modes
 			self.isFlocking = False
 			self.readyForFlocking = False
 			self.abortReason = "Control Mode" #Elaborate on this to detect RTL due to failsafe
@@ -111,13 +103,13 @@ class Controller(threading.Thread):
 		return true
 			
 	def getVehicleState(self):		#Should probably check for timeout, etc.
-		self.vehicleState.attitude=vehicle.attitude
-		self.vehicleState.channels = vehicle.channels
-		self.vehicleState.position = vehicle.location.global_frame
-		self.vehicleState.velocity = vehicle.velocity
-		self.vehicleState.isArmable = vehicle.is_armable
-		self.vehicleState.mode = vehicle.mode
-		self.vehicleState.lastPX4RxTime =time.time()
+		self.vehicleState.attitude = self.vehicle.attitude
+		self.vehicleState.channels = self.vehicle.channels
+		self.vehicleState.position = self.vehicle.location.global_frame
+		self.vehicleState.velocity = self.vehicle.velocity
+		self.vehicleState.isArmable = self.vehicle.is_armable
+		self.vehicleState.mode = self.vehicle.mode
+		self.vehicleState.timeout=lastPX4RxTime =time.time()
 	def pushStateToTxQueue(self):
 		msg=Message()
 		msg.type = "UAV"
@@ -131,7 +123,7 @@ class Controller(threading.Thread):
 	def checkTimeouts(self):
 		didTimeOut = False
 		if(time.time() - self.lastGCSContact> self.parameters.GCSTimeout ):
-			self.vehicleState.timeout.gcsTimeoutTime = time.time()
+			self.vehicleState.timeout.GCSTimeoutTime = time.time()
 			didTimeOut = True
 		for vs in self.state.vehicles :
 			print "works"

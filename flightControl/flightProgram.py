@@ -5,6 +5,7 @@ import os
 import Queue
 import threading	
 import transmit, control, receive
+import vehicleState
 
 
 import argparse 
@@ -53,7 +54,17 @@ vehicle = connect(connection_string, wait_ready=True)
 
 vehicle.wait_ready('autopilot_version')
 
+defaultParams = vehicleState.Parameter(time.time(),False,0,0)
+
 controlThread = control.Controller(loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams)
 
-receiveThread.start()
+#receiveThread.start()
+#print "Started Receive"
 
+#transmitThread.start()
+#print"Started Transmit"
+
+controlThread.start()
+print "Started Control"
+
+print "exiting Main"

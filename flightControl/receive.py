@@ -11,6 +11,7 @@ class Receiver(threading.Thread):
 		threading.Thread.__init__(self)
 		self.s = s
 		self.receiveQueue=receiveQueue
+		self.stoprequest = threading.Event()
 	def run(self):
 		while not self.stoprequest.isSet():
 			print "Processing any received"
@@ -19,7 +20,7 @@ class Receiver(threading.Thread):
 			except Queue.Empty:
 				break #no more messages.
 	def receiveMessage(self):
-		mp = s.recvfrom()
+		mp = self.s.recvfrom(1024)
 		msg = cPickle.loads(mp)
 		s.receiveQueue.put(msg)
 		

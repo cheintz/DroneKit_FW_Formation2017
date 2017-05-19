@@ -1,9 +1,15 @@
-import collections
+from recordtype import recordtype
 
-VehicleState = collections.namedtuple('VehicleState', 'ID time lastRXTime attitude channels position velocity mode commands isFlocking readyForFlocking abortReason timeout parameters' )
+Timeout = recordtype('Timeout' , 'GCSTimeoutTime peerTimeoutTime ', default = None)
+
+Parameter = recordtype('Parameter','receivedTime,isComplete,desiredPosition,ctrlGains GCSTimeout peerTimeout', default = None)
+
+VehicleState = recordtype('VehicleState', [ ('isArmable' , False) ,'ID', 'time',  'attitude', 'channels', 'position', 'velocity', 'mode', 'commands', ('isFlocking',False), ('readyForFlocking', False), 'abortReason', ('timeout', Timeout()), ('parameters',Parameter())], default = None )
 		
-Command = collections.namedtuple('Commands','headingRate,climbRate,airSpeed,timestamp')		
+Command = recordtype('Commands','headingRate,climbRate,airSpeed,timestamp', default = None)		
 
-Message = collections.namedtuple('Message','type,sendTime,content') #content shall contain the timestamp of the most recent parameter set.
+Message = recordtype('Message','type,sendTime,content', default = None) #content shall contain the timestamp of the most recent parameter set.
+#Message.__new__.__defaults__ = (None,) *len(Message._fields)
 
-Parameters = collections.namedtuple('Parameters','receivedTime,isComplete,desiredPosition,ctrlGains')
+#Parameter.__new__.__defaults__ = (None,)*len(Parameter._fields)
+
