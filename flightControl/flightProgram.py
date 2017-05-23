@@ -19,18 +19,18 @@ broadcastIP = os.environ["BROADCASTIP"]
 transmitAddress = (broadcastIP,peerReadPort)
 
 #set up socket for UDP broadcast
-s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-s.bind(myAddr)
-s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+#s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+#s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+#s.bind(myAddr)
+#s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
 #create message queues
 loggingQueue= Queue.Queue()
 transmitQueue = Queue.Queue()
 receiveQueue = Queue.Queue()
 
-receiveThread = receive.Receiver(s,receiveQueue)
-transmitThread = transmit.Transmitter(s,transmitQueue,transmitAddress)
+receiveThread = receive.Receiver(receiveQueue,AdHocIP,peerReadPort)
+transmitThread = transmit.Transmitter(transmitQueue,AdHocIP,peerReadPort,transmitAddress)
 
 #Parse the connection arg and connect to the vehicle
 parser = argparse.ArgumentParser(description='Print out vehicle state information. Connects to SITL on local PC by default.')

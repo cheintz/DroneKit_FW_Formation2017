@@ -4,13 +4,17 @@ import socket
 import Queue
 import logging
 import threading
-import json
+import jsonpickle
 
 class Transmitter(threading.Thread):
 
-	def __init__(self,s,transmitQueue,sendAddress):
+	def __init__(self,transmitQueue,AdHocIP,port,sendAddress):
 		threading.Thread.__init__(self)
-		self.s = s
+		self.s = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+		self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+		myAddr = (AdHocIP,port)
+		self.s.bind(myAddr)
+		self.s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 		self.transmitQueue=transmitQueue
 		self.sendAddress = sendAddress
 		self.stoprequest = threading.Event()
@@ -23,7 +27,7 @@ class Transmitter(threading.Thread):
 				try:
 					msg = self.transmitQueue.get(False)
 					self.sendMessage(msg)
-					print "Sent a message"
+					#print "Sent a message"
 					self.transmitQueue.task_done() #May or may not be helpful
 				except Queue.Empty:
 					thread.sleep(0.001)
@@ -31,9 +35,9 @@ class Transmitter(threading.Thread):
 		print "Transmit Stopped"
 					
 	def sendMessage(self, msg):
-		mp = json.dumps(msg._asdict())
+		mp = jsonpickle.encode(msg._asdict())
 		self.s.sendto(mp,self.sendAddress);
-		print "Send complete"
+		#print "Send complete"
 		
 		
 		

@@ -6,7 +6,7 @@ import os
 import Queue
 import threading
 import recordtype
-import json
+import jsonpickle
 
 acceptableControlMode = VehicleMode("FBWB")
 
@@ -27,9 +27,8 @@ class Controller(threading.Thread):
 		# print "Constructor \n\n"
 		# print type(self.vehicleState)
 		self.command = Command()
-		print "field\n\n\n"
-		print getattr(self.vehicleState,'ID')
-		print self.vehicleState['ID']
+#		strmine= jsonpickle.encode(self.vehicleState)#
+#		print strmine
 		self.stoprequest = threading.Event()
 		self.lastGCSContact = -1
 	def stop(self):
@@ -133,11 +132,12 @@ class Controller(threading.Thread):
 		self.vehicleState.mode = self.vehicle.mode
 		self.vehicleState.timeout.localTimeoutTime=lastPX4RxTime =time.time()
 	def pushStateToTxQueue(self):
-		print "TXQueueSize = " + str(self.transmitQueue.qsize())
+#		print "TXQueueSize = " + str(self.transmitQueue.qsize())
 		msg=Message()
 		msg.type = "UAV"
 		msg.sendTime = time.time()
-		msg.content=json.dumps(self.vehicleState)
+		#msg.content=jsonpickle.encode(self.vehicleState)
+		msg.content = self.vehicleState
 		self.transmitQueue.put(msg)
 		return msg
 	def commenceRTL(self):

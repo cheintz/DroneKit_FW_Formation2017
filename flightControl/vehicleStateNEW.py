@@ -1,6 +1,9 @@
 from recordtype import recordtype
 import copy
 import json
+import importlib
+
+classDict = {'<class \'vehicleState.VehicleState\'>'
 
 def myRecordType(recordtype):
 	def __getitem__(self,attr):
@@ -12,10 +15,11 @@ def myRecordType(recordtype):
 		for f in self._fields:
 			if isinstance(  self[f],   myRecordType): #recursively make all class items dictionaries
 				setattr(flat,f, self.f._asdict()) 		
-		fd = {"Type" :type(self)}
+		fd = {"__type__" :type(self)}
 		fd.append flat._asdict()
 		return fd
 	def fromNestedDict(nd):
+		module = 		getattr(recordtype)
 		
 		 
 
@@ -28,14 +32,7 @@ VehicleState = recordtype('VehicleState', [ ('isArmable' , False) ,'ID', 'time',
 Command = recordtype('Commands','headingRate,climbRate,airSpeed,timestamp', default = None)		
 
 Message = recordtype('Message','type,sendTime,content', default = None) #content shall contain the timestamp of the most recent parameter set.
-#Message.__new__.__defaults__ = (None,) *len(Message._fields)
 
-#Parameter.__new__.__defaults__ = (None,)*len(Parameter._fields)
-
-
-def toNestedDict(r):
-	out = r._asdict()
-	print values
 
 
 	

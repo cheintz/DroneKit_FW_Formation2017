@@ -4,15 +4,20 @@ import socket
 import Queue
 import logging
 import threading
-import cPickle
+import jsonpickle
 
 class Receiver(threading.Thread):
-	def __init__(self,s,receiveQueue):
+	def __init__(self,receiveQueue,AdHocIP, port):
 		threading.Thread.__init__(self)
-		self.s = s
+		self.s = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+		self.s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
+		self.port = port
+		ip = ""
+		self.s.bind((ip,self.port))
+		self.s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 		self.receiveQueue=receiveQueue
 		self.stoprequest = threading.Event()
-		s.settimeout(1)
+		self.s.settimeout(1)
 	def stop(self):
 		self.stoprequest.set()
 		print "Stop flag set - Receive"
@@ -22,18 +27,20 @@ class Receiver(threading.Thread):
 			try:
 				self.receiveMessage()
 			except Queue.Empty:
-				thread.sleep(0.001)
+#				thread.sleep(0.001)
 				break #no more messages.
 		print "Receive Stopped"
 	def receiveMessage(self):
 		try:
 			mp = self.s.recvfrom(1024)
-			msg = cPickle.loads(mp)
-			s.receiveQueue.put(msg)
-			print "received a message"
+#			msg = jsonpickle.decode(mp)
+#			self.s.receiveQueue.put(msg)
+			print "Received, did nothing"
 		except socket.error, e:
 			if not e.args[0] == 'timed out':
 				raise e
+			else:
+				print "timeout"
 		
 		
 		
