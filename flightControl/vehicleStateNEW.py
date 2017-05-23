@@ -1,4 +1,23 @@
 from recordtype import recordtype
+import copy
+import json
+
+def myRecordType(recordtype):
+	def __getitem__(self,attr):
+		return getattr(self,attr)
+	def __setitem__(self,key,value):
+		setattr(self,key,value
+	def toNestedDict(self):
+		flat = copy.deepcopy(self)
+		for f in self._fields:
+			if isinstance(  self[f],   myRecordType): #recursively make all class items dictionaries
+				setattr(flat,f, self.f._asdict()) 		
+		fd = {"Type" :type(self)}
+		fd.append flat._asdict()
+		return fd
+	def fromNestedDict(nd):
+		
+		 
 
 Timeout = recordtype('Timeout' , ['GCSTimeoutTime', 'peerTimeoutTime', 'localTimeoutTime', 'GCSLastRx', ('peerLastRx',{})], default = None)
 
@@ -13,3 +32,10 @@ Message = recordtype('Message','type,sendTime,content', default = None) #content
 
 #Parameter.__new__.__defaults__ = (None,)*len(Parameter._fields)
 
+
+def toNestedDict(r):
+	out = r._asdict()
+	print values
+
+
+	

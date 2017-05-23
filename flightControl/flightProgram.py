@@ -58,13 +58,34 @@ defaultParams = vehicleState.Parameter(time.time(),False,0,0)
 
 controlThread = control.Controller(loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams)
 
-#receiveThread.start()
-#print "Started Receive"
+threads = []
+threads.append(controlThread)
+threads.append(receiveThread)
+threads.append(transmitThread)
 
-#transmitThread.start()
-#print"Started Transmit"
+receiveThread.start()
+print "Started Receive"
+
+transmitThread.start()
+print"Started Transmit"
 
 controlThread.start()
 print "Started Control"
 
+def hasLiveThreads(threads):
+	return True in [t.isAlive() for t  in threads]
+
+
+while hasLiveThreads(threads):
+	try:
+		[t.join(1) for t in threads
+		if t is not None and t.isAlive()]
+		
+	except KeyboardInterrupt:
+		print "killing threads"
+		for t in threads:
+			t.stop()
+	
 print "exiting Main"
+
+	

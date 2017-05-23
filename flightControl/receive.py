@@ -12,16 +12,28 @@ class Receiver(threading.Thread):
 		self.s = s
 		self.receiveQueue=receiveQueue
 		self.stoprequest = threading.Event()
+		s.settimeout(1)
+	def stop(self):
+		self.stoprequest.set()
+		print "Stop flag set - Receive"
 	def run(self):
-		while not self.stoprequest.isSet():
+		while( not self.stoprequest.is_set()):
 			print "Processing any received"
 			try:
 				self.receiveMessage()
 			except Queue.Empty:
+				thread.sleep(0.001)
 				break #no more messages.
+		print "Receive Stopped"
 	def receiveMessage(self):
-		mp = self.s.recvfrom(1024)
-		msg = cPickle.loads(mp)
-		s.receiveQueue.put(msg)
+		try:
+			mp = self.s.recvfrom(1024)
+			msg = cPickle.loads(mp)
+			s.receiveQueue.put(msg)
+			print "received a message"
+		except socket.error, e:
+			if not e.args[0] == 'timed out':
+				raise e
+		
 		
 		

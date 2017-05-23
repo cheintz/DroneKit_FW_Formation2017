@@ -5,6 +5,8 @@ from vehicleState import *
 import os
 import Queue
 import threading
+import recordtype
+import json
 
 acceptableControlMode = VehicleMode("FBWB")
 
@@ -18,17 +20,24 @@ class Controller(threading.Thread):
 		self.loggingQueue = loggingQueue
 		self.transmitQueue = transmitQueue
 		self.receiveQueue = receiveQueue
-		self.state = None
+		self.stateVehicles = {}
 		self.vehicle=vehicle
 		self.parameters = defaultParams
 		self.vehicleState = VehicleState()
+		# print "Constructor \n\n"
+		# print type(self.vehicleState)
 		self.command = Command()
+		print "field\n\n\n"
+		print getattr(self.vehicleState,'ID')
+		print self.vehicleState['ID']
 		self.stoprequest = threading.Event()
 		self.lastGCSContact = -1
-		
+	def stop(self):
+		self.stoprequest.set()
+		print "Stop Flag Set - Control"
 	def run(self):
-		while not self.stoprequest.isSet():
-			print "executing control"
+		while(not self.stoprequest.is_set()):#not self.kill_received):
+			# print "executing control"
 			while(not self.receiveQueue.empty()):
 				try:
 					msg = self.receiveQueue.get(False)
@@ -36,18 +45,27 @@ class Controller(threading.Thread):
 					self.task_done() #May or may not be helpful
 				except Queue.Empty:
 					break #no more messages.
+			# print "About to get vehicle state" + str(time.time())
 			self.getVehicleState() #Get update from the Pixhawk
+			# print type(self.vehicleState.timeout)
+
+			# print "about to check abort"
 			self.checkAbort()
-			
+			#print type(self.vehicleState.timeout)
+			# print "about to check flocking" + str(time.time())
 			if(not self.isFlocking): #Should we engage flocking
 				self.checkEngageFlocking()
 			if(self.isFlocking):
 				self.computeControl() #writes the control values to self.vehicleState
 				self.scaleAndWriteCommands()
+			# print "pushing to queue" + str(time.time())
 			self.pushStateToTxQueue(); #sends the state to the UDP sending threading
+			time.sleep(0.1)
 			
 				#TODO: find a way to clear timeouts, if necessary
-			
+		self.stop()
+		self.releaseControl()			
+		print "Control Stopped"
 			
 	
 	
@@ -60,7 +78,7 @@ class Controller(threading.Thread):
 		
 	def parseUAVMessage(self,msg):
 		if(msg.MAVID>0):
-			self.state.vehicle[msg.MAVID] = msg.content.vehicleState
+			self.stateVehicle[msg.MAVID] = msg.content.vehicleState
 			
 			
 	def scaleAndWriteCommands(self,cmd,vehicle):
@@ -72,11 +90,15 @@ class Controller(threading.Thread):
 		self.vehicle.channels.overrides = {}
 		
 	def checkAbort(self):
+		# print "in checkAbort" + str(time.time())
 		if (not (self.vehicle.mode == acceptableControlMode)): #if switched out of acceptable modes
+			# print "Abort - control mode" + str(time.time())
 			self.isFlocking = False
 			self.readyForFlocking = False
 			self.abortReason = "Control Mode" #Elaborate on this to detect RTL due to failsafe
+			# print "About to RTL" + str(time.time())
 			self.commenceRTL()
+			# print "returned from RTL function" + str(time.time())
 			self.commands = {0,0,0}
 			
 		if (self.vehicle.channels['5'] < 1700 or self.vehicle.channels['5'] > 1900):
@@ -98,7 +120,7 @@ class Controller(threading.Thread):
 		if(not self.parameters.self.parameters.isComplete):
 			return False
 		#check expected number of peers
-		if(len(self.state.vehicles) != self.parameters.expectedMAVs):
+		if(len(self.stateVehicles) != self.parameters.expectedMAVs):
 			return False	
 		return true
 			
@@ -109,33 +131,40 @@ class Controller(threading.Thread):
 		self.vehicleState.velocity = self.vehicle.velocity
 		self.vehicleState.isArmable = self.vehicle.is_armable
 		self.vehicleState.mode = self.vehicle.mode
-		self.vehicleState.timeout=lastPX4RxTime =time.time()
+		self.vehicleState.timeout.localTimeoutTime=lastPX4RxTime =time.time()
 	def pushStateToTxQueue(self):
+		print "TXQueueSize = " + str(self.transmitQueue.qsize())
 		msg=Message()
 		msg.type = "UAV"
 		msg.sendTime = time.time()
-		msg.content=vehicleState=self.vehicleState
+		msg.content=json.dumps(self.vehicleState)
+		self.transmitQueue.put(msg)
 		return msg
 	def commenceRTL(self):
-		self.vehicle.parameters['Q_RTL_ALT'] = (40 + 10 * self.vehicle.parameters['SYSID_THISMAV']) * 1
+		self.vehicle.parameters['ALT_HOLD_RTL'] = (70 + 10 * self.vehicle.parameters['SYSID_THISMAV']) * 100
 		self.vehicle.mode = VehicleMode("RTL")
 		self.releaseControl()
 	def checkTimeouts(self):
 		didTimeOut = False
 		if(time.time() - self.lastGCSContact> self.parameters.GCSTimeout ):
+		#if(True):
 			self.vehicleState.timeout.GCSTimeoutTime = time.time()
 			didTimeOut = True
-		for vs in self.state.vehicles :
-			print "works"
-#			if(vs.lastPX4RxTime>self.parameters.peerTimeout):
-#				self.vehicleState.timeout.peerTimeoutTime{vs.ID}=time.time()
+		for vs in self.stateVehicles :
+			# print "works"
+			if(vs.lastPX4RxTime>self.parameters.peerTimeout):
+				self.vehicleState.timeout.peerTimeoutTime[vs.ID]=time.time()
 		
 		return didTimeOut
 	def parseGCSMessage(self, msg):
-		self.vehicleState.packets.lastGCS = time.time() #Should implement checking that this isn't far from the present time
+#		self.vehicleState.packets.lastGCS = time.time() #Should implement checking that this isn't far from the present time
 		self.vehicleState.packetStats.GCSPackets += 1
 		if(msg.type == "Parameters"):
 			self.parameters = msg.content
+			self.vehicleState.timeout.GCSLastRx = msg.sentTime()
+
+		if(msg.type == 'HEARTBEAT'):
+			self.vehicleState.timeout.GCSLastRx = msg.sendTime()
 
 		
 	
