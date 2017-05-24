@@ -24,6 +24,7 @@ class Controller(threading.Thread):
 		self.vehicle=vehicle
 		self.parameters = defaultParams
 		self.vehicleState = VehicleState()
+		self.vehicleState.ID = self.vehicle.parameters['SYSID_THISMAV']
 		# print "Constructor \n\n"
 		# print type(self.vehicleState)
 		self.command = Command()
@@ -59,7 +60,7 @@ class Controller(threading.Thread):
 				self.scaleAndWriteCommands()
 			# print "pushing to queue" + str(time.time())
 			self.pushStateToTxQueue(); #sends the state to the UDP sending threading
-			time.sleep(0.1)
+			time.sleep(0.05)
 			
 				#TODO: find a way to clear timeouts, if necessary
 		self.stop()
@@ -71,7 +72,7 @@ class Controller(threading.Thread):
 
 	def updateGlobalStateWithData(self,msg):
 		if (msg.type == "UAV"):
-			yself.parseUAVMessage(msg)
+			self.parseUAVMessage(msg)
 		else: #From GCS
 			self.parseGCSMessage(msg)
 		
@@ -125,7 +126,8 @@ class Controller(threading.Thread):
 			
 	def getVehicleState(self):		#Should probably check for timeout, etc.
 		self.vehicleState.attitude = self.vehicle.attitude
-		self.vehicleState.channels = self.vehicle.channels
+		self.vehicleState.channels = self.vehicle.channels.items()
+#		print	self.vehicleState.channels.items
 		self.vehicleState.position = self.vehicle.location.global_frame
 		self.vehicleState.velocity = self.vehicle.velocity
 		self.vehicleState.isArmable = self.vehicle.is_armable
