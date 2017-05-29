@@ -140,6 +140,7 @@ class Controller(threading.Thread):
 		msg.sendTime = time.time()
 		#msg.content=jsonpickle.encode(self.vehicleState)
 		msg.content = self.vehicleState
+	#	print type(msg)
 		self.transmitQueue.put(msg)
 		return msg
 	def commenceRTL(self):

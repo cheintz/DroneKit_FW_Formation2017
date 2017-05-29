@@ -33,7 +33,7 @@ class Receiver(threading.Thread):
 		print "Receive Stopped"
 	def receiveMessage(self):
 		try:
-			mp = self.s.recvfrom(1024)
+			mp = self.s.recvfrom(2048)
 			if(mp[1] == (self.AdHocIP,self.port)):
 #				print "received my own message"
 				pass
@@ -41,7 +41,17 @@ class Receiver(threading.Thread):
 				mp=mp[0]
 #				print mp
 				try:
+				#	print mp + "\n\n\n"
+			#		print type(mp)
 					msg = jsonpickle.decode(mp)
+			#		print msg
+			#		msg = { str(key):value for key,value in msg.items() }
+			#		print "\n\n\n"
+			#		print msg
+					print msg.keys()
+					print type(msg)
+					print msg.content
+#					print "Received valid packet from" + str(msg.content.ID) + " With Roll: " + stsr(msg.content.attitude.roll)
 				except ValueError:
 					print "received non JSON packet"
 #				self.s.receiveQueue.put(msg)

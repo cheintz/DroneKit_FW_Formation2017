@@ -35,7 +35,11 @@ class Transmitter(threading.Thread):
 		print "Transmit Stopped"
 					
 	def sendMessage(self, msg):
-		mp = jsonpickle.encode(msg._asdict())
+#		print "About to transmit" + str(msg)
+#		mp = jsonpickle.encode(msg._asdict())
+		mp = jsonpickle.encode(msg)
+		
+#		print "Encoded is" + mp
 		self.s.sendto(mp,self.sendAddress);
 		#print "Send complete"
 		
