@@ -1,6 +1,6 @@
 from recordtype import recordtype
 
-Timeout = recordtype('Timeout' , ['GCSTimeoutTime', 'peerTimeoutTime', 'localTimeoutTime', 'GCSLastRx', ('peerLastRx',{})], default = None)
+Timeout = recordtype('Timeout' , ['GCSTimeoutTime', ('peerTimeoutTime',{}), 'localTimeoutTime', 'GCSLastRx', ('peerLastRX',{})], default = None)
 
 Parameter = recordtype('Parameter','receivedTime,isComplete,desiredPosition,ctrlGains GCSTimeout peerTimeout', default = None)
 

@@ -42,7 +42,7 @@ class Controller(threading.Thread):
 				try:
 					msg = self.receiveQueue.get(False)
 					self.updateGlobalStateWithData(msg)
-					self.task_done() #May or may not be helpful
+					self.receiveQueue.task_done() #May or may not be helpful
 				except Queue.Empty:
 					break #no more messages.
 			# print "About to get vehicle state" + str(time.time())
@@ -77,8 +77,11 @@ class Controller(threading.Thread):
 			self.parseGCSMessage(msg)
 		
 	def parseUAVMessage(self,msg):
-		if(msg.MAVID>0):
-			self.stateVehicle[msg.MAVID] = msg.content.vehicleState
+		if(msg.content.ID>0):
+			ID=msg.content.ID
+			self.stateVehicles[ID] = msg.content
+			#self.vehicleState.timeout.peerLastRX[ID]=msg.sendTime
+			self.vehicleState.timeout.peerLastRX[ID]=time.time()
 			
 			
 	def scaleAndWriteCommands(self,cmd,vehicle):
@@ -153,10 +156,10 @@ class Controller(threading.Thread):
 		#if(True):
 			self.vehicleState.timeout.GCSTimeoutTime = time.time()
 			didTimeOut = True
-		for vs in self.stateVehicles :
-			# print "works"
-			if(vs.lastPX4RxTime>self.parameters.peerTimeout):
-				self.vehicleState.timeout.peerTimeoutTime[vs.ID]=time.time()
+		for IDS in self.stateVehicles.keys():
+			ID=int(IDS)	
+			if(self.vehicleState.timeout.peerLastRX[ID]>self.parameters.peerTimeout):
+				self.vehicleState.timeout.peerTimeoutTime[ID]=time.time()
 		
 		return didTimeOut
 	def parseGCSMessage(self, msg):
@@ -164,24 +167,10 @@ class Controller(threading.Thread):
 		self.vehicleState.packetStats.GCSPackets += 1
 		if(msg.type == "Parameters"):
 			self.parameters = msg.content
-			self.vehicleState.timeout.GCSLastRx = msg.sentTime()
+#			self.vehicleState.timeout.GCSLastRx = msg.sentTime()
+			self.vehicleState.timeout.GCSLastRx = time.time()
 
 		if(msg.type == 'HEARTBEAT'):
-			self.vehicleState.timeout.GCSLastRx = msg.sendTime()
+			self.vehicleState.timeout.GCSLastRx = time.time()
+#			self.vehicleState.timeout.GCSLastRx = msg.sendTime()
 
-		
-	
-			
-		
-		
-	
-	
-		
-		
-		
-
-	
-	
-	
-		
-			

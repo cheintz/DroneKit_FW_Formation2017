@@ -48,14 +48,16 @@ class Receiver(threading.Thread):
 			#		msg = { str(key):value for key,value in msg.items() }
 			#		print "\n\n\n"
 			#		print msg
-					print msg.keys()
-					print type(msg)
-					print msg.content
-#					print "Received valid packet from" + str(msg.content.ID) + " With Roll: " + stsr(msg.content.attitude.roll)
+#					print msg.keys()
+#					print type(msg)
+#					print msg.content
+					print "Received valid packet from" + str(msg.content.ID) + " With Roll: " + str(msg.content.attitude.roll)
 				except ValueError:
 					print "received non JSON packet"
-#				self.s.receiveQueue.put(msg)
-				print "Received, did nothing"
+				self.receiveQueue.put(msg)
+				if(self.receiveQueue.qsize()>5):
+					print "Receive Queue Size" + str(self.receiveQueue.qsize())
+			#	print "Received, did nothing"
 		except socket.error, e:
 			if not e.args[0] == 'timed out':
 				raise e
