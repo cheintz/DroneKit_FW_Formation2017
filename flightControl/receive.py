@@ -5,6 +5,7 @@ import Queue
 import logging
 import threading
 import jsonpickle
+import cPickle
 
 class Receiver(threading.Thread):
 	def __init__(self,receiveQueue,AdHocIP, port):
@@ -28,12 +29,12 @@ class Receiver(threading.Thread):
 			try:
 				self.receiveMessage()
 			except Queue.Empty:
-#				thread.sleep(0.001)
+#				thread.sleep(0.001) #not necessary because receiveMessage() is blocking (with timeout)
 				break #no more messages.
 		print "Receive Stopped"
 	def receiveMessage(self):
 		try:
-			mp = self.s.recvfrom(2048)
+			mp = self.s.recvfrom(4096)
 			if(mp[1] == (self.AdHocIP,self.port)):
 #				print "received my own message"
 				pass
@@ -43,7 +44,8 @@ class Receiver(threading.Thread):
 				try:
 				#	print mp + "\n\n\n"
 			#		print type(mp)
-					msg = jsonpickle.decode(mp)
+#					msg = jsonpickle.decode(mp)
+					msg=cPickle.loads(mp)
 			#		print msg
 			#		msg = { str(key):value for key,value in msg.items() }
 			#		print "\n\n\n"
@@ -51,10 +53,11 @@ class Receiver(threading.Thread):
 #					print msg.keys()
 #					print type(msg)
 #					print msg.content
-					print "Received valid packet from" + str(msg.content.ID) + " With Roll: " + str(msg.content.attitude.roll)
+#					print "Received valid packet from" + str(msg.content.ID) + " With Roll: " + str(msg.content.attitude.roll)
+#					self.receiveQueue.put(msg)
+					pass
 				except ValueError:
 					print "received non JSON packet"
-				self.receiveQueue.put(msg)
 				if(self.receiveQueue.qsize()>5):
 					print "Receive Queue Size" + str(self.receiveQueue.qsize())
 			#	print "Received, did nothing"

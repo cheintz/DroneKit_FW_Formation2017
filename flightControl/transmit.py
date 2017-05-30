@@ -5,6 +5,7 @@ import Queue
 import logging
 import threading
 import jsonpickle
+import cPickle
 
 class Transmitter(threading.Thread):
 
@@ -24,8 +25,10 @@ class Transmitter(threading.Thread):
 	def run(self):
 		while( not self.stoprequest.is_set()):
 			while( not self.transmitQueue.empty()):
+				if(self.transmitQueue.qsize()>5):
+					print "TX Queue" + str(self.transmitQueue.qsize())
 				try:
-					msg = self.transmitQueue.get(False)
+					msg = self.transmitQueue.get(True, 0.5)
 					self.sendMessage(msg)
 					#print "Sent a message"
 					self.transmitQueue.task_done() #May or may not be helpful
@@ -35,10 +38,10 @@ class Transmitter(threading.Thread):
 		print "Transmit Stopped"
 					
 	def sendMessage(self, msg):
-#		print "About to transmit" + str(msg)
-#		mp = jsonpickle.encode(msg._asdict())
-		mp = jsonpickle.encode(msg)
-		
+#		print "About to transmit" + str(msg.content.attitude.roll)
+#		mp = jsonpickle.encode(msg)
+		mp = cPickle.dumps(msg)
+#		print "Length: " + str(len(mp))		
 #		print "Encoded is" + mp
 		self.s.sendto(mp,self.sendAddress);
 		#print "Send complete"

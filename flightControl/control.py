@@ -58,7 +58,7 @@ class Controller(threading.Thread):
 			if(self.isFlocking):
 				self.computeControl() #writes the control values to self.vehicleState
 				self.scaleAndWriteCommands()
-			# print "pushing to queue" + str(time.time())
+#			print "pushing to queue" + str(time.time())
 			self.pushStateToTxQueue(); #sends the state to the UDP sending threading
 			time.sleep(0.05)
 			
@@ -81,13 +81,13 @@ class Controller(threading.Thread):
 			ID=msg.content.ID
 			self.stateVehicles[ID] = msg.content
 			#self.vehicleState.timeout.peerLastRX[ID]=msg.sendTime
-			self.vehicleState.timeout.peerLastRX[ID]=time.time()
-			
+			self.vehicleState.timeout.peerLastRX[ID]=time.time()			
 			
 	def scaleAndWriteCommands(self,cmd,vehicle):
 		xPWM = cmd.headingRate * self.parameters.headingGain+self.parameters.headingOffset
 		yPWM = cmd.climbRate*self.parameters.climbGain + self.parameters.climbOffset
 		zPWM = cmd.airspeed*self.parameters.speedGain + self.parameters.speedOffset
+		#need to enforce saturation, including throttle 1500-2000
 		vehicle.channels.overrides = {'1': xPWM, '2': yPWM,'3': zPWM}
 	def releaseControl(self):
 		self.vehicle.channels.overrides = {}
@@ -103,6 +103,7 @@ class Controller(threading.Thread):
 			self.commenceRTL()
 			# print "returned from RTL function" + str(time.time())
 			self.commands = {0,0,0}
+			return True
 			
 		if (self.vehicle.channels['5'] < 1700 or self.vehicle.channels['5'] > 1900):
 			self.isFlocking = False
@@ -129,8 +130,8 @@ class Controller(threading.Thread):
 			
 	def getVehicleState(self):		#Should probably check for timeout, etc.
 		self.vehicleState.attitude = self.vehicle.attitude
-		self.vehicleState.channels = self.vehicle.channels.items()
-#		print	self.vehicleState.channels.items
+		self.vehicleState.channels = self.vehicle.channels.items() #necessary to be able to serialize it
+		print	str(time.time())  +"\t" + str(self.vehicle.attitude.roll) + "\t" + str((self.vehicleState.timeout.peerTimeoutTime)) + "\t" + str((self.vehicleState.timeout.peerLastRX))
 		self.vehicleState.position = self.vehicle.location.global_frame
 		self.vehicleState.velocity = self.vehicle.velocity
 		self.vehicleState.isArmable = self.vehicle.is_armable
@@ -143,6 +144,7 @@ class Controller(threading.Thread):
 		msg.sendTime = time.time()
 		#msg.content=jsonpickle.encode(self.vehicleState)
 		msg.content = self.vehicleState
+	#	print msg.content.attitude.roll
 	#	print type(msg)
 		self.transmitQueue.put(msg)
 		return msg
