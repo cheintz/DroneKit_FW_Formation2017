@@ -4,7 +4,7 @@ Timeout = recordtype('Timeout' , ['GCSTimeoutTime', ('peerTimeoutTime',{}), 'loc
 
 Parameter = recordtype('Parameter','receivedTime,isComplete,desiredPosition,ctrlGains GCSTimeout peerTimeout, leaderID, expectedMAVs', default = None)
 
-VehicleState = recordtype('VehicleState', [ ('isArmable' , False) ,'ID', 'time',  'attitude', 'channels', 'position', 'velocity', 'mode', 'commands', ('isFlocking',False), ('readyForFlocking', False), 'abortReason', ('timeout', Timeout()), ('parameters',Parameter())], default = None )
+VehicleState = recordtype('VehicleState', [ ('isArmable' , False) ,'ID', 'time',  'attitude', 'channels', 'position', 'velocity', 'mode', 'command', ('isFlocking',False), ('RCLatch', True), 'abortReason', ('timeout', Timeout()), ('parameters',Parameter())], default = None )
 		
 Command = recordtype('Commands','headingRate,climbRate,airSpeed,timestamp', default = None)		
 

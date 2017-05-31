@@ -45,23 +45,18 @@ class Controller(threading.Thread):
 					self.receiveQueue.task_done() #May or may not be helpful
 				except Queue.Empty:
 					break #no more messages.
-			# print "About to get vehicle state" + str(time.time())
 			self.getVehicleState() #Get update from the Pixhawk
-			# print type(self.vehicleState.timeout)
 
-			# print "about to check abort"
-			self.checkAbort()
-			#print type(self.vehicleState.timeout)
-			# print "about to check flocking" + str(time.time())
 			if(not self.vehicleState.isFlocking): #Should we engage flocking
 				self.checkEngageFlocking()
 			if(self.vehicleState.isFlocking):# and self.parameters.leaderID != self.vehicleState.ID):
-				print "Would write commands"
-				self.computeControl() #writes the control values to self.vehicleState
-				self.scaleAndWriteCommands()
+				if(not self.checkAbort()):
+					print "Would write commands"
+					self.computeControl() #writes the control values to self.vehicleState
+					self.scaleAndWriteCommands()
 #			print "pushing to queue" + str(time.time())
 			self.pushStateToTxQueue(); #sends the state to the UDP sending threading
-			print "Is Flocking: " + str(self.vehicleState.isFlocking) + "Ready for flocking" + str(self.vehicleState.readyForFlocking)
+			print "Is Flocking: " + str(self.vehicleState.isFlocking) + "RC Latch: " + str(self.vehicleState.RCLatch)
 			time.sleep(0.05)
 			
 				#TODO: find a way to clear timeouts, if necessary
@@ -81,7 +76,7 @@ class Controller(threading.Thread):
 	def parseUAVMessage(self,msg):
 		if(msg.content.ID>0):
 			ID=int(msg.content.ID)
-			print "received from:" + str(ID)
+#			print "received from:" + str(ID)
 			self.stateVehicles[ID] = msg.content
 			#self.vehicleState.timeout.peerLastRX[ID]=msg.sendTime
 			self.vehicleState.timeout.peerLastRX[ID]=time.time()
@@ -97,12 +92,19 @@ class Controller(threading.Thread):
 	def releaseControl(self):
 		self.vehicle.channels.overrides = {}
 		
-	def checkAbort(self):
+	def checkAbort(self): #only call if flocking!!
 		# print "in checkAbort" + str(time.time())
+		if(self.checkTimeouts()): #If we had a timeout
+			"Abort - Timeout" + str(time.time())
+			self.vehicleStateabortReason = "Timeout"
+			self.vehicleState.isFlocking = False
+			self.vehicleState.RCLatch = True
+			self.releaseControl()
+			self.commands = {0,0,0}			
 		if (not (self.vehicle.mode == acceptableControlMode)): #if switched out of acceptable modes
 			print "Abort - control mode" + str(time.time())
+			self.vehicleState.RCLatch = True			
 			self.isFlocking = False
-			self.readyForFlocking = False
 			self.abortReason = "Control Mode" #Elaborate on this to detect RTL due to failsafe
 			# print "About to RTL" + str(time.time())
 			self.commenceRTL()
@@ -111,7 +113,8 @@ class Controller(threading.Thread):
 			return True
 			
 		if (self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 1900):
-			self.isFlocking = False
+			self.vehicleState.isFlocking = False
+			self.vehicleState.RCLatch = True			
 			self.abortReason = "RC Disable"
 			print "RC Disable" + str(time.time())
 			self.releaseControl()
@@ -124,19 +127,29 @@ class Controller(threading.Thread):
 		#Check Timeouts
 		if(self.checkTimeouts()):
 			print "Won't engage - Timeouts"
-			return False
-		#Check RC enable
-		if(self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 1900):
-			print "Won't engage. Channel 7 = " + str(self.vehicle.channels['7'])
+			self.vehicleState.RCLatch = True
 			return False
 		#Check configuration
 		if(not self.parameters.isComplete):
+			self.vehicleState.RCLatch = True
 			return False
 		#check expected number of peers
 		if(len(self.stateVehicles) != self.parameters.expectedMAVs-1):
 			print "Won't engage; Not enough MAVs. Expecting " + str(self.parameters.expectedMAVs) + ". Connected to:" + str(self.stateVehicles.keys())
+			self.vehicleState.RCLatch = True
 			return False	
-		print "okay to engage flocking"
+
+		#Check RC enable
+		if(self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 1900):
+			print "Won't engage. Channel 7 = " + str(self.vehicle.channels['7'])
+			self.vehicleState.RCLatch = False #We got this far, which means that the only issue is the enable. Thus, if they enable, we can engage
+			return False
+		elif(self.vehicleState.RCLatch == True): #Catch the latch to ensure any new passing condition doesn't cause flocking to (re)start
+			return False
+
+		self.vehicleState.RCLatch = True #Set the latch
+		self.vehicleState.isFlocking= True #enable flocking
+		print "OK to engage flocking"
 		return True
 			
 	def getVehicleState(self):		#Should probably check for timeout, etc.
@@ -165,16 +178,17 @@ class Controller(threading.Thread):
 		self.releaseControl()
 	def checkTimeouts(self):
 		didTimeOut = False
-		if(time.time() - self.lastGCSContact< time.time()+ self.parameters.GCSTimeout ):
+		if(time.time() - self.lastGCSContact< time.time()- self.parameters.GCSTimeout ):
 			print "GCS Timeout - Overridden"
 		#if(True):
 			self.vehicleState.timeout.GCSTimeoutTime = time.time()
 #			didTimeOut = True
 		for IDS in self.stateVehicles.keys():
 			ID=int(IDS)	
-			if(self.vehicleState.timeout.peerLastRX[ID]<time.time()+self.parameters.peerTimeout):
+			if(self.vehicleState.timeout.peerLastRX[ID]<time.time()-self.parameters.peerTimeout):
 				self.vehicleState.timeout.peerTimeoutTime[ID]=time.time()
 				print "Timeout - ID: " + str(ID)
+#				print "LastRX: " + str(self.vehicleState.timeout.peerLastRX[ID]) + "\t" + 
 		
 		return didTimeOut
 	def parseGCSMessage(self, msg):
@@ -189,3 +203,10 @@ class Controller(threading.Thread):
 			self.vehicleState.timeout.GCSLastRx = time.time()
 #			self.vehicleState.timeout.GCSLastRx = msg.sendTime()
 
+	def computeControl(self):
+		thisCommand  = Command
+		thisCommand. headingRate =1
+		thisCommand.climbRate =1
+		thisCommand.airSpeed = 1
+		thisCommand.timestamp = time.time()
+		self.vehicleState.command = thisCommand
