@@ -6,7 +6,7 @@ import Queue
 import threading	
 import transmit, control, receive
 import vehicleState
-
+from defaultConfig import *
 
 import argparse 
  
@@ -54,7 +54,7 @@ vehicle = connect(connection_string, wait_ready=True, rate=20, baud=1500000)
 
 vehicle.wait_ready('autopilot_version')
 
-defaultParams = vehicleState.Parameter(time.time(),False,0,0)
+#defaultParams = vehicleState.Parameter(time.time(),False,0,0) #now generated in defaultConfig.py
 
 controlThread = control.Controller(loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams)
 

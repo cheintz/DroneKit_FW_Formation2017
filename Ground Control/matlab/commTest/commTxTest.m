@@ -1,7 +1,7 @@
 %Broadcast UDP packets to verify communication
 
-fclose(instrfindall);
-u = udp('192.168.1.255',5001);
+%fclose(instrfindall);
+u = udp('192.168.0.255',5001);
 fopen(u);
 
 msg='Hello World';
