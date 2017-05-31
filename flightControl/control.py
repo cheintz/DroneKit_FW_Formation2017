@@ -81,6 +81,7 @@ class Controller(threading.Thread):
 	def parseUAVMessage(self,msg):
 		if(msg.content.ID>0):
 			ID=msg.content.ID
+			print "received from:" + str(ID)
 			self.stateVehicles[ID] = msg.content
 			#self.vehicleState.timeout.peerLastRX[ID]=msg.sendTime
 			self.vehicleState.timeout.peerLastRX[ID]=time.time()			

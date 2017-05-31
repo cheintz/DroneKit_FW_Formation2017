@@ -54,10 +54,10 @@ class Receiver(threading.Thread):
 #					print type(msg)
 #					print msg.content
 #					print "Received valid packet from" + str(msg.content.ID) + " With Roll: " + str(msg.content.attitude.roll)
-#					self.receiveQueue.put(msg)
+					self.receiveQueue.put(msg)
 					pass
 				except ValueError:
-					print "received non JSON packet"
+					print "received invalid packet"
 				if(self.receiveQueue.qsize()>5):
 					print "Receive Queue Size" + str(self.receiveQueue.qsize())
 			#	print "Received, did nothing"
