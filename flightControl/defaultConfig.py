@@ -11,3 +11,4 @@ defaultParams.ctrlGains = {'kl':1, 'k2': 0.2}
 defaultParams.GCSTimeout = 5 #seconds
 defaultParams.peerTimeout = 1 #seconds
 defaultParams.leaderID = 1   #MAV ID of leader
+defaultParams.expectedMAVs = 2 #One, plus the leader

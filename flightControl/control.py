@@ -53,13 +53,15 @@ class Controller(threading.Thread):
 			self.checkAbort()
 			#print type(self.vehicleState.timeout)
 			# print "about to check flocking" + str(time.time())
-			if(not self.isFlocking): #Should we engage flocking
+			if(not self.vehicleState.isFlocking): #Should we engage flocking
 				self.checkEngageFlocking()
-			if(self.isFlocking and self.parameters.leaderID != self.vehicleState.ID):
+			if(self.vehicleState.isFlocking):# and self.parameters.leaderID != self.vehicleState.ID):
+				print "Would write commands"
 				self.computeControl() #writes the control values to self.vehicleState
 				self.scaleAndWriteCommands()
 #			print "pushing to queue" + str(time.time())
 			self.pushStateToTxQueue(); #sends the state to the UDP sending threading
+			print "Is Flocking: " + str(self.vehicleState.isFlocking) + "Ready for flocking" + str(self.vehicleState.readyForFlocking)
 			time.sleep(0.05)
 			
 				#TODO: find a way to clear timeouts, if necessary
@@ -87,6 +89,8 @@ class Controller(threading.Thread):
 		xPWM = cmd.headingRate * self.parameters.headingGain+self.parameters.headingOffset
 		yPWM = cmd.climbRate*self.parameters.climbGain + self.parameters.climbOffset
 		zPWM = cmd.airspeed*self.parameters.speedGain + self.parameters.speedOffset
+		xPWM = 1600+100*sin(time.time())
+		yPWM = 1600+100*cos(time.time())
 		#need to enforce saturation, including throttle 1500-2000
 		vehicle.channels.overrides = {'1': xPWM, '2': yPWM,'3': zPWM}
 	def releaseControl(self):
@@ -95,7 +99,7 @@ class Controller(threading.Thread):
 	def checkAbort(self):
 		# print "in checkAbort" + str(time.time())
 		if (not (self.vehicle.mode == acceptableControlMode)): #if switched out of acceptable modes
-			# print "Abort - control mode" + str(time.time())
+			print "Abort - control mode" + str(time.time())
 			self.isFlocking = False
 			self.readyForFlocking = False
 			self.abortReason = "Control Mode" #Elaborate on this to detect RTL due to failsafe
@@ -105,27 +109,33 @@ class Controller(threading.Thread):
 			self.commands = {0,0,0}
 			return True
 			
-		if (self.vehicle.channels['5'] < 1700 or self.vehicle.channels['5'] > 1900):
+		if (self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 1900):
 			self.isFlocking = False
 			self.abortReason = "RC Disable"
+			print "RC Disable" + str(time.time())
 			self.releaseControl()
 			self.commands = {0,0,0}
 			return True
+		print "Do not abort flocking"
 		return False
 		
 	def checkEngageFlocking(self):
 		#Check Timeouts
 		if(self.checkTimeouts()):
+			print "Won't engage - Timeouts"
 			return False
 		#Check RC enable
-		if(self.vehicle.channels['5'] > 1700 and self.vehicle.channels['5'] < 1900):
+		if(self.vehicle.channels['7'] > 1700 and self.vehicle.channels['7'] < 1900):
+			print "Won't engage. Channel 7 = " + str(self.vehicle.channels['7'])
 			return False
 		#Check configuration
-		if(not self.parameters.self.parameters.isComplete):
+		if(not self.parameters.isComplete):
 			return False
 		#check expected number of peers
 		if(len(self.stateVehicles) != self.parameters.expectedMAVs):
+			print "Won't engage; Not enough MAVs. Expecting" + str(self.parameters.expectedMAVs) + ". Connected to:" + str(self.stateVehicles.keys())
 			return False	
+		print "okay to engage flocking"
 		return true
 			
 	def getVehicleState(self):		#Should probably check for timeout, etc.
@@ -150,18 +160,20 @@ class Controller(threading.Thread):
 		return msg
 	def commenceRTL(self):
 		self.vehicle.parameters['ALT_HOLD_RTL'] = (70 + 10 * self.vehicle.parameters['SYSID_THISMAV']) * 100
-		self.vehicle.mode = VehicleMode("RTL")
+#		self.vehicle.mode = VehicleMode("RTL")
 		self.releaseControl()
 	def checkTimeouts(self):
 		didTimeOut = False
 		if(time.time() - self.lastGCSContact> self.parameters.GCSTimeout ):
+			print "GCS Timeout - Overridden"
 		#if(True):
 			self.vehicleState.timeout.GCSTimeoutTime = time.time()
-			didTimeOut = True
+#			didTimeOut = True
 		for IDS in self.stateVehicles.keys():
 			ID=int(IDS)	
 			if(self.vehicleState.timeout.peerLastRX[ID]>self.parameters.peerTimeout):
 				self.vehicleState.timeout.peerTimeoutTime[ID]=time.time()
+				print "Timeout - ID" + str(ID)
 		
 		return didTimeOut
 	def parseGCSMessage(self, msg):
