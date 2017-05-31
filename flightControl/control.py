@@ -24,7 +24,7 @@ class Controller(threading.Thread):
 		self.vehicle=vehicle
 		self.parameters = defaultParams
 		self.vehicleState = VehicleState()
-		self.vehicleState.ID = self.vehicle.parameters['SYSID_THISMAV']
+		self.vehicleState.ID = int(self.vehicle.parameters['SYSID_THISMAV'])
 		# print "Constructor \n\n"
 		# print type(self.vehicleState)
 		self.command = Command()
@@ -80,11 +80,11 @@ class Controller(threading.Thread):
 		
 	def parseUAVMessage(self,msg):
 		if(msg.content.ID>0):
-			ID=msg.content.ID
+			ID=int(msg.content.ID)
 			print "received from:" + str(ID)
 			self.stateVehicles[ID] = msg.content
 			#self.vehicleState.timeout.peerLastRX[ID]=msg.sendTime
-			self.vehicleState.timeout.peerLastRX[ID]=time.time()			
+			self.vehicleState.timeout.peerLastRX[ID]=time.time()
 			
 	def scaleAndWriteCommands(self,cmd,vehicle):
 		xPWM = cmd.headingRate * self.parameters.headingGain+self.parameters.headingOffset
@@ -126,18 +126,18 @@ class Controller(threading.Thread):
 			print "Won't engage - Timeouts"
 			return False
 		#Check RC enable
-		if(self.vehicle.channels['7'] > 1700 and self.vehicle.channels['7'] < 1900):
+		if(self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 1900):
 			print "Won't engage. Channel 7 = " + str(self.vehicle.channels['7'])
 			return False
 		#Check configuration
 		if(not self.parameters.isComplete):
 			return False
 		#check expected number of peers
-		if(len(self.stateVehicles) != self.parameters.expectedMAVs):
-			print "Won't engage; Not enough MAVs. Expecting" + str(self.parameters.expectedMAVs) + ". Connected to:" + str(self.stateVehicles.keys())
+		if(len(self.stateVehicles) != self.parameters.expectedMAVs-1):
+			print "Won't engage; Not enough MAVs. Expecting " + str(self.parameters.expectedMAVs) + ". Connected to:" + str(self.stateVehicles.keys())
 			return False	
 		print "okay to engage flocking"
-		return true
+		return True
 			
 	def getVehicleState(self):		#Should probably check for timeout, etc.
 		self.vehicleState.attitude = self.vehicle.attitude
@@ -165,16 +165,16 @@ class Controller(threading.Thread):
 		self.releaseControl()
 	def checkTimeouts(self):
 		didTimeOut = False
-		if(time.time() - self.lastGCSContact> self.parameters.GCSTimeout ):
+		if(time.time() - self.lastGCSContact< time.time()+ self.parameters.GCSTimeout ):
 			print "GCS Timeout - Overridden"
 		#if(True):
 			self.vehicleState.timeout.GCSTimeoutTime = time.time()
 #			didTimeOut = True
 		for IDS in self.stateVehicles.keys():
 			ID=int(IDS)	
-			if(self.vehicleState.timeout.peerLastRX[ID]>self.parameters.peerTimeout):
+			if(self.vehicleState.timeout.peerLastRX[ID]<time.time()+self.parameters.peerTimeout):
 				self.vehicleState.timeout.peerTimeoutTime[ID]=time.time()
-				print "Timeout - ID" + str(ID)
+				print "Timeout - ID: " + str(ID)
 		
 		return didTimeOut
 	def parseGCSMessage(self, msg):
