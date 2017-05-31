@@ -55,7 +55,7 @@ class Controller(threading.Thread):
 			# print "about to check flocking" + str(time.time())
 			if(not self.isFlocking): #Should we engage flocking
 				self.checkEngageFlocking()
-			if(self.isFlocking):
+			if(self.isFlocking and self.parameters.leaderID != self.vehicleState.ID):
 				self.computeControl() #writes the control values to self.vehicleState
 				self.scaleAndWriteCommands()
 #			print "pushing to queue" + str(time.time())
@@ -131,7 +131,7 @@ class Controller(threading.Thread):
 	def getVehicleState(self):		#Should probably check for timeout, etc.
 		self.vehicleState.attitude = self.vehicle.attitude
 		self.vehicleState.channels = self.vehicle.channels.items() #necessary to be able to serialize it
-		print	str(time.time())  +"\t" + str(self.vehicle.attitude.roll) + "\t" + str((self.vehicleState.timeout.peerTimeoutTime)) + "\t" + str((self.vehicleState.timeout.peerLastRX))
+#		print	str(time.time())  +"\t" + str(self.vehicle.attitude.roll) + "\t" + str((self.vehicleState.timeout.peerTimeoutTime)) + "\t" + str((self.vehicleState.timeout.peerLastRX))
 		self.vehicleState.position = self.vehicle.location.global_frame
 		self.vehicleState.velocity = self.vehicle.velocity
 		self.vehicleState.isArmable = self.vehicle.is_armable

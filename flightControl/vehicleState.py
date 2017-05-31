@@ -2,7 +2,7 @@ from recordtype import recordtype
 
 Timeout = recordtype('Timeout' , ['GCSTimeoutTime', ('peerTimeoutTime',{}), 'localTimeoutTime', 'GCSLastRx', ('peerLastRX',{})], default = None)
 
-Parameter = recordtype('Parameter','receivedTime,isComplete,desiredPosition,ctrlGains GCSTimeout peerTimeout', default = None)
+Parameter = recordtype('Parameter','receivedTime,isComplete,desiredPosition,ctrlGains GCSTimeout peerTimeout, leaderID', default = None)
 
 VehicleState = recordtype('VehicleState', [ ('isArmable' , False) ,'ID', 'time',  'attitude', 'channels', 'position', 'velocity', 'mode', 'commands', ('isFlocking',False), ('readyForFlocking', False), 'abortReason', ('timeout', Timeout()), ('parameters',Parameter())], default = None )
 		
