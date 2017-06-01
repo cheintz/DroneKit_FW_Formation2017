@@ -81,14 +81,14 @@ class Controller(threading.Thread):
 			#self.vehicleState.timeout.peerLastRX[ID]=msg.sendTime
 			self.vehicleState.timeout.peerLastRX[ID]=time.time()
 			
-	def scaleAndWriteCommands(self,cmd,vehicle):
-		xPWM = cmd.headingRate * self.parameters.headingGain+self.parameters.headingOffset
-		yPWM = cmd.climbRate*self.parameters.climbGain + self.parameters.climbOffset
-		zPWM = cmd.airspeed*self.parameters.speedGain + self.parameters.speedOffset
+	def scaleAndWriteCommands(self):
+		xPWM = self.vehicleState.command.headingRate * self.parameters.headingGain+self.parameters.headingOffset
+		yPWM = self.vehicleState.command.climbRate*self.parameters.climbGain + self.parameters.climbOffset
+		zPWM = self.vehicleState.command.airspeed*self.parameters.speedGain + self.parameters.speedOffset
 		xPWM = 1600+100*sin(time.time())
 		yPWM = 1600+100*cos(time.time())
 		#need to enforce saturation, including throttle 1500-2000
-		vehicle.channels.overrides = {'1': xPWM, '2': yPWM,'3': zPWM}
+		self.vehicle.channels.overrides = {'1': xPWM, '2': yPWM,'3': zPWM}
 	def releaseControl(self):
 		self.vehicle.channels.overrides = {}
 		
@@ -140,6 +140,10 @@ class Controller(threading.Thread):
 			return False	
 
 		#Check RC enable
+		if (not (self.vehicle.mode == acceptableControlMode)): #if switched out of acceptable modes
+			print "Won't engage - control mode" 
+			self.vehicleState.RCLatch = True			
+			return False			
 		if(self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 1900):
 			print "Won't engage. Channel 7 = " + str(self.vehicle.channels['7'])
 			self.vehicleState.RCLatch = False #We got this far, which means that the only issue is the enable. Thus, if they enable, we can engage
