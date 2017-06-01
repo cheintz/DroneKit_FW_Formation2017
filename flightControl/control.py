@@ -7,6 +7,7 @@ import Queue
 import threading
 import recordtype
 import jsonpickle
+import math as m
 
 acceptableControlMode = VehicleMode("FBWB")
 
@@ -84,9 +85,9 @@ class Controller(threading.Thread):
 	def scaleAndWriteCommands(self):
 		xPWM = self.vehicleState.command.headingRate * self.parameters.headingGain+self.parameters.headingOffset
 		yPWM = self.vehicleState.command.climbRate*self.parameters.climbGain + self.parameters.climbOffset
-		zPWM = self.vehicleState.command.airspeed*self.parameters.speedGain + self.parameters.speedOffset
-		xPWM = 1600+100*sin(time.time())
-		yPWM = 1600+100*cos(time.time())
+		zPWM = self.vehicleState.command.airSpeed*self.parameters.speedGain + self.parameters.speedOffset
+		xPWM = 1600+100*m.sin(time.time())
+		yPWM = 1600+100*m.cos(time.time())
 		#need to enforce saturation, including throttle 1500-2000
 		self.vehicle.channels.overrides = {'1': xPWM, '2': yPWM,'3': zPWM}
 	def releaseControl(self):
