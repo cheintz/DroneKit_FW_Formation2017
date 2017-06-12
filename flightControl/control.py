@@ -89,8 +89,8 @@ class Controller(threading.Thread):
 
 
 		
-		xPWM = 1600+100*m.sin(datetime.now())
-		yPWM = 1600+100*m.cos(datetime.now())
+		xPWM = 1600+100*m.sin(time.time())
+		yPWM = 1600+100*m.cos(time.time())
 		zPWM = 1510 #This is throttle off
 
 
@@ -167,7 +167,7 @@ class Controller(threading.Thread):
 			self.vehicleState.RCLatch = True
 			return False
 		if(self.vehicle.channels['6'] < 1700 or self.vehicle.channels['6'] > 2100):
-			print "Won't engage. Channel 7 = " + str(self.vehicle.channels['7'])
+			print "Won't engage. Channel 6 = " + str(self.vehicle.channels['6'])
 			self.vehicleState.RCLatch = False #We got this far, which means that the only issue is the enable. Thus, if they enable, we can engage
 			return False
 		elif(self.vehicleState.RCLatch == True): #Catch the latch to ensure any new passing condition doesn't cause flocking to (re)start
@@ -243,8 +243,8 @@ class Controller(threading.Thread):
 		thisCommand.airSpeed = 1
 		thisCommand.timestamp = datetime.now()
 		self.vehicleState.command = thisCommand
-def saturate(value, min, max):
-	out = max(value,min)
-	out = min(out,max)
+def saturate(value, minimum, maximum):
+	out = max(value,minimum)
+	out = min(out,maximum)
 	return out
 	
