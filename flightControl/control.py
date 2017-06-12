@@ -123,8 +123,14 @@ class Controller(threading.Thread):
 			# print "returned from RTL function" + str(time.time())
 			self.commands = {0,0,0}
 			return True
-			
 		if (self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 1900):
+			print "Abort - Geofence not enabled"
+			self.vehicelState.RCLatch = True
+			self.vehicelState.isFlocking = False
+			self.vehicleState.abortReason = "Geofence"
+			self.commenceRTL()
+			self.commands = {0,0,0}
+		if (self.vehicle.channels['6'] < 1700 or self.vehicle.channels['6'] > 2100):
 			self.vehicleState.isFlocking = False
 			self.vehicleState.RCLatch = True			
 			self.abortReason = "RC Disable"
@@ -156,7 +162,11 @@ class Controller(threading.Thread):
 			print "Won't engage - control mode" 
 			self.vehicleState.RCLatch = True			
 			return False			
-		if(self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 1900):
+		if(self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 1900): #Geofence
+			print "Won't engage. Geofence not enabled"
+			self.vehicleState.RCLatch = True
+			return False
+		if(self.vehicle.channels['6'] < 1700 or self.vehicle.channels['6'] > 2100):
 			print "Won't engage. Channel 7 = " + str(self.vehicle.channels['7'])
 			self.vehicleState.RCLatch = False #We got this far, which means that the only issue is the enable. Thus, if they enable, we can engage
 			return False
@@ -207,7 +217,7 @@ class Controller(threading.Thread):
 #			didTimeOut = True
 		for IDS in self.stateVehicles.keys():
 			ID=int(IDS)	
-			if(self.vehicleState.timeout.peerLastRX[ID]<time.time()-self.parameters.peerTimeout):
+			if(self.vehicleState.timeout.peerLastRX[ID]<datetime.now()-timedelta(seconds = self.parameters.peerTimeout)):
 				self.vehicleState.timeout.peerTimeoutTime[ID]=datetime.now()
 				print "Timeout - ID: " + str(ID)
 #				print "LastRX: " + str(self.vehicleState.timeout.peerLastRX[ID]) + "\t" + 

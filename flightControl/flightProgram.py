@@ -31,7 +31,7 @@ receiveQueue = Queue.Queue()
 
 receiveThread = receive.Receiver(receiveQueue,AdHocIP,peerReadPort)
 transmitThread = transmit.Transmitter(transmitQueue,AdHocIP,peerReadPort,transmitAddress)
-logThread = log.Logger(loggingQueue)
+logThread = log.Logger(loggingQueue,logPath)
 
 #Parse the connection arg and connect to the vehicle
 parser = argparse.ArgumentParser(description='Print out vehicle state information. Connects to SITL on local PC by default.')

@@ -12,12 +12,12 @@ from datetime import datetime
 
 class Logger(threading.Thread):
 
-	def __init__(self,logQueue):
+	def __init__(self,logQueue,logPath):
 		threading.Thread.__init__(self)
 		self.logQueue=logQueue
 		self.stoprequest = threading.Event()
 #		self.file=open(datetime.now().strftime("log_%y_%m_%d_%H_%M_%S.json"),'w')
-		self.file=open(os.path.join("/home/pi/logs" ,datetime.now().strftime("log_%Y_%m_%d__%H_%M_%S.json")),'w')
+		self.file=open(os.path.join(logPath ,datetime.now().strftime("log_%Y_%m_%d__%H_%M_%S.json")),'w')
 	def stop (self):
 		self.stoprequest.set()	
 		print "Stop flag set - Log"
