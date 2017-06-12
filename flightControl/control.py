@@ -8,6 +8,7 @@ import threading
 import recordtype
 import jsonpickle
 import math as m
+from datetime import datetime, timedelta
 
 acceptableControlMode = VehicleMode("FBWB")
 
@@ -56,7 +57,8 @@ class Controller(threading.Thread):
 					self.computeControl() #writes the control values to self.vehicleState
 					self.scaleAndWriteCommands()
 #			print "pushing to queue" + str(time.time())
-			self.pushStateToTxQueue(); #sends the state to the UDP sending threading
+			self.pushStateToTxQueue() #sends the state to the UDP sending threading
+			self.pushStateToLoggingQueue()
 			print "Is Flocking: " + str(self.vehicleState.isFlocking) + "RC Latch: " + str(self.vehicleState.RCLatch)
 			time.sleep(0.05)
 			
@@ -80,14 +82,15 @@ class Controller(threading.Thread):
 #			print "received from:" + str(ID)
 			self.stateVehicles[ID] = msg.content
 			#self.vehicleState.timeout.peerLastRX[ID]=msg.sendTime
-			self.vehicleState.timeout.peerLastRX[ID]=time.time()
+			self.vehicleState.timeout.peerLastRX[ID]=datetime.now()
 			
 	def scaleAndWriteCommands(self):
 		xPWM = self.vehicleState.command.headingRate * self.parameters.headingGain+self.parameters.headingOffset
 		yPWM = self.vehicleState.command.climbRate*self.parameters.climbGain + self.parameters.climbOffset
 		zPWM = self.vehicleState.command.airSpeed*self.parameters.speedGain + self.parameters.speedOffset
-		xPWM = 1600+100*m.sin(time.time())
-		yPWM = 1600+100*m.cos(time.time())
+		xPWM = 1600+100*m.sin(datetime.now())
+		yPWM = 1600+100*m.cos(datetime.now())
+		zPWM = 1510 #This is throttle off
 		#need to enforce saturation, including throttle 1500-2000
 		self.vehicle.channels.overrides = {'1': xPWM, '2': yPWM,'3': zPWM}
 	def releaseControl(self):
@@ -96,17 +99,19 @@ class Controller(threading.Thread):
 	def checkAbort(self): #only call if flocking!!
 		# print "in checkAbort" + str(time.time())
 		if(self.checkTimeouts()): #If we had a timeout
-			"Abort - Timeout" + str(time.time())
+			"Abort - Timeout" + str(datetime.now())
 			self.vehicleStateabortReason = "Timeout"
 			self.vehicleState.isFlocking = False
 			self.vehicleState.RCLatch = True
 			self.releaseControl()
 			self.commands = {0,0,0}			
+			return True
+		print "Flight Mode: " + str(self.vehicle.mode)
 		if (not (self.vehicle.mode == acceptableControlMode)): #if switched out of acceptable modes
-			print "Abort - control mode" + str(time.time())
+			print "Abort - control mode" + str(datetime.now())
 			self.vehicleState.RCLatch = True			
-			self.isFlocking = False
-			self.abortReason = "Control Mode" #Elaborate on this to detect RTL due to failsafe
+			self.vehicleState.isFlocking = False
+			self.vehicleState.abortReason = "Control Mode" #Elaborate on this to detect RTL due to failsafe
 			# print "About to RTL" + str(time.time())
 			self.commenceRTL()
 			# print "returned from RTL function" + str(time.time())
@@ -165,25 +170,31 @@ class Controller(threading.Thread):
 		self.vehicleState.velocity = self.vehicle.velocity
 		self.vehicleState.isArmable = self.vehicle.is_armable
 		self.vehicleState.mode = self.vehicle.mode
-		self.vehicleState.timeout.localTimeoutTime=lastPX4RxTime =time.time()
+		self.vehicleState.timeout.localTimeoutTime=lastPX4RxTime =datetime.now()
 	def pushStateToTxQueue(self):
 #		print "TXQueueSize = " + str(self.transmitQueue.qsize())
 		msg=Message()
 		msg.type = "UAV"
-		msg.sendTime = time.time()
+		msg.sendTime = datetime.now()
 		#msg.content=jsonpickle.encode(self.vehicleState)
 		msg.content = self.vehicleState
 	#	print msg.content.attitude.roll
 	#	print type(msg)
 		self.transmitQueue.put(msg)
 		return msg
+	def pushStateToLoggingQueue(self):
+		msg=Message()
+		msg.type = "UAV"
+		msg.sendTime=time.time()
+		msg.content = self.vehicleState
+		self.loggingQueue.put(msg)
 	def commenceRTL(self):
 		self.vehicle.parameters['ALT_HOLD_RTL'] = (70 + 10 * self.vehicle.parameters['SYSID_THISMAV']) * 100
 #		self.vehicle.mode = VehicleMode("RTL")
 		self.releaseControl()
 	def checkTimeouts(self):
 		didTimeOut = False
-		if(time.time() - self.lastGCSContact< time.time()- self.parameters.GCSTimeout ):
+		if(datetime.now() - timedelta(seconds = self.lastGCSContact)<datetime.now()- timedelta(seconds=self.parameters.GCSTimeout) ):
 			print "GCS Timeout - Overridden"
 		#if(True):
 			self.vehicleState.timeout.GCSTimeoutTime = time.time()
@@ -191,9 +202,10 @@ class Controller(threading.Thread):
 		for IDS in self.stateVehicles.keys():
 			ID=int(IDS)	
 			if(self.vehicleState.timeout.peerLastRX[ID]<time.time()-self.parameters.peerTimeout):
-				self.vehicleState.timeout.peerTimeoutTime[ID]=time.time()
+				self.vehicleState.timeout.peerTimeoutTime[ID]=datetime.now()
 				print "Timeout - ID: " + str(ID)
 #				print "LastRX: " + str(self.vehicleState.timeout.peerLastRX[ID]) + "\t" + 
+				didTimeOut = True
 		
 		return didTimeOut
 	def parseGCSMessage(self, msg):
@@ -202,10 +214,10 @@ class Controller(threading.Thread):
 		if(msg.type == "Parameters"):
 			self.parameters = msg.content
 #			self.vehicleState.timeout.GCSLastRx = msg.sentTime()
-			self.vehicleState.timeout.GCSLastRx = time.time()
+			self.vehicleState.timeout.GCSLastRx = datetime.now()
 
 		if(msg.type == 'HEARTBEAT'):
-			self.vehicleState.timeout.GCSLastRx = time.time()
+			self.vehicleState.timeout.GCSLastRx = datetime.now()
 #			self.vehicleState.timeout.GCSLastRx = msg.sendTime()
 
 	def computeControl(self):
@@ -213,5 +225,5 @@ class Controller(threading.Thread):
 		thisCommand. headingRate =1
 		thisCommand.climbRate =1
 		thisCommand.airSpeed = 1
-		thisCommand.timestamp = time.time()
+		thisCommand.timestamp = datetime.now()
 		self.vehicleState.command = thisCommand

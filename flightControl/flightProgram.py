@@ -4,7 +4,7 @@ import socket
 import os
 import Queue
 import threading	
-import transmit, control, receive
+import transmit, control, receive, log
 import vehicleState
 from defaultConfig import *
 
@@ -31,6 +31,7 @@ receiveQueue = Queue.Queue()
 
 receiveThread = receive.Receiver(receiveQueue,AdHocIP,peerReadPort)
 transmitThread = transmit.Transmitter(transmitQueue,AdHocIP,peerReadPort,transmitAddress)
+logThread = log.Logger(loggingQueue)
 
 #Parse the connection arg and connect to the vehicle
 parser = argparse.ArgumentParser(description='Print out vehicle state information. Connects to SITL on local PC by default.')
@@ -62,12 +63,16 @@ threads = []
 threads.append(controlThread)
 threads.append(receiveThread)
 threads.append(transmitThread)
+threads.append(logThread)
 
 receiveThread.start()
 print "Started Receive"
 
 transmitThread.start()
 print"Started Transmit"
+
+logThread.start()
+print "Started Logging"
 
 controlThread.start()
 print "Started Control"
