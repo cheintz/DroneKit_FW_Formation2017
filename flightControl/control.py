@@ -30,8 +30,6 @@ class Controller(threading.Thread):
 		# print "Constructor \n\n"
 		# print type(self.vehicleState)
 		self.command = Command()
-#		strmine= jsonpickle.encode(self.vehicleState)#
-#		print strmine
 		self.stoprequest = threading.Event()
 		self.lastGCSContact = -1
 	def stop(self):
@@ -53,7 +51,7 @@ class Controller(threading.Thread):
 				self.checkEngageFlocking()
 			if(self.vehicleState.isFlocking):# and self.parameters.leaderID != self.vehicleState.ID):
 				if(not self.checkAbort()):
-					print "Would write commands"
+#					print "Would write commands"
 					self.computeControl() #writes the control values to self.vehicleState
 					self.scaleAndWriteCommands()
 #			print "pushing to queue" + str(time.time())
@@ -88,10 +86,18 @@ class Controller(threading.Thread):
 		xPWM = self.vehicleState.command.headingRate * self.parameters.headingGain+self.parameters.headingOffset
 		yPWM = self.vehicleState.command.climbRate*self.parameters.climbGain + self.parameters.climbOffset
 		zPWM = self.vehicleState.command.airSpeed*self.parameters.speedGain + self.parameters.speedOffset
+
+
+		
 		xPWM = 1600+100*m.sin(datetime.now())
 		yPWM = 1600+100*m.cos(datetime.now())
 		zPWM = 1510 #This is throttle off
-		#need to enforce saturation, including throttle 1500-2000
+
+
+
+		xPWM = saturate(xPWM,1000,2000)
+		yPWM = saturate(yPWM,1000,2000)
+		zPWM = saturate(zPWM,1510,2000)
 		self.vehicle.channels.overrides = {'1': xPWM, '2': yPWM,'3': zPWM}
 	def releaseControl(self):
 		self.vehicle.channels.overrides = {}
@@ -227,3 +233,8 @@ class Controller(threading.Thread):
 		thisCommand.airSpeed = 1
 		thisCommand.timestamp = datetime.now()
 		self.vehicleState.command = thisCommand
+def saturate(value, min, max):
+	out = max(value,min)
+	out = min(out,max)
+	return out
+	
