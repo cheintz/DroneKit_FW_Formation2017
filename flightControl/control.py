@@ -9,6 +9,7 @@ import recordtype
 import jsonpickle
 import math as m
 from datetime import datetime, timedelta
+import numpy as np
 
 acceptableControlMode = VehicleMode("FBWB")
 
@@ -58,7 +59,7 @@ class Controller(threading.Thread):
 			self.pushStateToTxQueue() #sends the state to the UDP sending threading
 			self.pushStateToLoggingQueue()
 			print "Is Flocking: " + str(self.vehicleState.isFlocking) + "RC Latch: " + str(self.vehicleState.RCLatch)
-			time.sleep(0.05)
+			time.sleep(Ts)
 			
 				#TODO: find a way to clear timeouts, if necessary
 		self.stop()
@@ -182,11 +183,19 @@ class Controller(threading.Thread):
 		self.vehicleState.attitude = self.vehicle.attitude
 		self.vehicleState.channels = self.vehicle.channels.items() #necessary to be able to serialize it
 #		print	str(time.time())  +"\t" + str(self.vehicle.attitude.roll) + "\t" + str((self.vehicleState.timeout.peerTimeoutTime)) + "\t" + str((self.vehicleState.timeout.peerLastRX))
-		self.vehicleState.position = self.vehicle.location.global_frame
+		self.vehicleState.position = self.vehicle.location.global_relative_frame
 		self.vehicleState.velocity = self.vehicle.velocity
 		self.vehicleState.isArmable = self.vehicle.is_armable
 		self.vehicleState.mode = self.vehicle.mode
 		self.vehicleState.timeout.localTimeoutTime=lastPX4RxTime =datetime.now()
+		lastHeading = self.vehicleState.heading
+		self.vehicleState.heading = m.atan2(self.vehicleState.velocity[1],self.vehicleState.velocity[1])
+		deltaHeading = self.vehicleState.heading -lastHeading
+		lastHeadingRate = self.vehicleState.headingRate
+		a = self.parameters.controlGains.aFilter
+		Ts = self.parameters.Ts
+		self.vehicleState.headingRate = (1- a) * lastHeadingRate +a/tS (deltaHeading)
+		
 	def pushStateToTxQueue(self):
 #		print "TXQueueSize = " + str(self.transmitQueue.qsize())
 		msg=Message()
@@ -237,14 +246,114 @@ class Controller(threading.Thread):
 #			self.vehicleState.timeout.GCSLastRx = msg.sendTime()
 
 	def computeControl(self):
+		#overhead
 		thisCommand  = Command
-		thisCommand. headingRate =1
-		thisCommand.climbRate =1
-		thisCommand.airSpeed = 1
+		qi = np.array(self.vehicleState.position)
+		
+		LEADER = self.vehicleState.stateVehicles[str(parameters.leaderID)]
+		IPLANE = self.vehicleState.stateVehicles[str(self.vehicleState.ID)]
+		qi_gps = self.vehicleState.position[1:2]
+		ql_gps = LEADER.vehicleState.position[1:2]
+		ID = self.vehicleState.ID
+		n = self.vehicleState.parameters.expectedMAVs
+		
+		qil = getRelPos(qi_gps,ql_gps)
+		pl = np.array(LEADER.velocity)
+		qd = self.vehicleState.parameters.desiredPosition # qd1 ; qd2 ; qd3 ...
+		
+		kl = self.vehicleState.parameters.controlGains['kl']
+		ka = self.vehicleState.parameters.controlGains['ka']
+		alpha2 = self.vehicleState.parameters.controlGains['alpha2']
+		alpha1 = self.vehicleState.parameters.controlGains['alpha1']
+		d = self.vehicleState.parameters.controlGains['d']
+		gamma = np.array([0,-1],[1,0])
+		phi = LEADER.vehicleState.heading
+		phiDot = LEADER.vehicleState.headingRate
+		
+		Obi = np.array([m.cos(phi),m.sin(phi)],[-m.sin(phi),m.cos(phi)])
+		
+		#Compute from leader
+		ui = pl-kl * (qil - Obi.transpose()* qd([I],[]).transpose()) + phiDot * gamma * qil
+		ata = np.linalg.norm(qil,2)
+		if(ata<d):
+			frepel = alpha2/(alpha1+1)-alpha2/(alpha1+ata^2/d^2)
+			ui = ui - frepel * qil 
+			
+		#compute from peers
+		for j in range(1,n):
+			if(ID == j):
+				JPLANE = self.vehicleState.stateVehicles[str(self.vehicleState.ID)]
+				qj_gps = JPLANE,vehicleState.positions[1:2]
+				qij = getRelPos(qi_gps,qj_gps)
+				ui = ui-ka * (qij+Obi.translate()*-(qd([i],[])-qd(j,[]) ))
+				
+				ata = np.linalg.norm(qij,2)
+				if(ata<d):
+					frepel = alpha2/(alpha1+1)-alpha2/(alpha1+ata^2/d^2)
+					ui = ui - frepel * qij 
+		#Backstep
+		vMin = self.vehicleState.parameters.ctrlGains['vMin']
+		vMax = self.vehicleState.parameters.ctrlGains['vMax']
+		ktheta = self.vehicleState.parameters.ctrlGains['ktheta']
+		kbackstep = self.vehicleState.parameters.ctrlGains['kbackstep']
+		headingRateLimitAbs = self.vehicleState.parameters.ctrlGains['kbackstep']
+		
+		vDesired = np.linalg.norm(qil,2)
+		vDesired=max(vMin,min(vMax,vDesired))
+		thetaD = m.atan2(ui(2),ui(1))
+		thetaDDotApprox = wrapToPi(thetaD-thetaDLast(i)) / dt
+		etheta = wrapToPi(theta-thetaD)
+				
+		#if(abs(thetaDDotApprox)>10) %mostly for startup. Should probably saturate this a little better
+        #  thetaDDotApprox=0;
+		
+		thetaDLast = thetaD
+		eq = Obi*qil-qd(i,[]).transpose() #this is in leader body
+		u2i = (-ktheta*etheta-kbackstep*u1i*eq.transpose()*gamma*  np.array([m.cos(theta), m.sin(theta)]) +thetaDDotApprox   )
+		
+		effectiveHeadingRateLimit=headingRateLimitAbs; #provisions for more realistic  velocity dependant ratelimit (since Pixhawk limits the roll angle to a configurable angle)
+		
+		u2i = max(-effectiveHeadingRateLimit,min(effectiveHeadingRateLimit,u2i))
+		thisCommand.headingRate =u2i
+		thisCommand.airSpeed = vDesired
+		
+		
+		#altitude control
+		
+		desiredAltitude = self.vehicleState.parameters.desiredPosition['alt'] #this is AGL 
+		altitude = self.vehicleState.position['alt']
+		kpAlt = self.vehicelState.parameters.ctrlGains['kpAlt']
+		kiAlt = self.vehicelState.parameters.ctrlGains['kiAlt']
+		
+		altError = altitude-desiredAltitude
+		thisCommand.climbRate = -kpAlt * altError - ki * self.vehicleState.accAltError
+		
+		self.vehicleState.accAltError = self.vehicleState.accAltError +  self.vehicelState.altError*self.vehicleState.parameters.Ts
+		
 		thisCommand.timestamp = datetime.now()
 		self.vehicleState.command = thisCommand
 def saturate(value, minimum, maximum):
 	out = max(value,minimum)
 	out = min(out,maximum)
 	return out
+def wrapToPi(value):
+	return wrapTo2Pi(value+m.pi)-m.pi
 	
+def wrapTo2Pi(value):
+	positiveInput = (value > 0);
+	value = m.fmod(value, 2*m.pi);
+	if(value((value == 0) & positiveInput)):
+		value=2*m.pi
+	return pi
+	
+def GPSToMeters(lat,long,alt):
+	r = 6371000 + alt
+	x = r*m.cosd(lat)*m.cosd(lon)
+	y = r*m.cosd(lat)*m.sind(lon)
+	z = r*m.sind(lat)
+def getRelPos(pos1,pos2):
+	r = 40000
+	dx = (pos2['lat']-pos1['lat']) * r * m.cosd((pos1['lat']+pos2['lat'] )/ 2)/360
+	dy = (pos2['lon']-pos1['lon']) * r /360
+	dz = pos2['alt']-pas1['alt']	
+	return {'dx':dx,'dy':dy,'dz':dz}
