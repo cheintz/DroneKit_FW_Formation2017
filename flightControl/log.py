@@ -8,6 +8,7 @@ import jsonpickle
 import cPickle
 import os
 import time
+import mutil
 from datetime import datetime
 
 class Logger(threading.Thread):
@@ -18,6 +19,14 @@ class Logger(threading.Thread):
 		self.stoprequest = threading.Event()
 #		self.file=open(datetime.now().strftime("log_%y_%m_%d_%H_%M_%S.json"),'w')
 		self.file=open(os.path.join("/home/pi/logs" ,datetime.now().strftime("log_%Y_%m_%d__%H_%M_%S.json")),'w')
+		headerString=''
+		headerString+='Time, '
+		for i in range(1,self.parameters.expectedMAVs):
+			headerString+=(multi.vsToCSVHeaders())
+			if(i!=self.parameters.expectedMAVs):
+				headerString+=', '
+			
+		self.file.write(headerString)
 	def stop (self):
 		self.stoprequest.set()	
 		print "Stop flag set - Log"
@@ -41,10 +50,18 @@ class Logger(threading.Thread):
 					
 	def logMessage(self, msg):
 #		print "About to transmit" + str(msg.content.attitude.roll)
-		mp = jsonpickle.encode(msg)
+		outString  ''
 #		mp = cPickle.dumps(msg)
 #		print "Length: " + str(len(mp))		
 #		print "Encoded is" + mp
+		outString+= str(datetime.now()) + ', '
+		for i in range(1,self.parameters.expectedMAVs):
+			if(i!=self.vehicleState.ID):
+				outString+= mutil.toCSV(self.stateVehicles)
+			else:
+				outString +=mutil.toCSV(self.vehicleState)
+			if(i!=self.parameters.expectedMAVs):
+				out+=', '
 		self.file.write(mp)
 		self.file.write("\n")
 		#print "Send complete"
