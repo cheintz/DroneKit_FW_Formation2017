@@ -22,7 +22,7 @@ class Logger(threading.Thread):
 		headerString=''
 		headerString+='Time, '
 		self.expectedMAVs=n
-		for i in range(1,n):
+		for i in range(1,n+1):
 			headerString+=(mutil.vsToCSVHeaders())
 			if(i!=n):
 				headerString+=', '
@@ -60,7 +60,7 @@ class Logger(threading.Thread):
 		stateVehicles = msg.content['stateVehicles']
 		thisState = msg.content['thisState']
 		outString+= str(datetime.now()) + ', '
-		for i in range(1,thisState.parameters.expectedMAVs):
+		for i in range(1,thisState.parameters.expectedMAVs+1):
 			if(i!=thisState.ID):
 				outString+= mutil.vsToCSV(stateVehicles[i])
 			else:

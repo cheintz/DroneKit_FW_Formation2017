@@ -35,7 +35,7 @@ class Receiver(threading.Thread):
 	def receiveMessage(self):
 		try:
 			mp = self.s.recvfrom(4096)
-			if(mp[1] == (self.AdHocIP,self.port)):
+			if(False):#mp[1] == (self.AdHocIP,self.port)):
 #				print "received my own message"
 				pass
 			else:

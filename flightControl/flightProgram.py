@@ -7,7 +7,7 @@ import threading
 import transmit, control, receive, log
 import vehicleState
 from defaultConfig import *
-
+import numpy as np
 import argparse 
  
 #get enviromental variables
@@ -17,6 +17,8 @@ myAddr = (AdHocIP, peerReadPort)
 logPath = os.environ["LOGPATH"]
 broadcastIP = os.environ["BROADCASTIP"]
 transmitAddress = (broadcastIP,peerReadPort)
+
+
 
 #set up socket for UDP broadcast
 #s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
