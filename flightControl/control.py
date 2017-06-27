@@ -38,7 +38,6 @@ class Controller(threading.Thread):
 		print "Stop Flag Set - Control"
 	def run(self):
 		while(not self.stoprequest.is_set()):#not self.kill_received):
-			# print "executing control"
 			while(not self.receiveQueue.empty()):
 				try:
 					msg = self.receiveQueue.get(False)
@@ -50,16 +49,15 @@ class Controller(threading.Thread):
 
 			if(not self.vehicleState.isFlocking): #Should we engage flocking
 				self.checkEngageFlocking()
-			if(self.vehicleState.isFlocking):# and self.parameters.leaderID != self.vehicleState.ID):
+			if(self.vehicleState.isFlocking and self.vehicleState.ID != self.parameters.leaderID):# and self.parameters.leaderID != self.vehicleState.ID):
 				if(not self.checkAbort()):
-#					print "Would write commands"
 					self.computeControl() #writes the control values to self.vehicleState
 					self.scaleAndWriteCommands()
 #			print "pushing to queue" + str(time.time())
 			self.pushStateToTxQueue() #sends the state to the UDP sending threading
 			self.pushStateToLoggingQueue()
 			print "Is Flocking: " + str(self.vehicleState.isFlocking) + "RC Latch: " + str(self.vehicleState.RCLatch)
-			time.sleep(Ts)
+			time.sleep(self.parameters.Ts)
 			
 				#TODO: find a way to clear timeouts, if necessary
 		self.stop()
@@ -86,7 +84,7 @@ class Controller(threading.Thread):
 	def scaleAndWriteCommands(self):
 		xPWM = self.vehicleState.command.headingRate * self.parameters.headingGain+self.parameters.headingOffset
 		yPWM = self.vehicleState.command.climbRate*self.parameters.climbGain + self.parameters.climbOffset
-		zPWM = self.vehicleState.command.airSpeed*self.parameters.speedGain + self.parameters.speedOffset
+		zPWM = (self.vehicleState.command.airSpeed-self.parameters.cruiseSpeed)*self.parameters.speedGain + self.parameters.speedOffset
 
 
 		
@@ -192,9 +190,9 @@ class Controller(threading.Thread):
 		self.vehicleState.heading = m.atan2(self.vehicleState.velocity[1],self.vehicleState.velocity[1])
 		deltaHeading = self.vehicleState.heading -lastHeading
 		lastHeadingRate = self.vehicleState.headingRate
-		a = self.parameters.controlGains.aFilter
+		a = self.parameters.ctrlGains['aFilter']
 		Ts = self.parameters.Ts
-		self.vehicleState.headingRate = (1- a) * lastHeadingRate +a/tS (deltaHeading)
+		self.vehicleState.headingRate = (1- a) * lastHeadingRate +a/Ts *(deltaHeading)
 		
 	def pushStateToTxQueue(self):
 #		print "TXQueueSize = " + str(self.transmitQueue.qsize())
@@ -249,13 +247,15 @@ class Controller(threading.Thread):
 		#overhead
 		thisCommand  = Command
 		qi = np.array(self.vehicleState.position)
-		
-		LEADER = self.vehicleState.stateVehicles[str(parameters.leaderID)]
-		IPLANE = self.vehicleState.stateVehicles[str(self.vehicleState.ID)]
-		qi_gps = self.vehicleState.position[1:2]
-		ql_gps = LEADER.vehicleState.position[1:2]
+#		print self.stateVehicles
+		LEADER = self.stateVehicles[(self.parameters.leaderID)]
+#		IPLANE = self.stateVehicles[str(self.vehicleState.ID)]
+		qi_gps = np.array([self.vehicleState.position.lat, self.vehicleState.position.lon])
+		ql_gps = np.array([LEADER.position.lat, LEADER.position.lon])
 		ID = self.vehicleState.ID
 		n = self.vehicleState.parameters.expectedMAVs
+
+
 		
 		qil = getRelPos(qi_gps,ql_gps)
 		pl = np.array(LEADER.velocity)
@@ -292,11 +292,11 @@ class Controller(threading.Thread):
 					frepel = alpha2/(alpha1+1)-alpha2/(alpha1+ata^2/d^2)
 					ui = ui - frepel * qij 
 		#Backstep
-		vMin = self.vehicleState.parameters.ctrlGains['vMin']
-		vMax = self.vehicleState.parameters.ctrlGains['vMax']
-		ktheta = self.vehicleState.parameters.ctrlGains['ktheta']
-		kbackstep = self.vehicleState.parameters.ctrlGains['kbackstep']
-		headingRateLimitAbs = self.vehicleState.parameters.ctrlGains['kbackstep']
+		vMin = self.parameters.ctrlGains['vMin']
+		vMax = self.parameters.ctrlGains['vMax']
+		ktheta = self.parameters.ctrlGains['ktheta']
+		kbackstep = self.parameters.ctrlGains['kbackstep']
+		headingRateLimitAbs = self.parameters.ctrlGains['kbackstep']
 		
 		vDesired = np.linalg.norm(qil,2)
 		vDesired=max(vMin,min(vMax,vDesired))
@@ -320,10 +320,10 @@ class Controller(threading.Thread):
 		
 		#altitude control
 		
-		desiredAltitude = self.vehicleState.parameters.desiredPosition['alt'] #this is AGL 
-		altitude = self.vehicleState.position['alt']
-		kpAlt = self.vehicelState.parameters.ctrlGains['kpAlt']
-		kiAlt = self.vehicelState.parameters.ctrlGains['kiAlt']
+		desiredAltitude = self.parameters.desiredPosition['alt'] #this is AGL 
+		altitude = self.position['alt']
+		kpAlt = self.parameters.ctrlGains['kpAlt']
+		kiAlt = self.parameters.ctrlGains['kiAlt']
 		
 		altError = altitude-desiredAltitude
 		thisCommand.climbRate = -kpAlt * altError - ki * self.vehicleState.accAltError

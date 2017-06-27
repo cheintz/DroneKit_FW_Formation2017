@@ -1,5 +1,6 @@
 from vehicleState import Parameter
 import time
+import numpy as np
 
 
 defaultParams = Parameter()
@@ -12,10 +13,12 @@ defaultParams.GCSTimeout = 5 #seconds
 defaultParams.peerTimeout = 1 #seconds
 defaultParams.leaderID = 1   #MAV ID of leader
 defaultParams.expectedMAVs = 2 #One, plus the leader
-defaultParams.headingGain= 10
+defaultParams.headingGain= 0.2/500 #rad/sec per PWM
 defaultParams.headingOffset=1500
-defaultParams.climbGain = 100
+defaultParams.climbGain = 2.0/500 #m/s per PWM
 defaultParams.climbOffset = 1500
-defaultParams.speedGain = 200
+defaultParams.speedGain = 11.0/500/2
 defaultParams.speedOffset = 1750
+defaultParams.cruiseSpeed = 17
 defaultParams.Ts = 0.05
+defaultParams.desiredPosition = np.array('5,30,50;10,60,100')
