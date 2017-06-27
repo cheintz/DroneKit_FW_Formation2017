@@ -13,7 +13,7 @@ from datetime import datetime
 
 class Logger(threading.Thread):
 
-	def __init__(self,logQueue,logPath):
+	def __init__(self,logQueue,logPath,n):
 		threading.Thread.__init__(self)
 		self.logQueue=logQueue
 		self.stoprequest = threading.Event()
@@ -21,9 +21,10 @@ class Logger(threading.Thread):
 		self.file=open(os.path.join("/home/pi/logs" ,datetime.now().strftime("log_%Y_%m_%d__%H_%M_%S.json")),'w')
 		headerString=''
 		headerString+='Time, '
-		for i in range(1,self.parameters.expectedMAVs):
-			headerString+=(multi.vsToCSVHeaders())
-			if(i!=self.parameters.expectedMAVs):
+		self.expectedMAVs=n
+		for i in range(1,n):
+			headerString+=(mutil.vsToCSVHeaders())
+			if(i!=n):
 				headerString+=', '
 			
 		self.file.write(headerString)
@@ -54,15 +55,19 @@ class Logger(threading.Thread):
 #		mp = cPickle.dumps(msg)
 #		print "Length: " + str(len(mp))		
 #		print "Encoded is" + mp
+
+		#print str(msg.content)
+		stateVehicles = msg.content['stateVehicles']
+		thisState = msg.content['thisState']
 		outString+= str(datetime.now()) + ', '
-		for i in range(1,self.parameters.expectedMAVs):
-			if(i!=self.vehicleState.ID):
-				outString+= mutil.toCSV(self.stateVehicles)
+		for i in range(1,thisState.parameters.expectedMAVs):
+			if(i!=thisState.ID):
+				outString+= mutil.vsToCSV(stateVehicles[i])
 			else:
-				outString +=mutil.toCSV(self.vehicleState)
-			if(i!=self.parameters.expectedMAVs):
-				out+=', '
-		self.file.write(mp)
+				outString +=mutil.vsToCSV(thisState)
+			if(i!=thisState.parameters.expectedMAVs):
+				outString+=', '
+		self.file.write(outString)
 		self.file.write("\n")
 		#print "Send complete"
 		

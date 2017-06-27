@@ -31,7 +31,7 @@ receiveQueue = Queue.Queue()
 
 receiveThread = receive.Receiver(receiveQueue,AdHocIP,peerReadPort)
 transmitThread = transmit.Transmitter(transmitQueue,AdHocIP,peerReadPort,transmitAddress)
-logThread = log.Logger(loggingQueue,logPath)
+logThread = log.Logger(loggingQueue,logPath,defaultParams.expectedMAVs)
 
 #Parse the connection arg and connect to the vehicle
 parser = argparse.ArgumentParser(description='Print out vehicle state information. Connects to SITL on local PC by default.')
@@ -58,6 +58,8 @@ vehicle.wait_ready('autopilot_version')
 #defaultParams = vehicleState.Parameter(time.time(),False,0,0) #now generated in defaultConfig.py
 
 controlThread = control.Controller(loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams)
+
+#print "default params" + str(defaultParams)
 
 threads = []
 threads.append(controlThread)

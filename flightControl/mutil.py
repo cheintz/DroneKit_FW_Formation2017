@@ -47,7 +47,7 @@ def vsToCSV(vs):
 		raise
 	except:
 		out+=' , , ,'
-	out+=self.vehicle.channels['1'] +','+ self.vehicle.channels['2'] +','+ self.vehicle.channels['3']
+	out+=str(vs.channels[1]) +', '+ str(vs.channels[2]) +','+ str(vs.channels[3])
 	return out
 	
 def msgToCSVHeaders():

@@ -8,6 +8,9 @@ VehicleState = recordtype('VehicleState', [ ('isArmable' , False) ,'ID', 'time',
 Command = recordtype('Command','headingRate,climbRate,airSpeed,timestamp', default = None)		
 
 Message = recordtype('Message','type,sendTime,content', default = None) #content shall contain the timestamp of the most recent parameter set.
+#logMessage = recordtype('logMessage','type,sendTime,content,thisState,stateVehicle', default = None) #content shall contain the timestamp of the most recent parameter set.
+
+
 #Message.__new__.__defaults__ = (None,) *len(Message._fields)
 
 #Parameter.__new__.__defaults__ = (None,)*len(Parameter._fields)

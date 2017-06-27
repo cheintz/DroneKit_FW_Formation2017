@@ -186,6 +186,7 @@ class Controller(threading.Thread):
 		self.vehicleState.isArmable = self.vehicle.is_armable
 		self.vehicleState.mode = self.vehicle.mode
 		self.vehicleState.timeout.localTimeoutTime=lastPX4RxTime =datetime.now()
+		self.vehicleState.parameters = self.parameters
 		lastHeading = self.vehicleState.heading
 		self.vehicleState.heading = m.atan2(self.vehicleState.velocity[1],self.vehicleState.velocity[1])
 		deltaHeading = self.vehicleState.heading -lastHeading
@@ -207,9 +208,11 @@ class Controller(threading.Thread):
 		return msg
 	def pushStateToLoggingQueue(self):
 		msg=Message()
-		msg.type = "UAV"
+		msg.type = "UAV_LOG"
 		msg.sendTime=time.time()
-		msg.content = self.vehicleState
+		msg.content = {}
+		msg.content['thisState']=self.vehicleState
+		msg.content['stateVehicles']=self.stateVehicles
 		self.loggingQueue.put(msg)
 	def commenceRTL(self):
 		self.vehicle.parameters['ALT_HOLD_RTL'] = (70 + 10 * self.vehicle.parameters['SYSID_THISMAV']) * 100
