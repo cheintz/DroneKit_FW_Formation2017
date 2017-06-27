@@ -4,14 +4,6 @@ from datetime import datetime
 
 
 
-def toCSV(obj,n):
-	out = ""
-	out+=obj.
-	for i in range(1,n):
-		out+=vsToCSV(obj.stateVehicles[i])
-		if i!=n:
-			out+=', '
-	return out
 	
 def vsToCSV(vs):
 	out=''

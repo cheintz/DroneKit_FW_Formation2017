@@ -50,7 +50,7 @@ class Logger(threading.Thread):
 					
 	def logMessage(self, msg):
 #		print "About to transmit" + str(msg.content.attitude.roll)
-		outString  ''
+		outString = ''
 #		mp = cPickle.dumps(msg)
 #		print "Length: " + str(len(mp))		
 #		print "Encoded is" + mp
