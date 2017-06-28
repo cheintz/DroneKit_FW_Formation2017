@@ -123,7 +123,7 @@ class Controller(threading.Thread):
 			# print "returned from RTL function" + str(time.time())
 			self.commands = {0,0,0}
 			return True
-		if (self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 1900):
+		if (self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 2100):
 			print "Abort - Geofence not enabled"
 			self.vehicleState.RCLatch = True
 			self.vehicleState.isFlocking = False
@@ -163,7 +163,7 @@ class Controller(threading.Thread):
 			print "In Mode: "  + str(self.vehicle.mode)
 			self.vehicleState.RCLatch = True			
 			return False			
-		if(self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 1900): #Geofence
+		if(self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 2100): #Geofence
 			print "Won't engage. Geofence not enabled"
 			self.vehicleState.RCLatch = True
 			return False
@@ -190,7 +190,7 @@ class Controller(threading.Thread):
 		self.vehicleState.timeout.localTimeoutTime=lastPX4RxTime =datetime.now()
 		self.vehicleState.parameters = self.parameters
 		lastHeading = self.vehicleState.heading
-		self.vehicleState.heading = m.atan2(self.vehicleState.velocity[1],self.vehicleState.velocity[1])
+		self.vehicleState.heading = m.atan2(self.vehicleState.velocity[1],self.vehicleState.velocity[0])
 		deltaHeading = self.vehicleState.heading -lastHeading
 		lastHeadingRate = self.vehicleState.headingRate
 		a = self.parameters.ctrlGains['aFilter']
@@ -256,19 +256,23 @@ class Controller(threading.Thread):
 		LEADER = self.stateVehicles[(self.parameters.leaderID)]
 #		IPLANE = self.stateVehicles[str(self.vehicleState.ID)]
 		qi_gps = np.matrix([self.vehicleState.position.lat, self.vehicleState.position.lon])
+		print "qi_gps" + str(qi_gps)
 		ql_gps = np.matrix([LEADER.position.lat, LEADER.position.lon])
 		ID = self.vehicleState.ID
 		n = self.vehicleState.parameters.expectedMAVs
 		Ts = self.vehicleState.parameters.Ts
 
 		
-		qil = getRelPos(qi_gps,ql_gps).transpose()
+		qil = getRelPos(qi_gps,ql_gps)
 		qil.shape=(2,1)
 		pl = np.matrix(LEADER.velocity).transpose()
+
 		pl = pl[0:2]
+		print 'pl = ' + str(pl)
+
 		pl.shape =(2,1)
 		qd = self.vehicleState.parameters.desiredPosition # qd1 ; qd2 ; qd3 ...
-		qdil=qd[ID,np.matrix([0,1])]
+		qdil=qd[ID-1,np.matrix([0,1])]
 		qdil.shape=(2,1)
 
 		kl = self.vehicleState.parameters.ctrlGains['kl']
@@ -304,15 +308,20 @@ class Controller(threading.Thread):
 		print 'UI = ' + str(ui)
 
 		for j in range(1,n):
-			if(ID == j):
-				JPLANE = self.vehicleState.stateVehicles[str(self.vehicleState.ID)]
-				qj_gps = JPLANE,vehicleState.positions[1:2]
-				qij = getRelPos(qi_gps,qj_gps)
-				ui = ui-ka * (qij+Obi.translate()*-(qd[ID,1:2]-qd[j,1:2] ))
+			if(ID-1 == j):
+				print self.stateVehicles.keys()
+				JPLANE = self.stateVehicles[(self.vehicleState.ID-1)]
+				qj_gps = np.matrix([JPLANE.position.lat,JPLANE.position.lon])
+				print qj_gps
+				qij = getRelPos(qi_gps,qj_gps).transpose()
+				print 'qij: ' + str(qij)
+				qdjl = qd[j-1,0:2].transpose()
+				print 'qdjl: ' + str(qdjl)
+				ui = ui-ka * (qij+Obi.transpose()*-(qdil-qdjl ))
 				
 				ata = np.linalg.norm(qij,2)
 				if(ata<d):
-					frepel = alpha2/(alpha1+1)-alpha2/(alpha1+ata^2/d^2)
+					frepel = alpha2/(alpha1+1)-alpha2/(alpha1+m.pow(ata,2)/m.pow(d,2))
 					ui = ui - frepel * qij 
 		#Backstep
 		vMin = self.parameters.ctrlGains['vMin']
@@ -325,7 +334,7 @@ class Controller(threading.Thread):
 		vDesired=max(vMin,min(vMax,vDesired))
 		theta = m.atan2(self.vehicleState.velocity[0],self.vehicleState.velocity[1])
 
-		thetaD = m.atan2(ui[1],ui[0])
+		thetaD = m.atan2(ui[1,0],ui[0,0])
 		thetaDLast = self.vehicleState.command.thetaD
 		
 		thetaDDotApprox = wrapToPi(thetaD-thetaDLast) / Ts
@@ -348,7 +357,7 @@ class Controller(threading.Thread):
 		
 		#altitude control
 
-		desiredAltitude = qd[ID,2] #this is AGL  for now
+		desiredAltitude = qd[ID-1,2] #this is AGL  for now
 		altitude = self.vehicleState.position.alt
 		kpAlt = self.parameters.ctrlGains['kpAlt']
 		kiAlt = self.parameters.ctrlGains['kiAlt']
@@ -381,10 +390,9 @@ def GPSToMeters(lat,long,alt):
 	z = r*m.sind(lat)
 def getRelPos(pos1,pos2):
 	r = 40000
-#	print pos1
-#	print type(pos1)
-#	print pos1[0,0]
-#	print pos1[0,1]
+	print pos2
+	print pos2[0,0]
+	print pos2[0,1]
 	dx = (pos2[0,0]-pos1[0,0]) * r * m.cos(m.radians( (pos1[0,0]+pos2[0,0])/ 2))/360
 #	print dx
 	dy = (pos2[0,1]-pos1[0,1]) * r /360
