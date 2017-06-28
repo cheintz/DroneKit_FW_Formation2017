@@ -83,8 +83,8 @@ class Controller(threading.Thread):
 			self.vehicleState.timeout.peerLastRX[ID]=datetime.now()
 			
 	def scaleAndWriteCommands(self):
-		print "Commands in units" 
-		print str(self.vehicleState.command.headingRate)
+	#	print "Commands in units" 
+	#	print str(self.vehicleState.command.headingRate)
 		xPWM = self.vehicleState.command.headingRate * self.parameters.headingGain+self.parameters.headingOffset
 		yPWM = self.vehicleState.command.climbRate*self.parameters.climbGain + self.parameters.climbOffset
 		zPWM = (self.vehicleState.command.airSpeed-self.parameters.cruiseSpeed)*self.parameters.speedGain + self.parameters.speedOffset
@@ -96,12 +96,12 @@ class Controller(threading.Thread):
 	#	zPWM = 1510 #This is throttle off
 
 
-		print 'x:' + str(xPWM) + 'y:' + str(yPWM) + 'z: ' + str(zPWM)
+	#	print 'x:' + str(xPWM) + 'y:' + str(yPWM) + 'z: ' + str(zPWM)
 
 		xPWM = saturate(xPWM,1000,2000)
 		yPWM = saturate(yPWM,1000,2000)
 		zPWM = saturate(zPWM,1510,2000)
-		print 'Saturated: x:' + str(xPWM) + 'y:' + str(yPWM) + 'z: ' + str(zPWM)
+	#	print 'Saturated: x:' + str(xPWM) + 'y:' + str(yPWM) + 'z: ' + str(zPWM)
 		self.vehicle.channels.overrides = {'1': xPWM, '2': yPWM,'3': zPWM}
 	def releaseControl(self):
 		self.vehicle.channels.overrides = {}
@@ -194,8 +194,8 @@ class Controller(threading.Thread):
 		self.vehicleState.timeout.localTimeoutTime=lastPX4RxTime =datetime.now()
 		self.vehicleState.parameters = self.parameters
 		lastHeading = self.vehicleState.heading
-#		self.vehicleState.heading = m.atan2(self.vehicleState.velocity[1],self.vehicleState.velocity[0])
-		self.vehicleState.heading=0.08
+		self.vehicleState.heading = m.atan2(self.vehicleState.velocity[1],self.vehicleState.velocity[0])
+#		self.vehicleState.heading=0.08
 		deltaHeading = self.vehicleState.heading -lastHeading
 		lastHeadingRate = self.vehicleState.headingRate
 		a = self.parameters.ctrlGains['aFilter']
@@ -222,7 +222,7 @@ class Controller(threading.Thread):
 		msg.content['stateVehicles']=self.stateVehicles
 		self.loggingQueue.put(msg)
 	def commenceRTL(self):
-		self.vehicle.parameters['ALT_HOLD_RTL'] = (70 + 10 * self.vehicle.parameters['SYSID_THISMAV']) * 100
+#		self.vehicle.parameters['ALT_HOLD_RTL'] = (70 + 10 * self.vehicle.parameters['SYSID_THISMAV']) * 100
 #		self.vehicle.mode = VehicleMode("RTL")
 		self.releaseControl()
 	def checkTimeouts(self):
@@ -300,9 +300,9 @@ class Controller(threading.Thread):
 		print 'qil' + str(qil)
 #		print 'Obi*qdil' + str((Obi.transpose()*qdil))
 		print "\n\n"
-		print "Gain Term: " + str(-kl*(qil-Obi.transpose()*qdil))
-		print "PhiDotTerm: " + str(phiDot*gamma*qil)
-		ui = pl-kl * (qil - Obi.transpose()* qdil) + 0*phiDot * gamma * qil
+#		print "Gain Term: " + str(-kl*(qil-Obi.transpose()*qdil))
+#		print "PhiDotTerm: " + str(phiDot*gamma*qil)
+		ui = pl-kl * (qil - Obi.transpose()* qdil) + phiDot * gamma * qil
 		print 'UI = ' + str(ui)
 		ata = np.linalg.norm(qil,2)
 		ata=1
@@ -313,7 +313,7 @@ class Controller(threading.Thread):
 			ui = ui - frepel * qil 
 			
 		#compute from peers
-		print 'UI = ' + str(ui)
+#		print 'UI = ' + str(ui)
 
 		for j in range(1,n):
 			if(ID-1 == j and j !=self.vehicleState.parameters.leaderID):
@@ -351,7 +351,8 @@ class Controller(threading.Thread):
 
 		a = self.parameters.ctrlGains['aFilterThetaDDot']
 		Ts = self.parameters.Ts
-		self.vehicleState.headingRate = (1- a) * lastThetaDDotApprox +a/Ts *wrapToPi(thetaD-thetaDLast)
+		self.vehicleState.thetaDDotApprox = (1- a) * lastThetaDDotApprox +a/Ts *wrapToPi(thetaD-thetaDLast)
+		thetaDDotApprox = self.vehicleState.thetaDDotApprox
 
 		print "theta:" + str(theta)
 		etheta = wrapToPi(theta-thetaD)
@@ -374,7 +375,7 @@ class Controller(threading.Thread):
 		
 		
 		#altitude control
-		print 'qd: ' + str(qd)
+#		print 'qd: ' + str(qd)
 		print 'qd id ' + str(ID) + str(qd[ID-2,:])
 		desiredAltitude = qd[ID-2,2] #this is AGL  for now
 		altitude = self.vehicleState.position.alt
@@ -383,7 +384,7 @@ class Controller(threading.Thread):
 		
 		altError = altitude-desiredAltitude
 		thisCommand.climbRate = -kpAlt * altError - kiAlt * self.vehicleState.command.accAltError
-		thisCommand.climbRate = 0
+		#thisCommand.climbRate = 0
 		thisCommand.accAltError = self.vehicleState.command.accAltError +  altError*Ts
 		
 		thisCommand.timestamp = datetime.now()
