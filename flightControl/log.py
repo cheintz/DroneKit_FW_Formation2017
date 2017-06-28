@@ -61,12 +61,16 @@ class Logger(threading.Thread):
 		thisState = msg.content['thisState']
 		outString+= str(datetime.now()) + ', '
 		for i in range(1,thisState.parameters.expectedMAVs+1):
-			if(i!=thisState.ID):
-				outString+= mutil.vsToCSV(stateVehicles[i])
-			else:
-				outString +=mutil.vsToCSV(thisState)
-			if(i!=thisState.parameters.expectedMAVs):
-				outString+=', '
+			try:
+				if(i!=thisState.ID):
+					outString+= mutil.vsToCSV(stateVehicles[i])
+				else:
+					outString +=mutil.vsToCSV(thisState)
+			except KeyError:
+				for j in range(0,21):
+					outString += ', '
+				if(i!=thisState.parameters.expectedMAVs):
+					outString+=', '
 		self.file.write(outString)
 		self.file.write("\n")
 		#print "Send complete"
