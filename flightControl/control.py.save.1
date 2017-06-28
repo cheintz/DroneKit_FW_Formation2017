@@ -183,7 +183,7 @@ class Controller(threading.Thread):
 		print "OK to engage flocking"
 		return True
 			
-	def getVehicleState(self):		#Should probably check for timeout, etc.
+	def etVehicleState(self):		#Should probably check for timeout, etc.
 		self.vehicleState.attitude = self.vehicle.attitude
 		self.vehicleState.channels = dict(zip(self.vehicle.channels.keys(),self.vehicle.channels.values())) #necessary to be able to serialize it
 #		print	str(time.time())  +"\t" + str(self.vehicle.attitude.roll) + "\t" + str((self.vehicleState.timeout.peerTimeoutTime)) + "\t" + str((self.vehicleState.timeout.peerLastRX))
@@ -194,8 +194,7 @@ class Controller(threading.Thread):
 		self.vehicleState.timeout.localTimeoutTime=lastPX4RxTime =datetime.now()
 		self.vehicleState.parameters = self.parameters
 		lastHeading = self.vehicleState.heading
-#		self.vehicleState.heading = m.atan2(self.vehicleState.velocity[1],self.vehicleState.velocity[0])
-		self.vehicleState.heading=0.08
+		self.vehicleState.heading = m.atan2(self.vehicleState.velocity[1],self.vehicleState.velocity[0])
 		deltaHeading = self.vehicleState.heading -lastHeading
 		lastHeadingRate = self.vehicleState.headingRate
 		a = self.parameters.ctrlGains['aFilter']
@@ -294,11 +293,10 @@ class Controller(threading.Thread):
 		
 		#Compute from leader 
 		print 'pl = ' + str(pl)
-		print 'Phi = ' + str(phi)
 #		print 'Obi ='+ str(Obi.transpose())
 #		print 'Gamma' + str(gamma)
 		print 'qil' + str(qil)
-#		print 'Obi*qdil' + str((Obi.transpose()*qdil))
+		print 'Obi*qdil' + str((Obi.transpose()*qdil))
 		print "\n\n"
 		print "Gain Term: " + str(-kl*(qil-Obi.transpose()*qdil))
 		print "PhiDotTerm: " + str(phiDot*gamma*qil)
@@ -339,24 +337,18 @@ class Controller(threading.Thread):
 		headingRateLimitAbs = self.parameters.ctrlGains['headingRateLimit']
 		
 		vDesired = np.linalg.norm(qil,2)
+		print "VDesired: " + vDesired
 		vDesired=max(vMin,min(vMax,vDesired))
-		theta = self.vehicleState.heading
+		theta = m.atan2(self.vehicleState.velocity[0],self.vehicleState.velocity[1])
 
 		thetaD = m.atan2(ui[1,0],ui[0,0])
+
+		print "ThetaD: " +thetaD
 		thetaDLast = self.vehicleState.command.thetaD
-		print "vDesired: " + str(vDesired)
-		print "ThetaD: " + str(thetaD)
-
-		lastThetaDDotApprox = self.vehicleState.thetaDDotApprox
-
-		a = self.parameters.ctrlGains['aFilterThetaDDot']
-		Ts = self.parameters.Ts
-		self.vehicleState.headingRate = (1- a) * lastThetaDDotApprox +a/Ts *wrapToPi(thetaD-thetaDLast)
-
-		print "theta:" + str(theta)
+		
+		thetaDDotApprox = wrapToPi(thetaD-thetaDLast) / Ts
 		etheta = wrapToPi(theta-thetaD)
-		print "etheta" + str(etheta)		
-		print "kbackstep" + str(kbackstep)
+				
 		#if(abs(thetaDDotApprox)>10) %mostly for startup. Should probably saturate this a little better
 		        #  thetaDDotApprox=0;
 		
@@ -364,8 +356,7 @@ class Controller(threading.Thread):
 		eq = Obi*qil-qdil #this is in leader body, only want the first 2 elements
 		eq.shape=(2,1)
 		u2i = (-ktheta*etheta-kbackstep*vDesired*eq.transpose()*gamma*  np.matrix([[m.cos(theta)], [m.sin(theta)]]) +thetaDDotApprox   )
-		print 'u2i' + str(u2i)
-		print "thetaD Dot Approx" + str(thetaDDotApprox)
+		
 		effectiveHeadingRateLimit=headingRateLimitAbs; #provisions for more realistic  velocity dependant ratelimit (since Pixhawk limits the roll angle to a configurable angle)
 		
 		u2i = max(-effectiveHeadingRateLimit,min(effectiveHeadingRateLimit,u2i))
