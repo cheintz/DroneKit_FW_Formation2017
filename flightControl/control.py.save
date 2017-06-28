@@ -258,7 +258,6 @@ class Controller(threading.Thread):
 		qi_gps = np.matrix([self.vehicleState.position.lat, self.vehicleState.position.lon])
 		print "qi_gps" + str(qi_gps)
 		ql_gps = np.matrix([LEADER.position.lat, LEADER.position.lon])
-		print "ql_gps" + str(ql_gps)
 		ID = self.vehicleState.ID
 		n = self.vehicleState.parameters.expectedMAVs
 		Ts = self.vehicleState.parameters.Ts
@@ -289,8 +288,9 @@ class Controller(threading.Thread):
 		
 		#Compute from leader 
 		print 'pl = ' + str(pl)
-#		print 'Obi ='+ str(Obi.transpose())
-#		print 'Gamma' + str(gamma)
+		print 'Obi ='+ str(Obi.transpose())
+		print 'qd'+str(qdil)
+		print 'Gamma' + str(gamma)
 		print 'qil' + str(qil)
 		print 'Obi*qdil' + str((Obi.transpose()*qdil))
 		print "\n\n"
@@ -308,7 +308,7 @@ class Controller(threading.Thread):
 		print 'UI = ' + str(ui)
 
 		for j in range(1,n):
-			if(ID-1 == j and j !=self.params.leaderID):
+			if(ID-1 == j):
 				print self.stateVehicles.keys()
 				JPLANE = self.stateVehicles[(self.vehicleState.ID-1)]
 				qj_gps = np.matrix([JPLANE.position.lat,JPLANE.position.lon])
@@ -356,8 +356,7 @@ class Controller(threading.Thread):
 		
 		
 		#altitude control
-		print 'qd: ' + str(qd)
-		print 'qd id ' + str(ID) + str(qd[ID-1,:])
+
 		desiredAltitude = qd[ID-1,2] #this is AGL  for now
 		altitude = self.vehicleState.position.alt
 		kpAlt = self.parameters.ctrlGains['kpAlt']
@@ -390,12 +389,11 @@ def wrapTo2Pi(value):
 #	y = r*m.cosd(lat)*m.sind(lon)
 #	z = r*m.sind(lat)
 def getRelPos(pos1,pos2):
-	c = 40074784 # from https://gis.stackexchange.com/questions/2951/algorithm-for-offsetting-a-latitude-longitude-by-some-amount-of-meters
-#	print pos2
-#	print pos2[0,0]
-#	print pos2[0,1]
-	dx = (pos2[0,1]-pos1[0,1]) * c * m.cos(m.radians( (pos1[0,0]+pos2[0,0])/ 2))/360
+	c= 111111000#https://gis.stackexchange.com/questions/2951/algorithm-for-offsetting-a-latitude-longitude-by-some-amount-of-meters
+	print pos2
+	print pos2[0,0]
+	print pos2[0,1]
+	dy = (pos2[0,0]-pos1[0,0]) * c /360
+	dx = m.cos(m.radians(pos2[0,0]-pos1[0,0])) * c  
 #	print dx
-	dy = (pos2[0,1]-pos1[0,1]) * c /360
-#	dz = pos2['alt']-pas1['alt']	
 	return np.matrix([dx, dy])
