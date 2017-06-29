@@ -6,10 +6,10 @@ import numpy as np
 defaultParams = Parameter()
 defaultParams.receivedTime = time.time()
 defaultParams.isComplete = True
-defaultParams.desiredPosition=np.array([[-10,0,90]])  #Agent, amount forward, amount right, amount below, meters
-defaultParams.ctrlGains = {'kl':0.2, 'ka': 0.0001,'alpha1': 0.001,'alpha2':100,'d':0.01,'vMin': 15,'vMax':24,'kBackstep':0,'aFilter':0.1, 'aFilterThetaDDot': 0.1,'ktheta':0.1, 'headingRateLimit':0.6,'kpAlt':0.2,'kiAlt':0.02}
+defaultParams.desiredPosition=np.array([[-10,0,120]])  #Agent, amount forward, amount right, amount below, meters
+defaultParams.ctrlGains = {'kl':0.0, 'ka': 0.0001,'alpha1': 0.001,'alpha2':100,'d':0.01,'vMin': 15,'vMax':24,'kBackstep':0,'aFilter':0.1, 'aFilterThetaDDot': 0.1,'ktheta':0.1, 'headingRateLimit':0.6,'kpAlt':0.2,'kiAlt':0.02}
 defaultParams.GCSTimeout = 5 #seconds
-defaultParams.peerTimeout = 1 #seconds
+defaultParams.peerTimeout = 1.5 #seconds
 defaultParams.leaderID = 1   #MAV ID of leader
 defaultParams.expectedMAVs = 2 #One, plus the leader
 defaultParams.headingGain= 500/0.6 #rad/sec per PWM
