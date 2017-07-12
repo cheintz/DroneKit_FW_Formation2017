@@ -48,7 +48,7 @@ def vsToCSV(vs):
 	except (KeyboardInterrupt, SystemExit):
 		raise
 	except:
-		out+=' , , ,'
+		out+=' , , , , , ,'
 	out+=str(vs.channels['1']) +', '+ str(vs.channels['2']) +','+ str(vs.channels['3'])
 	return out
 	
@@ -56,5 +56,5 @@ def msgToCSVHeaders():
 	str = "Time,ID,roll,pitch,yaw,lon,lat,alt,lngSpd,latSpd,altSpeed,lastRXGnd,lastRX1,lastRX2,lastRX3, headingRateCmd, climbRateCmd, airSpeedCmd,pwm1,pwm2,pwm3"
 	return str
 def vsToCSVHeaders():
-	str = "ID,roll,pitch,yaw,lon,lat,alt,lngSpd,latSpd,altSpeed,lastRXGnd,lastRX1,lastRX2,lastRX3, headingRateCmd, climbRateCmd, airSpeedCmd,thetaD,accAltError,pwm1,pwm2,pwm3"
+	str = "ID,roll,pitch,yaw,lat,lon,alt,latSpd,lngSpd,altSpeed,lastRXGnd,lastRX1,lastRX2,lastRX3, headingRateCmd, climbRateCmd, airSpeedCmd,thetaD,accAltError,pwm1,pwm2,pwm3"
 	return str

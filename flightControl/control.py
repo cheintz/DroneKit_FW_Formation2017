@@ -269,7 +269,7 @@ class Controller(threading.Thread):
 		Ts = self.vehicleState.parameters.Ts
 
 		
-		qil = getRelPos(qi_gps,ql_gps)
+		qil = getRelPos(ql_gps,qi_gps)
 		qil.shape=(2,1)
 		pl = np.matrix(LEADER.velocity).transpose()
 
@@ -302,7 +302,7 @@ class Controller(threading.Thread):
 		print "\n\n"
 #		print "Gain Term: " + str(-kl*(qil-Obi.transpose()*qdil))
 #		print "PhiDotTerm: " + str(phiDot*gamma*qil)
-		ui = pl-kl * (qil - Obi.transpose()* qdil) + phiDot * gamma * qil
+		ui = pl-kl * (qil - Obi.transpose()* qdil) + phiDot*0 * gamma * qil
 		print 'UI = ' + str(ui)
 		ata = np.linalg.norm(qil,2)
 		ata=1
