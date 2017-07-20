@@ -49,12 +49,13 @@ def vsToCSV(vs):
 		raise
 	except:
 		out+=' , , , , ,'
-	out+=str(vs.channels['1']) +', '+ str(vs.channels['2']) +','+ str(vs.channels['3'])
+	out+=str(vs.channels['1']) +', '+ str(vs.channels['2']) +','+ str(vs.channels['3'],str(vs.channels['5'],str(vs.channels['6'])
+	out+=str(vs.servoOut['1']),+', ' +vs.servoOut['2']),+', ' + vs.servoOut['3']),+', '
 	return out
 	
 def msgToCSVHeaders():
-	str = "Time,ID,roll,pitch,yaw,lat,lon,alt,latSpd,lngSpd,altSpeed,lastRXGnd,lastRX1,lastRX2,lastRX3, headingRateCmd, climbRateCmd, airSpeedCmd,pwm1,pwm2,pwm3"
+	str = "Time,ID,roll,pitch,yaw,lat,lon,alt,latSpd,lngSpd,altSpeed,lastRXGnd,lastRX1,lastRX2,lastRX3, headingRateCmd, climbRateCmd, airSpeedCmd,ch1,ch2,ch3,ch5,ch6"
 	return str
 def vsToCSVHeaders():
-	str = "ID,roll,pitch,yaw,lat,lon,alt,latSpd,lngSpd,altSpeed,lastRXGnd,lastRX1,lastRX2,lastRX3, headingRateCmd, climbRateCmd, airSpeedCmd,thetaD,accAltError,pwm1,pwm2,pwm3"
+	str = "ID,roll,pitch,yaw,lat,lon,alt,latSpd,lngSpd,altSpeed,lastRXGnd,lastRX1,lastRX2,lastRX3, headingRateCmd, climbRateCmd, airSpeedCmd,thetaD,accAltError,ch1,ch2,ch3,ch5,ch6,servo1,servo2,servo3"
 	return str
