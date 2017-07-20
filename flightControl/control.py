@@ -75,7 +75,8 @@ class Controller(threading.Thread):
 			
 				#TODO: find a way to clear timeouts, if necessary
 		self.stop()
-		self.releaseControl()			
+		self.releaseControl()
+		self.vehicle.close()			
 		print "Control Stopped"
 			
 	
@@ -214,6 +215,7 @@ class Controller(threading.Thread):
 		a = self.parameters.ctrlGains['aFilter']
 		Ts = self.parameters.Ts
 		self.vehicleState.headingRate = (1- a) * lastHeadingRate +a/Ts *(deltaHeading)
+		self.vehicleState.time = datetime.now()
 		
 	def pushStateToTxQueue(self):
 #		print "TXQueueSize = " + str(self.transmitQueue.qsize())
@@ -304,6 +306,7 @@ class Controller(threading.Thread):
 		phiDot = LEADER.headingRate
 		
 		Obi = np.matrix([[m.cos(phi),m.sin(phi)],[-m.sin(phi),m.cos(phi)]])
+		print 'Time: = ' + str(self.vehicleState.time)
 		
 		#Compute from leader 
 		print 'pl = ' + str(pl)
@@ -312,17 +315,17 @@ class Controller(threading.Thread):
 #		print 'Gamma' + str(gamma)
 		print 'qil' + str(qil)
 #		print 'Obi*qdil' + str((Obi.transpose()*qdil))
-		print "\n\n"
 #		print "Gain Term: " + str(-kl*(qil-Obi.transpose()*qdil))
 #		print "PhiDotTerm: " + str(phiDot*gamma*qil)
-		ui = pl-kl * (qil - Obi.transpose()* qdil) + phiDot*0 * gamma * qil
+		print "PhiDot: " + str(phiDot)
+		ui = pl-kl * (qil - Obi.transpose()* qdil) + phiDot * gamma * qil
 		print 'UI = ' + str(ui)
 		ata = np.linalg.norm(qil,2)
-		ata=1
+	#	ata=1
 		if(ata<d):
 			frepel = alpha2/(alpha1+1)-alpha2/(alpha1+m.pow(ata,2) /m.pow(d,2))
-			print type(frepel)
-			print type(qil)
+			print 'F Repel:' + str(frepel)
+#			print type(qil)
 			ui = ui - frepel * qil 
 			
 		#compute from peers
@@ -343,6 +346,7 @@ class Controller(threading.Thread):
 				ata = np.linalg.norm(qij,2)
 				if(ata<d):
 					frepel = alpha2/(alpha1+1)-alpha2/(alpha1+m.pow(ata,2)/m.pow(d,2))
+					print 'F Repel:' + str(frepel)
 					ui = ui - frepel * qij 
 		#Backstep
 		vMin = self.parameters.ctrlGains['vMin']
@@ -369,11 +373,13 @@ class Controller(threading.Thread):
 		thetaDLast = self.vehicleState.command.thetaD
 		self.vehicleState.thetaDDotApprox = (1- a) * lastThetaDDotApprox +a/Ts *wrapToPi(thetaD-thetaDLast)
 		thetaDDotApprox = self.vehicleState.thetaDDotApprox
+		print "ThetaDDotInstant: " +  str(wrapToPi(thetaD-thetaDLast))
+		print "thetaDDotFilt: " + str(thetaDDotApprox)
 
-		print "theta:" + str(theta)
+		print "theta: " + str(theta)
 		etheta = wrapToPi(theta-thetaD)
-		print "etheta" + str(etheta)		
-		print "kbackstep" + str(kbackstep)
+		print "etheta: " + str(etheta)		
+		print "kbackstep: " + str(kbackstep)
 		#if(abs(thetaDDotApprox)>10) %mostly for startup. Should probably saturate this a little better
 		        #  thetaDDotApprox=0;
 		
@@ -381,11 +387,12 @@ class Controller(threading.Thread):
 		eq = Obi*qil-qdil #this is in leader body, only want the first 2 elements
 		eq.shape=(2,1)
 		u2i = (-ktheta*etheta-kbackstep*vDesired*eq.transpose()*gamma*  np.matrix([[m.cos(theta)], [m.sin(theta)]]) +thetaDDotApprox   )
-		print 'u2i' + str(u2i)
-		print "thetaD Dot Approx" + str(thetaDDotApprox)
+		print 'u2i:' + str(u2i)
+		print "thetaD Dot Approx:" + str(thetaDDotApprox)
 		effectiveHeadingRateLimit=headingRateLimitAbs; #provisions for more realistic  velocity dependant ratelimit (since Pixhawk limits the roll angle to a configurable angle)
 		
 		u2i = max(-effectiveHeadingRateLimit,min(effectiveHeadingRateLimit,u2i))
+		print 'u2i saturated: ' + str(u2i)
 		thisCommand.headingRate =u2i
 		thisCommand.airSpeed = vDesired
 		
@@ -402,6 +409,9 @@ class Controller(threading.Thread):
 		thisCommand.climbRate = -kpAlt * altError - kiAlt * self.vehicleState.command.accAltError
 		#thisCommand.climbRate = 0
 		thisCommand.accAltError = self.vehicleState.command.accAltError +  altError*Ts
+		print 'accAltError: ' + str(thisCommand.accAltError)
+
+		print '\n\n\n'
 		
 		thisCommand.timestamp = datetime.now()
 		self.vehicleState.command = thisCommand

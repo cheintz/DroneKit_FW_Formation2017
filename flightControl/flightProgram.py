@@ -95,8 +95,6 @@ while hasLiveThreads(threads):
 		print "killing threads"
 		for t in threads:
 			t.stop()
-		print "Close vehicle object"
-		vehicle.close()
 
 		# Shut down simulator if it was started.
 		if sitl is not None:
