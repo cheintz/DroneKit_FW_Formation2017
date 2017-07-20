@@ -9,6 +9,7 @@ import vehicleState
 from defaultConfig import *
 import numpy as np
 import argparse 
+from servovehicle import ServoVehicle
  
 #get enviromental variables
 AdHocIP = os.environ['ADHOCIP']
@@ -53,7 +54,7 @@ if not connection_string:
 # Connect to the Vehicle. 
 #   Set `wait_ready=True` to ensure default attributes are populated before `connect()` returns.
 print "\nConnecting to vehicle on: %s" % connection_string
-vehicle = connect(connection_string, wait_ready=True, rate=20, baud=1500000)
+vehicle = connect(connection_string, wait_ready=True, rate=20, baud=1500000,vehicle_class=ServoVehicle)
 
 vehicle.wait_ready('autopilot_version')
 
@@ -94,6 +95,12 @@ while hasLiveThreads(threads):
 		print "killing threads"
 		for t in threads:
 			t.stop()
+		print "Close vehicle object"
+		vehicle.close()
+
+		# Shut down simulator if it was started.
+		if sitl is not None:
+		    sitl.stop()
 	
 print "exiting Main"
 

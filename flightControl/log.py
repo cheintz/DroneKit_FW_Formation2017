@@ -26,7 +26,8 @@ class Logger(threading.Thread):
 		for i in range(1,n+1):
 			headerString+=(mutil.vsToCSVHeaders())
 			if(i!=n):
-				headerString+=',\n'
+				headerString+=','
+		headerString+='\n'		
 		self.file.write(headerString)
 	def stop (self):
 		self.stoprequest.set()	
