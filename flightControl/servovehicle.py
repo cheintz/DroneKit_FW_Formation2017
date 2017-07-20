@@ -17,14 +17,16 @@ class ServoVehicle(Vehicle): #Based on the create_attribute example:https://gith
 			The listener writes the message to the (newly attached) ``servoOut Dict`` object 
 			and notifies observers.
 			"""
-			self._servoOut['1']==message.servo1_raw
-			self._servoOut['2']==message.servo2_raw
-			self._servoOut['3']==message.servo3_raw
-			self._servoOut['4']==message.servo4_raw
-			self._servoOut['5']==message.servo5_raw
-			self._servoOut['6']==message.servo6_raw
-			self._servoOut['7']==message.servo7_raw
-			self._servoOut['8']==message.servo8_raw
+		#	print "received servo update!!"
+			self._servoOut['1']=message.servo1_raw
+			self._servoOut['2']=message.servo2_raw
+			self._servoOut['3']=message.servo3_raw
+			self._servoOut['4']=message.servo4_raw
+			self._servoOut['5']=message.servo5_raw
+			self._servoOut['6']=message.servo6_raw
+			self._servoOut['7']=message.servo7_raw
+			self._servoOut['8']=message.servo8_raw
+		#	print self._servoOut
 				#It seems pymavlink doesn't support these. But we don't need them, anyway
 			#self._servoOut['9']==message.servo9_raw            
 			#self._servoOut['10']==message.servo10_raw

@@ -17,11 +17,12 @@ class Logger(threading.Thread):
 		threading.Thread.__init__(self)
 		self.logQueue=logQueue
 		self.stoprequest = threading.Event()
-#		self.file=open(datetime.now().strftime("log_%y_%m_%d_%H_%M_%S.csv"),'w')
+#		self.file=open(datetime.now().strftime("%y_%m_%d_%H_%M_%S_log.csv"),'w')
 		#self.file=open(os.path.join("/home/pi/logs" ,datetime.now().strftime("log_%Y_%m_%d__%H_%M_%S.csv")),'w')
-		self.file=open(os.path.join(logPath ,datetime.now().strftime("log_%Y_%m_%d__%H_%M_%S.csv")),'w')
+		self.startTime=datetime.now()
+		self.file=open(os.path.join(logPath ,self.startTime.strftime("%Y_%m_%d__%H_%M_%S_log.csv")),'w')
 		headerString=''
-		headerString+='Time, '
+		headerString+='Time, RelTime'
 		self.expectedMAVs=n
 		for i in range(1,n+1):
 			headerString+=(mutil.vsToCSVHeaders())
@@ -61,6 +62,7 @@ class Logger(threading.Thread):
 		stateVehicles = msg.content['stateVehicles']
 		thisState = msg.content['thisState']
 		outString+= str(datetime.now()) + ', '
+		outString+= str((datetime.now() - self.startTime).total_seconds())
 		for i in range(1,thisState.parameters.expectedMAVs+1):
 			try:
 				if(i!=thisState.ID):

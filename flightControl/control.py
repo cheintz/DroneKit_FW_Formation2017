@@ -215,6 +215,7 @@ class Controller(threading.Thread):
 		a = self.parameters.ctrlGains['aFilter']
 		Ts = self.parameters.Ts
 		self.vehicleState.headingRate = (1- a) * lastHeadingRate +a/Ts *(deltaHeading)
+		self.vehicleState.servoOut = self.vehicle.servoOut
 		self.vehicleState.time = datetime.now()
 		
 	def pushStateToTxQueue(self):
