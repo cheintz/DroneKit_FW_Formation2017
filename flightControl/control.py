@@ -343,7 +343,7 @@ class Controller(threading.Thread):
 		theta = self.vehicleState.heading
 
 		thetaD = m.atan2(ui[1,0],ui[0,0])
-		thetaDLast = self.vehicleState.command.thetaD
+		
 		print "vDesired: " + str(vDesired)
 		print "ThetaD: " + str(thetaD)
 
@@ -351,6 +351,9 @@ class Controller(threading.Thread):
 
 		a = self.parameters.ctrlGains['aFilterThetaDDot']
 		Ts = self.parameters.Ts
+		if not self.vehicleState.command.thetaD:
+			self.vehicleState.command.thetaD=thetaD #Handle startup with zero thetaDDotApprox
+		thetaDLast = self.vehicleState.command.thetaD
 		self.vehicleState.thetaDDotApprox = (1- a) * lastThetaDDotApprox +a/Ts *wrapToPi(thetaD-thetaDLast)
 		thetaDDotApprox = self.vehicleState.thetaDDotApprox
 

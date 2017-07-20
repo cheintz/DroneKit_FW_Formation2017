@@ -17,16 +17,16 @@ class Logger(threading.Thread):
 		threading.Thread.__init__(self)
 		self.logQueue=logQueue
 		self.stoprequest = threading.Event()
-#		self.file=open(datetime.now().strftime("log_%y_%m_%d_%H_%M_%S.json"),'w')
-		self.file=open(os.path.join("/home/pi/logs" ,datetime.now().strftime("log_%Y_%m_%d__%H_%M_%S.json")),'w')
+#		self.file=open(datetime.now().strftime("log_%y_%m_%d_%H_%M_%S.csv"),'w')
+		#self.file=open(os.path.join("/home/pi/logs" ,datetime.now().strftime("log_%Y_%m_%d__%H_%M_%S.csv")),'w')
+		self.file=open(os.path.join(logPath ,datetime.now().strftime("log_%Y_%m_%d__%H_%M_%S.csv")),'w')
 		headerString=''
 		headerString+='Time, '
 		self.expectedMAVs=n
 		for i in range(1,n+1):
 			headerString+=(mutil.vsToCSVHeaders())
 			if(i!=n):
-				headerString+=', '
-			
+				headerString+=',\n'
 		self.file.write(headerString)
 	def stop (self):
 		self.stoprequest.set()	
@@ -69,8 +69,8 @@ class Logger(threading.Thread):
 			except KeyError:
 				for j in range(0,21):
 					outString += ', '
-				if(i!=thisState.parameters.expectedMAVs):
-					outString+=', '
+			if(i!=thisState.parameters.expectedMAVs):
+				outString+=', '
 		self.file.write(outString)
 		self.file.write("\n")
 		#print "Send complete"
