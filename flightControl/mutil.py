@@ -49,8 +49,8 @@ def vsToCSV(vs):
 		raise
 	except:
 		out+=' , , , , ,'
-	out+=str(vs.channels['1']) +', '+ str(vs.channels['2']) +','+ str(vs.channels['3'],str(vs.channels['5'],str(vs.channels['6'])
-	out+=str(vs.servoOut['1']),+', ' +vs.servoOut['2']),+', ' + vs.servoOut['3']),+', '
+	out+=str(vs.channels['1']) +', '+ str(vs.channels['2']) +','+ str(vs.channels['3'])+','+str(vs.channels['5'])+','+str(vs.channels['6'])+','
+	out+=str(vs.servoOut['1'])+', ' +str(vs.servoOut['2'])+', ' + str(vs.servoOut['3'])+','
 	return out
 	
 def msgToCSVHeaders():
