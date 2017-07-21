@@ -33,7 +33,7 @@ class Controller(threading.Thread):
 		self.vehicleState.ID = int(self.vehicle.parameters['SYSID_THISMAV'])
 		# print "Constructor \n\n"
 		# print type(self.vehicleState)
-		self.command = Command()
+#		self.command = Command()
 		self.stoprequest = threading.Event()
 		self.lastGCSContact = -1
 		
@@ -67,6 +67,7 @@ class Controller(threading.Thread):
 					self.computeControl() #swrites the control values to self.vehicleState
 					self.scaleAndWriteCommands()
 #			print "pushing to queue" + str(time.time())
+			self.stateVehicles[self.vehicleState.ID] = self.vehicleState
 			self.pushStateToTxQueue() #sends the state to the UDP sending threading
 			self.pushStateToLoggingQueue()
 #			self.vehicleState.RCLatch = False
@@ -128,7 +129,7 @@ class Controller(threading.Thread):
 			self.vehicleState.isFlocking = False
 			self.vehicleState.RCLatch = True
 			self.releaseControl()
-			self.commands = {0,0,0}			
+			self.vehicleState.command = Command()			
 			return True
 		print "Flight Mode: " + str(self.vehicle.mode)
 		if (not (self.vehicle.mode == acceptableControlMode)): #if switched out of acceptable modes
@@ -139,22 +140,23 @@ class Controller(threading.Thread):
 			# print "About to RTL" + str(time.time())
 			self.commenceRTL()
 			# print "returned from RTL function" + str(time.time())
-			self.commands = {0,0,0}
+			self.vehicleState.command = Command()			
+
 			return True
 		if (self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 2100):
 			print "Abort - Geofence not enabled"
 			self.vehicleState.RCLatch = True
 			self.vehicleState.isFlocking = False
 			self.vehicleState.abortReason = "Geofence"
+			self.vehicleState.command = Command()			
 			self.commenceRTL()
-			self.commands = {0,0,0}
 		if (self.vehicle.channels['6'] < 1700 or self.vehicle.channels['6'] > 2100):
 			self.vehicleState.isFlocking = False
 			self.vehicleState.RCLatch = True			
 			self.abortReason = "RC Disable"
 			print "RC Disable" + str(time.time())
 			self.releaseControl()
-			self.commands = {0,0,0}
+			self.vehicleState.command = Command()			
 			return True
 		print "Do not abort flocking"
 		return False
@@ -198,6 +200,7 @@ class Controller(threading.Thread):
 		return True
 			
 	def getVehicleState(self):		#Should probably check for timeout, etc.
+		self.vehicleState.timeout.peerLastRX[self.vehicleState.ID]=datetime.now()
 		self.vehicleState.attitude = self.vehicle.attitude
 		self.vehicleState.channels = dict(zip(self.vehicle.channels.keys(),self.vehicle.channels.values())) #necessary to be able to serialize it
 #		print	str(time.time())  +"\t" + str(self.vehicle.attitude.roll) + "\t" + str((self.vehicleState.timeout.peerTimeoutTime)) + "\t" + str((self.vehicleState.timeout.peerLastRX))
@@ -271,7 +274,7 @@ class Controller(threading.Thread):
 
 	def computeControl(self):
 		#overhead
-		thisCommand  = Command
+		thisCommand  = Command()
 		qi = np.matrix(self.vehicleState.position).transpose()
 #		print self.stateVehicles
 		LEADER = self.stateVehicles[(self.parameters.leaderID)]
@@ -408,8 +411,14 @@ class Controller(threading.Thread):
 		
 		altError = altitude-desiredAltitude
 		thisCommand.climbRate = -kpAlt * altError - kiAlt * self.vehicleState.command.accAltError
+
+		climbLimit=self.parameters.ctrlGains['climbLimit']
 		#thisCommand.climbRate = 0
-		thisCommand.accAltError = self.vehicleState.command.accAltError +  altError*Ts
+		if(abs(thisCommand.climbRate)>climbLimit): #Saturation and anti-windup
+			thisCommand.climbRate=max(-climbLimit,min(thisCommand.climbRate,climbLimit))
+		else:
+			thisCommand.accAltError = self.vehicleState.command.accAltError +  altError*Ts
+		
 		print 'accAltError: ' + str(thisCommand.accAltError)
 
 		print '\n\n\n'

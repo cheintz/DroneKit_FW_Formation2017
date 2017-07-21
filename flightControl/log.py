@@ -61,15 +61,18 @@ class Logger(threading.Thread):
 		#print str(msg.content)
 		stateVehicles = msg.content['stateVehicles']
 		thisState = msg.content['thisState']
+#		print thisState.command.headingRate
 		outString+= str(datetime.now()) + ', '
 		outString+= str((datetime.now() - self.startTime).total_seconds())
 		for i in range(1,thisState.parameters.expectedMAVs+1):
 			try:
-				if(i!=thisState.ID):
+				if(True):#i!=thisState.ID):
 					outString+= mutil.vsToCSV(stateVehicles[i])
 				else:
 					outString +=mutil.vsToCSV(thisState)
+#					print "Writing from ThisState"
 			except KeyError:
+				print "Attempted to log nonexistant vehicle: " + str(i)
 				for j in range(0,21):
 					outString += ', '
 			if(i!=thisState.parameters.expectedMAVs):
