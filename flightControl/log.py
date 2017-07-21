@@ -63,7 +63,7 @@ class Logger(threading.Thread):
 		thisState = msg.content['thisState']
 #		print thisState.command.headingRate
 		outString+= str(datetime.now()) + ', '
-		outString+= str((datetime.now() - self.startTime).total_seconds())
+		outString+= str((datetime.now() - thisState.startTime).total_seconds()) #relative time
 		for i in range(1,thisState.parameters.expectedMAVs+1):
 			try:
 				if(True):#i!=thisState.ID):

@@ -31,6 +31,7 @@ class Controller(threading.Thread):
 		self.parameters = defaultParams
 		self.vehicleState = VehicleState()
 		self.vehicleState.ID = int(self.vehicle.parameters['SYSID_THISMAV'])
+		self.vehicleState.startTime = datetime.now()
 		# print "Constructor \n\n"
 		# print type(self.vehicleState)
 #		self.command = Command()

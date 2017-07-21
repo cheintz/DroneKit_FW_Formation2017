@@ -35,15 +35,15 @@ def vsToCSV(vs):
 		out+=' ,'
 	
 	try:
-		out+=str((vs.timeout.peerLastRX['1']-epoch) . total_seconds())+','
+		out+=str((vs.timeout.peerLastRX[1]-epoch) . total_seconds())+','
 	except: 
 		out+=' ,'
 	try: 
-		out+=str((vs.timeout.peerLastRX['2']-epoch) . total_seconds())+','
+		out+=str((vs.timeout.peerLastRX[2]-epoch) . total_seconds())+','
 	except:
 		out+=' ,'
 	try:
-		out+=str((vs.timeout.peerLastRX['3']-epoch) . total_seconds())+','
+		out+=str((vs.timeout.peerLastRX[3]-epoch) . total_seconds())+','
 	except:
 		out+=' ,'
 
