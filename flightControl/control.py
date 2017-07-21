@@ -129,6 +129,7 @@ class Controller(threading.Thread):
 			self.vehicleState.isFlocking = False
 			self.vehicleState.RCLatch = True
 			self.releaseControl()
+			self.commenceRTL()
 			self.vehicleState.command = Command()			
 			return True
 		print "Flight Mode: " + str(self.vehicle.mode)
@@ -148,6 +149,7 @@ class Controller(threading.Thread):
 			self.vehicleState.RCLatch = True
 			self.vehicleState.isFlocking = False
 			self.vehicleState.abortReason = "Geofence"
+			self.releaseControl()
 			self.vehicleState.command = Command()			
 			self.commenceRTL()
 		if (self.vehicle.channels['6'] < 1700 or self.vehicle.channels['6'] > 2100):
@@ -242,7 +244,7 @@ class Controller(threading.Thread):
 		self.loggingQueue.put(msg)
 	def commenceRTL(self):
 #		self.vehicle.parameters['ALT_HOLD_RTL'] = (70 + 10 * self.vehicle.parameters['SYSID_THISMAV']) * 100
-#		self.vehicle.mode = VehicleMode("RTL")
+		self.vehicle.mode = VehicleMode("RTL")
 		self.releaseControl()
 	def checkTimeouts(self):
 		didTimeOut = False

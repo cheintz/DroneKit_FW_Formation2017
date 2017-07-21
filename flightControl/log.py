@@ -73,7 +73,8 @@ class Logger(threading.Thread):
 #					print "Writing from ThisState"
 			except KeyError:
 				print "Attempted to log nonexistant vehicle: " + str(i)
-				for j in range(0,21):
+				outString += str(i)+','
+				for j in range(0,30):
 					outString += ', '
 			if(i!=thisState.parameters.expectedMAVs):
 				outString+=', '

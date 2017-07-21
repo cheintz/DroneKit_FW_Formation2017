@@ -6,8 +6,8 @@ from datetime import datetime
 
 	
 def vsToCSV(vs):
-	print vs.ID
-	print vs.command
+#	print vs.ID
+#	print vs.command
 	out=''
 	out+=str(vs.ID) + ','
 	out+=str(vs.attitude.roll)+','
@@ -46,6 +46,11 @@ def vsToCSV(vs):
 		out+=str((vs.timeout.peerLastRX['3']-epoch) . total_seconds())+','
 	except:
 		out+=' ,'
+
+	try:
+		out+=str(vs.abortReason) + ','
+	except:
+		out+=' ,'
 	try:
 		out+=str(vs.command.headingRate)+','
 		out+=str(vs.command.climbRate)+','
@@ -64,5 +69,5 @@ def msgToCSVHeaders():
 	str = "Time,ID,roll,pitch,yaw,lat,lon,alt,latSpd,lngSpd,altSpeed,lastRXGnd,lastRX1,lastRX2,lastRX3, headingRateCmd, climbRateCmd, airSpeedCmd,ch1,ch2,ch3,ch5,ch6"
 	return str
 def vsToCSVHeaders():
-	str = "ID,roll,pitch,yaw,lat,lon,alt,latSpd,lngSpd,altSpeed,heading,headingRate,thetaDDotApprox,lastRXGnd,lastRX1,lastRX2,lastRX3, headingRateCmd, climbRateCmd, airSpeedCmd,thetaD,accAltError,ch1,ch2,ch3,ch5,ch6,servo1,servo2,servo3"
+	str = "ID,roll,pitch,yaw,lat,lon,alt,latSpd,lngSpd,altSpeed,heading,headingRate,thetaDDotApprox,lastRXGnd,lastRX1,lastRX2,lastRX3,abortReason, headingRateCmd, climbRateCmd, airSpeedCmd,thetaD,accAltError,ch1,ch2,ch3,ch5,ch6,servo1,servo2,servo3"
 	return str
