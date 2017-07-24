@@ -42,6 +42,7 @@ class ServoVehicle(Vehicle): #Based on the create_attribute example:https://gith
 			#   are updated with every new message
 			self.notify_attribute_listeners('servo_output_raw', self._servoOut) 
 
+
 	@property
 	def servoOut(self):
 		return self._servoOut

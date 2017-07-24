@@ -22,7 +22,7 @@ class Logger(threading.Thread):
 		self.startTime=datetime.now()
 		self.file=open(os.path.join(logPath ,self.startTime.strftime("%Y_%m_%d__%H_%M_%S_log.csv")),'w')
 		headerString=''
-		headerString+='Time, RelTime'
+		headerString+='Time, RelTime,'
 		self.expectedMAVs=n
 		for i in range(1,n+1):
 			headerString+=(mutil.vsToCSVHeaders())
@@ -74,7 +74,7 @@ class Logger(threading.Thread):
 			except KeyError:
 				print "Attempted to log nonexistant vehicle: " + str(i)
 				outString += str(i)+','
-				for j in range(0,30):
+				for j in range(0,33):
 					outString += ', '
 			if(i!=thisState.parameters.expectedMAVs):
 				outString+=', '

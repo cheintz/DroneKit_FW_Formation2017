@@ -13,6 +13,10 @@ def vsToCSV(vs):
 	out+=str(vs.attitude.roll)+','
 	out+=str(vs.attitude.pitch)+','
 	out+=str(vs.attitude.yaw)+','
+	out+=str(vs.attitude.rollspeed)+','
+	out+=str(vs.attitude.pitchspeed)+','
+	out+=str(vs.attitude.yawspeed)+','
+
 	#print (vs.position.keys['long])
 	out+=str(vs.position.lat)+','
 	out+=str(vs.position.lon)+','
@@ -69,5 +73,5 @@ def msgToCSVHeaders():
 	str = "Time,ID,roll,pitch,yaw,lat,lon,alt,latSpd,lngSpd,altSpeed,lastRXGnd,lastRX1,lastRX2,lastRX3, headingRateCmd, climbRateCmd, airSpeedCmd,ch1,ch2,ch3,ch5,ch6"
 	return str
 def vsToCSVHeaders():
-	str = "ID,roll,pitch,yaw,lat,lon,alt,latSpd,lngSpd,altSpeed,heading,headingRate,thetaDDotApprox,lastRXGnd,lastRX1,lastRX2,lastRX3,abortReason, headingRateCmd, climbRateCmd, airSpeedCmd,thetaD,accAltError,ch1,ch2,ch3,ch5,ch6,servo1,servo2,servo3"
+	str = "ID,roll,pitch,yaw,rollspeed,pitchspeed,yawspeed,lat,lon,alt,latSpd,lngSpd,altSpeed,heading,headingRate,thetaDDotApprox,lastRXGnd,lastRX1,lastRX2,lastRX3,abortReason, headingRateCmd, climbRateCmd, airSpeedCmd,thetaD,accAltError,ch1,ch2,ch3,ch5,ch6,servo1,servo2,servo3"
 	return str
