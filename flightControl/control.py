@@ -214,7 +214,7 @@ class Controller(threading.Thread):
 		self.vehicleState.timeout.localTimeoutTime=lastPX4RxTime =datetime.now()
 		self.vehicleState.parameters = self.parameters
 		lastHeading = self.vehicleState.heading
-		self.vehicleState.heading = m.atan2(self.vehicleState.velocity[1],self.vehicleState.velocity[0])
+		self.vehicleState.heading = m.atan2(self.vehicleState.velocity[0],self.vehicleState.velocity[1])
 #		self.vehicleState.heading=0.08
 		deltaHeading = self.vehicleState.heading -lastHeading
 		lastHeadingRate = self.vehicleState.headingRate
