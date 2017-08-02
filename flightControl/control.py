@@ -436,7 +436,12 @@ def wrapToPi(value):
 	return wrapTo2Pi(value+m.pi)-m.pi
 	
 def wrapTo2Pi(value):
-	positiveInput = (value > 0);
+	if(value<0):
+		n=m.ceil(abs(value / (2*m.pi)))
+		value+=n*2.*m.pi
+		positiveInput=False
+	else:
+		positiveInput=True
 	value = m.fmod(value, 2*m.pi);
 	if (value == 0 and positiveInput):
 		value=2*m.pi
