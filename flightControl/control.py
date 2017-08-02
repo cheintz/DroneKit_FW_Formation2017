@@ -366,7 +366,7 @@ class Controller(threading.Thread):
 		vDesired=max(vMin,min(vMax,vDesired))
 		theta = self.vehicleState.heading
 
-		thetaD = m.atan2(ui[1,0],ui[0,0])
+		thetaD = m.atan2(ui[0,0],ui[1,0])
 		
 		print "vDesired: " + str(vDesired)
 		print "ThetaD: " + str(thetaD)
