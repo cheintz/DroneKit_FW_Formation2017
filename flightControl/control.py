@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.WARNING)
 
 class Controller(threading.Thread):
 	
-	def __init__(self,loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams):
+	def __init__(self,loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams,startTime):
 		threading.Thread.__init__(self)
 		self.isRunning=True
 		self.loggingQueue = loggingQueue
@@ -32,11 +32,13 @@ class Controller(threading.Thread):
 		self.vehicleState = VehicleState()
 		self.vehicleState.ID = int(self.vehicle.parameters['SYSID_THISMAV'])
 		self.vehicleState.startTime = datetime.now()
+		self.counter = 0
 		# print "Constructor \n\n"
 		# print type(self.vehicleState)
 #		self.command = Command()
 		self.stoprequest = threading.Event()
 		self.lastGCSContact = -1
+		self.startTime=startTime
 		
 		#def servoMsgHandler(self,name,m):	
 		#self.vehicle.add_message_listener('SERVO_OUTPUT_RAW',self.servoMsgHandler)
@@ -60,7 +62,8 @@ class Controller(threading.Thread):
 				except Queue.Empty:
 					break #no more messages.
 			self.getVehicleState() #Get update from the Pixhawk
-
+			print "RelTime: " + str((datetime.now() - self.startTime).total_seconds())
+			print "counter: " + str(self.counter)
 			if(not self.vehicleState.isFlocking): #Should we engage flocking
 				self.checkEngageFlocking()
 			if(self.vehicleState.isFlocking and True): #self.vehicleState.ID != self.parameters.leaderID):# and self.parameters.leaderID != self.vehicleState.ID):
@@ -222,8 +225,9 @@ class Controller(threading.Thread):
 		Ts = self.parameters.Ts
 		self.vehicleState.headingRate = (1- a) * lastHeadingRate +a/Ts *(deltaHeading)
 		self.vehicleState.servoOut = self.vehicle.servoOut
+		self.vehicleState.airspeed=self.vehicle.airspeed
 		self.vehicleState.time = datetime.now()
-		
+		self.counter+=1
 	def pushStateToTxQueue(self):
 #		print "TXQueueSize = " + str(self.transmitQueue.qsize())
 		msg=Message()

@@ -13,13 +13,13 @@ from datetime import datetime
 
 class Logger(threading.Thread):
 
-	def __init__(self,logQueue,logPath,n):
+	def __init__(self,logQueue,logPath,n,startTime):
 		threading.Thread.__init__(self)
 		self.logQueue=logQueue
 		self.stoprequest = threading.Event()
 #		self.file=open(datetime.now().strftime("%y_%m_%d_%H_%M_%S_log.csv"),'w')
 		#self.file=open(os.path.join("/home/pi/logs" ,datetime.now().strftime("log_%Y_%m_%d__%H_%M_%S.csv")),'w')
-		self.startTime=datetime.now()
+		self.startTime=startTime
 		self.file=open(os.path.join(logPath ,self.startTime.strftime("%Y_%m_%d__%H_%M_%S_log.csv")),'w')
 		headerString=''
 		headerString+='Time, RelTime,'
@@ -74,7 +74,7 @@ class Logger(threading.Thread):
 			except KeyError:
 				print "Attempted to log nonexistant vehicle: " + str(i)
 				outString += str(i)+','
-				for j in range(0,33):
+				for j in range(0,34):
 					outString += ', '
 			if(i!=thisState.parameters.expectedMAVs):
 				outString+=', '
