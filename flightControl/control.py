@@ -452,13 +452,13 @@ def wrapTo2Pi(value):
 #	x = r*m.cosd(lat)*m.cosd(lon)
 #	y = r*m.cosd(lat)*m.sind(lon)
 #	z = r*m.sind(lat)
-def getRelPos(pos1,pos2):
+def getRelPos(pos1,pos2): #returns the x y delta position of p2-p1
 	c = 40074784 # from https://gis.stackexchange.com/questions/2951/algorithm-for-offsetting-a-latitude-longitude-by-some-amount-of-meters
 #	print pos2
 #	print pos2[0,0]
 #	print pos2[0,1]
 	dx = (pos2[0,1]-pos1[0,1]) * c * m.cos(m.radians( (pos1[0,0]+pos2[0,0])/ 2))/360
 #	print dx
-	dy = (pos2[0,1]-pos1[0,1]) * c /360
+	dy = (pos2[0,0]-pos1[0,0]) * c /360
 #	dz = pos2['alt']-pas1['alt']	
 	return np.matrix([dx, dy])
