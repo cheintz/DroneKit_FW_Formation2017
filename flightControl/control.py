@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.WARNING)
 
 class Controller(threading.Thread):
 	
-	def __init__(self,loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams):
+	def __init__(self,loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams,startTime):
 		threading.Thread.__init__(self)
 		self.isRunning=True
 		self.loggingQueue = loggingQueue
@@ -32,11 +32,13 @@ class Controller(threading.Thread):
 		self.vehicleState = VehicleState()
 		self.vehicleState.ID = int(self.vehicle.parameters['SYSID_THISMAV'])
 		self.vehicleState.startTime = datetime.now()
+		self.counter = 0
 		# print "Constructor \n\n"
 		# print type(self.vehicleState)
 #		self.command = Command()
 		self.stoprequest = threading.Event()
 		self.lastGCSContact = -1
+		self.startTime=startTime
 		
 		#def servoMsgHandler(self,name,m):	
 		#self.vehicle.add_message_listener('SERVO_OUTPUT_RAW',self.servoMsgHandler)
@@ -60,7 +62,8 @@ class Controller(threading.Thread):
 				except Queue.Empty:
 					break #no more messages.
 			self.getVehicleState() #Get update from the Pixhawk
-
+			print "RelTime: " + str((datetime.now() - self.startTime).total_seconds())
+			print "counter: " + str(self.counter)
 			if(not self.vehicleState.isFlocking): #Should we engage flocking
 				self.checkEngageFlocking()
 			if(self.vehicleState.isFlocking and True): #self.vehicleState.ID != self.parameters.leaderID):# and self.parameters.leaderID != self.vehicleState.ID):
@@ -222,8 +225,9 @@ class Controller(threading.Thread):
 		Ts = self.parameters.Ts
 		self.vehicleState.headingRate = (1- a) * lastHeadingRate +a/Ts *(deltaHeading)
 		self.vehicleState.servoOut = self.vehicle.servoOut
+		self.vehicleState.airspeed=self.vehicle.airspeed
 		self.vehicleState.time = datetime.now()
-		
+		self.counter+=1
 	def pushStateToTxQueue(self):
 #		print "TXQueueSize = " + str(self.transmitQueue.qsize())
 		msg=Message()
@@ -366,7 +370,7 @@ class Controller(threading.Thread):
 		vDesired=max(vMin,min(vMax,vDesired))
 		theta = self.vehicleState.heading
 
-		thetaD = m.atan2(ui[1,0],ui[0,0])
+		thetaD = m.atan2(ui[0,0],ui[1,0])
 		
 		print "vDesired: " + str(vDesired)
 		print "ThetaD: " + str(thetaD)
@@ -436,7 +440,12 @@ def wrapToPi(value):
 	return wrapTo2Pi(value+m.pi)-m.pi
 	
 def wrapTo2Pi(value):
-	positiveInput = (value > 0);
+	if(value<0):
+		n=m.ceil(abs(value / (2*m.pi)))
+		value+=n*2.*m.pi
+		positiveInput=False
+	else:
+		positiveInput=True
 	value = m.fmod(value, 2*m.pi);
 	if (value == 0 and positiveInput):
 		value=2*m.pi
@@ -447,13 +456,13 @@ def wrapTo2Pi(value):
 #	x = r*m.cosd(lat)*m.cosd(lon)
 #	y = r*m.cosd(lat)*m.sind(lon)
 #	z = r*m.sind(lat)
-def getRelPos(pos1,pos2):
+def getRelPos(pos1,pos2): #returns the x y delta position of p2-p1
 	c = 40074784 # from https://gis.stackexchange.com/questions/2951/algorithm-for-offsetting-a-latitude-longitude-by-some-amount-of-meters
 #	print pos2
 #	print pos2[0,0]
 #	print pos2[0,1]
 	dx = (pos2[0,1]-pos1[0,1]) * c * m.cos(m.radians( (pos1[0,0]+pos2[0,0])/ 2))/360
 #	print dx
-	dy = (pos2[0,1]-pos1[0,1]) * c /360
+	dy = (pos2[0,0]-pos1[0,0]) * c /360
 #	dz = pos2['alt']-pas1['alt']	
 	return np.matrix([dx, dy])

@@ -9,6 +9,7 @@ import vehicleState
 from defaultConfig import *
 import numpy as np
 import argparse 
+from datetime import datetime
 from servovehicle import ServoVehicle
  
 #get enviromental variables
@@ -32,9 +33,11 @@ loggingQueue= Queue.Queue()
 transmitQueue = Queue.Queue()
 receiveQueue = Queue.Queue()
 
+startTime=datetime.now()
+
 receiveThread = receive.Receiver(receiveQueue,AdHocIP,peerReadPort)
 transmitThread = transmit.Transmitter(transmitQueue,AdHocIP,peerReadPort,transmitAddress)
-logThread = log.Logger(loggingQueue,logPath,defaultParams.expectedMAVs)
+logThread = log.Logger(loggingQueue,logPath,defaultParams.expectedMAVs,startTime)
 
 #Parse the connection arg and connect to the vehicle
 parser = argparse.ArgumentParser(description='Print out vehicle state information. Connects to SITL on local PC by default.')
@@ -60,9 +63,9 @@ vehicle.wait_ready('autopilot_version')
 
 #defaultParams = vehicleState.Parameter(time.time(),False,0,0) #now generated in defaultConfig.py
 
-controlThread = control.Controller(loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams)
+controlThread = control.Controller(loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams,startTime)
 
-#print "default params" + str(defaultParams)
+print "default params" + str(defaultParams)
 
 threads = []
 threads.append(controlThread)

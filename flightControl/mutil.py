@@ -10,6 +10,10 @@ def vsToCSV(vs):
 #	print vs.command
 	out=''
 	out+=str(vs.ID) + ','
+	if(vs.isFlocking):
+		out+= '1,'
+	else:
+		out+= '0,'
 	out+=str(vs.attitude.roll)+','
 	out+=str(vs.attitude.pitch)+','
 	out+=str(vs.attitude.yaw)+','
@@ -25,6 +29,7 @@ def vsToCSV(vs):
 	out+=str(vs.velocity[0])+','
 	out+=str(vs.velocity[1])+','
 	out+=str(vs.velocity[2])+','
+	out+=str(vs.airspeed) + ','
 
 	out+=str(vs.heading)+','
 	out+=str(vs.headingRate)+','
@@ -73,5 +78,5 @@ def msgToCSVHeaders():
 	str = "Time,ID,roll,pitch,yaw,lat,lon,alt,latSpd,lngSpd,altSpeed,lastRXGnd,lastRX1,lastRX2,lastRX3, headingRateCmd, climbRateCmd, airSpeedCmd,ch1,ch2,ch3,ch5,ch6"
 	return str
 def vsToCSVHeaders():
-	str = "ID,roll,pitch,yaw,rollspeed,pitchspeed,yawspeed,lat,lon,alt,latSpd,lngSpd,altSpeed,heading,headingRate,thetaDDotApprox,lastRXGnd,lastRX1,lastRX2,lastRX3,abortReason, headingRateCmd, climbRateCmd, airSpeedCmd,thetaD,accAltError,ch1,ch2,ch3,ch5,ch6,servo1,servo2,servo3"
+	str = "ID,isFlocking,roll,pitch,yaw,rollspeed,pitchspeed,yawspeed,lat,lon,alt,latSpd,lngSpd,altSpeed,airspeed,heading,headingRate,thetaDDotApprox,lastRXGnd,lastRX1,lastRX2,lastRX3,abortReason, headingRateCmd, climbRateCmd, airSpeedCmd,thetaD,accAltError,ch1,ch2,ch3,ch5,ch6,servo1,servo2,servo3"
 	return str
