@@ -297,9 +297,9 @@ class Controller(threading.Thread):
 		
 		qil = getRelPos(ql_gps,qi_gps)
 		qil.shape=(2,1)
-		pl = np.matrix(LEADER.velocity).transpose()
+		pl = np.matrix([[LEADER.velocity[1]],[LEADER.velocity[0]]]).transpose()
 
-		pl = pl[0:2]
+#		pl = pl[0:2]
 		print 'pl = ' + str(pl)
 
 		pl.shape =(2,1)
@@ -329,7 +329,9 @@ class Controller(threading.Thread):
 #		print "Gain Term: " + str(-kl*(qil-Obi.transpose()*qdil))
 #		print "PhiDotTerm: " + str(phiDot*gamma*qil)
 		print "PhiDot: " + str(phiDot)
-		ui = pl-kl * (qil - Obi.transpose()* qdil) + phiDot * gamma * qil
+		ui = pl-kl * (qil - Obi.transpose()* qdil) + 0*phiDot * gamma * qil
+#		ui = pl-kl * (qil - Obi.transpose()* qdil) + phiDot * gamma * qdil
+	#	ui = pl
 		print 'UI = ' + str(ui)
 		ata = np.linalg.norm(qil,2)
 	#	ata=1
@@ -366,11 +368,13 @@ class Controller(threading.Thread):
 		kbackstep = self.parameters.ctrlGains['kBackstep']
 		headingRateLimitAbs = self.parameters.ctrlGains['headingRateLimit']
 		
-		vDesired = np.linalg.norm(qil,2)
-		vDesired=max(vMin,min(vMax,vDesired))
 		theta = self.vehicleState.heading
+		thetaD = m.atan2(ui[1,0],ui[0,0])
 
-		thetaD = m.atan2(ui[0,0],ui[1,0])
+		
+		vDesired = np.linalg.norm(ui,2) * m.cos(theta-thetaD)
+		vDesired=max(vMin,min(vMax,vDesired))
+
 		
 		print "vDesired: " + str(vDesired)
 		print "ThetaD: " + str(thetaD)
@@ -397,7 +401,7 @@ class Controller(threading.Thread):
 		thisCommand.thetaD = thetaD
 		eq = Obi*qil-qdil #this is in leader body, only want the first 2 elements
 		eq.shape=(2,1)
-		u2i = (-ktheta*etheta-kbackstep*vDesired*eq.transpose()*gamma*  np.matrix([[m.cos(theta)], [m.sin(theta)]]) +thetaDDotApprox   )
+		u2i = (-ktheta*etheta-kbackstep*vDesired*eq.transpose()*gamma*  np.matrix([[m.cos(theta)], [m.sin(theta)]]) +thetaDDotApprox *0  )
 		print 'u2i:' + str(u2i)
 		print "thetaD Dot Approx:" + str(thetaDDotApprox)
 		effectiveHeadingRateLimit=headingRateLimitAbs; #provisions for more realistic  velocity dependant ratelimit (since Pixhawk limits the roll angle to a configurable angle)
