@@ -4,23 +4,20 @@ import socket
 #import IN
 
 #myIP = '192.168.1.1'
-myIP = ""
+
+#myIP = "192.168.0.100"
+myIP=""
 
 UDPPort= 5001
 
-
-
 sock=socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-#sock.setsockopt(IN.SO_BINDTODEVICE)
-sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-#sock.bind(myAddr)
 sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
 
+#sock.setsockopt(IN.SO_BINDTODEVICE)
 
 sock.bind((myIP, UDPPort))
-
+sock.sendto("Hello",("192.168.0.255",5001))
 
 print "Socket bound"
 while(1):
