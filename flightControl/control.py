@@ -382,16 +382,30 @@ class Controller(threading.Thread):
 		print "vDesired: " + str(vDesired)
 		
 		#compensate for wind
-		vwx = self.vehicleState.wind_estimate['vx']
-		vwy = self.vehicleState.wind_estimate['vy']
-#		vwz = self.vehicleState.wind_estimate['vz']
-		wVector = np.matrix([[vwx],[vwy]])
+#		vwx = self.vehicleState.wind_estimate['vx']
+#		vwy = self.vehicleState.wind_estimate['vy']
+		#vwz = self.vehicleState.wind_estimate['vz']
+#		wVector = np.matrix([[vwx],[vwy]])
+#		asDesired=np.linalg.norm(ui+wVector,2)
+#		asDesired = asDesired * m.cos(theta-thetaD) 
 		
-		asDesired=np.linalg.norm(ui+wVector,2)
-		asDesired = asDesired * m.cos(theta-thetaD)
+		vx = self.vehicleState.velocity[1]
+		vy = self.vehicleState.velocity[0]
+		spdVect = np.matrix([[vx],[vy]])
+		groundspd = np.linalg.norm(spdVect,2)
+		airspd = self.vehicleState.airspeed
+		print 'groundspeed: '+str(groundspd)
+		print 'airspeed: ' + str(airspd)
+
+		
+		asDesired = vDesired + (airspd-groundspd)
+		
+		asDesired=max(vMin,min(vMax,asDesired)) #saturate to limit
+		#asDesired = vDesired	 
 	
 		print "asDesired: " + str(asDesired)
-
+		print "vDesired: " + str(vDesired)
+		print "lastThrottle:" + str(self.vehicleState.channels['3'])
 
 		print "ThetaD: " + str(thetaD)
 
@@ -404,7 +418,7 @@ class Controller(threading.Thread):
 		thetaDLast = self.vehicleState.command.thetaD
 		self.vehicleState.thetaDDotApprox = (1- a) * lastThetaDDotApprox +a/Ts *wrapToPi(thetaD-thetaDLast)
 		thetaDDotApprox = self.vehicleState.thetaDDotApprox
-		print "ThetaDDotInstant: " +  str(wrapToPi(thetaD-thetaDLast))
+		print "ThetaDDotInstant: " +  str(wrapToPi(thetaD-thetaDLast)/Ts)
 		print "thetaDDotFilt: " + str(thetaDDotApprox)
 
 		print "theta: " + str(theta)
@@ -417,7 +431,7 @@ class Controller(threading.Thread):
 		thisCommand.thetaD = thetaD
 		eq = Obi*qil-qdil #this is in leader body, only want the first 2 elements
 		eq.shape=(2,1)
-		u2i = (-ktheta*etheta-kbackstep*vDesired*eq.transpose()*gamma*  np.matrix([[m.cos(theta)], [m.sin(theta)]]) +thetaDDotApprox *0  )
+		u2i = (-ktheta*etheta-kbackstep*vDesired*eq.transpose()*gamma*  np.matrix([[m.cos(theta)], [m.sin(theta)]]) +thetaDDotApprox*0   )
 		print 'u2i:' + str(u2i)
 		print "thetaD Dot Approx:" + str(thetaDDotApprox)
 		effectiveHeadingRateLimit=headingRateLimitAbs; #provisions for more realistic  velocity dependant ratelimit (since Pixhawk limits the roll angle to a configurable angle)
