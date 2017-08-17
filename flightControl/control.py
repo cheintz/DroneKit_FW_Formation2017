@@ -226,6 +226,9 @@ class Controller(threading.Thread):
 		self.vehicleState.headingRate = (1- a) * lastHeadingRate +a/Ts *(deltaHeading)
 		self.vehicleState.servoOut = self.vehicle.servoOut
 		self.vehicleState.airspeed=self.vehicle.airspeed
+		self.vehicleState.wind_estimate=windHeadingToInertial(self.vehicle.wind_estimate)
+#		print self.vehicle.wind_estimate		
+#		print self.vehicleState.wind_estimate
 		self.vehicleState.time = datetime.now()
 		self.counter+=1
 	def pushStateToTxQueue(self):
@@ -470,3 +473,9 @@ def getRelPos(pos1,pos2): #returns the x y delta position of p2-p1
 	dy = (pos2[0,0]-pos1[0,0]) * c /360
 #	dz = pos2['alt']-pas1['alt']	
 	return np.matrix([dx, dy])
+
+def windHeadingToInertial(windEstimate):
+	vx = windEstimate.speed * m.cos(m.radians(90-windEstimate.dir))
+	vy = windEstimate.speed * m.sin(m.radians(90-windEstimate.dir))
+	vz = windEstimate.speed_z
+	return {'vx':vx,'vy':vy,'vz':vz}
