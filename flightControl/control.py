@@ -382,12 +382,12 @@ class Controller(threading.Thread):
 		print "vDesired: " + str(vDesired)
 		
 		#compensate for wind
-		vwx = self.vehicleState.wind_estimate['x']
-		vwy = self.vehicleState.wind_estimate['y']
-#		vwz = self.vehicleState.wind_estimate['z']
+		vwx = self.vehicleState.wind_estimate['vx']
+		vwy = self.vehicleState.wind_estimate['vy']
+#		vwz = self.vehicleState.wind_estimate['vz']
 		wVector = np.matrix([[vwx],[vwy]])
 		
-		asDesired=np.linalg.norm(ui-wVector,2)
+		asDesired=np.linalg.norm(ui+wVector,2)
 		asDesired = asDesired * m.cos(theta-thetaD)
 	
 		print "asDesired: " + str(asDesired)
