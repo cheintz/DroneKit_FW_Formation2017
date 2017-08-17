@@ -226,6 +226,9 @@ class Controller(threading.Thread):
 		self.vehicleState.headingRate = (1- a) * lastHeadingRate +a/Ts *(deltaHeading)
 		self.vehicleState.servoOut = self.vehicle.servoOut
 		self.vehicleState.airspeed=self.vehicle.airspeed
+		self.vehicleState.wind_estimate=windHeadingToInertial(self.vehicle.wind_estimate)
+#		print self.vehicle.wind_estimate		
+#		print self.vehicleState.wind_estimate
 		self.vehicleState.time = datetime.now()
 		self.counter+=1
 	def pushStateToTxQueue(self):
@@ -372,11 +375,24 @@ class Controller(threading.Thread):
 		thetaD = m.atan2(ui[1,0],ui[0,0])
 
 		
-		vDesired = np.linalg.norm(ui,2) * m.cos(theta-thetaD)
-		vDesired=max(vMin,min(vMax,vDesired))
+		vDesired = np.linalg.norm(ui,2) * m.cos(theta-thetaD) #reduce commanded velocity based on 
 
-		
+
+		vDesired=max(vMin,min(vMax,vDesired)) #saturate to limit	
 		print "vDesired: " + str(vDesired)
+		
+		#compensate for wind
+		vwx = self.vehicleState.wind_estimate['x']
+		vwy = self.vehicleState.wind_estimate['y']
+#		vwz = self.vehicleState.wind_estimate['z']
+		wVector = np.matrix([[vwx],[vwy]])
+		
+		asDesired=np.linalg.norm(ui-wVector,2)
+		asDesired = asDesired * m.cos(theta-thetaD)
+	
+		print "asDesired: " + str(asDesired)
+
+
 		print "ThetaD: " + str(thetaD)
 
 		lastThetaDDotApprox = self.vehicleState.thetaDDotApprox
@@ -409,7 +425,7 @@ class Controller(threading.Thread):
 		u2i = max(-effectiveHeadingRateLimit,min(effectiveHeadingRateLimit,u2i))
 		print 'u2i saturated: ' + str(u2i)
 		thisCommand.headingRate =u2i
-		thisCommand.airSpeed = vDesired
+		thisCommand.airSpeed = asDesired
 		
 		
 		#altitude control
@@ -470,3 +486,9 @@ def getRelPos(pos1,pos2): #returns the x y delta position of p2-p1
 	dy = (pos2[0,0]-pos1[0,0]) * c /360
 #	dz = pos2['alt']-pas1['alt']	
 	return np.matrix([dx, dy])
+
+def windHeadingToInertial(windEstimate):
+	vx = windEstimate.speed * m.cos(m.radians(90-windEstimate.dir))
+	vy = windEstimate.speed * m.sin(m.radians(90-windEstimate.dir))
+	vz = windEstimate.speed_z
+	return {'vx':vx,'vy':vy,'vz':vz}

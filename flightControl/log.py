@@ -74,7 +74,7 @@ class Logger(threading.Thread):
 			except KeyError:
 				print "Attempted to log nonexistant vehicle: " + str(i)
 				outString += str(i)+','
-				for j in range(0,34):
+				for j in range(0,37):
 					outString += ', '
 			if(i!=thisState.parameters.expectedMAVs):
 				outString+=', '
