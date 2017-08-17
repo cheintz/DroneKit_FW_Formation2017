@@ -30,9 +30,10 @@ def vsToCSV(vs):
 	out+=str(vs.velocity[1])+','
 	out+=str(vs.velocity[2])+','
 	out+=str(vs.airspeed) + ','
-	out+=str(vs.wind_estimate['x'] + ,
-	out+=str(vs.wind_estimate['y'] + ,
-	out+=str(vs.wind_estimate['z'] + ,
+	#print vs.wind_estimate
+	out+=str(vs.wind_estimate['vx']) + ','
+	out+=str(vs.wind_estimate['vy']) + ','
+	out+=str(vs.wind_estimate['vz']) + ','
 	out+=str(vs.heading)+','
 	out+=str(vs.headingRate)+','
 	out+=str(vs.thetaDDotApprox)+','
