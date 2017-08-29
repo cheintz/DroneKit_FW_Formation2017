@@ -309,6 +309,7 @@ class Controller(threading.Thread):
 		qd = self.vehicleState.parameters.desiredPosition # qd1 ; qd2 ; qd3 ...
 		qdil=qd[ID-2,np.matrix([0,1])]
 		qdil.shape=(2,1)
+		
 
 		kl = self.vehicleState.parameters.ctrlGains['kl']
 		ka = self.vehicleState.parameters.ctrlGains['ka']
@@ -318,6 +319,8 @@ class Controller(threading.Thread):
 		gamma = np.matrix([[0,-1],[1,0]])
 		phi = LEADER.heading
 		phiDot = LEADER.headingRate
+		phi = m.pi / 2
+		phiDot = 0
 		
 		Obi = np.matrix([[m.cos(phi),m.sin(phi)],[-m.sin(phi),m.cos(phi)]])
 		print 'Time: = ' + str(self.vehicleState.time)
@@ -328,6 +331,7 @@ class Controller(threading.Thread):
 #		print 'Obi ='+ str(Obi.transpose())
 #		print 'Gamma' + str(gamma)
 		print 'qil' + str(qil)
+		print 'qdil' + str(qdil)
 #		print 'Obi*qdil' + str((Obi.transpose()*qdil))
 #		print "Gain Term: " + str(-kl*(qil-Obi.transpose()*qdil))
 #		print "PhiDotTerm: " + str(phiDot*gamma*qil)
@@ -346,18 +350,20 @@ class Controller(threading.Thread):
 			
 		#compute from peers
 #		print 'UI = ' + str(ui)
-
-		for j in range(1,n):
-			if(ID-1 == j and j !=self.vehicleState.parameters.leaderID):
+#		print self.stateVehicles.keys()
+		for j in range(1,n+1):
+			print "in loop for plane:" + str(j)
+			if(ID != j and j !=self.vehicleState.parameters.leaderID):
+				print "Computing control based on plane " + str(j)
 				print self.stateVehicles.keys()
-				JPLANE = self.stateVehicles[(self.vehicleState.ID-1)]
+				JPLANE = self.stateVehicles[(j)]
 				qj_gps = np.matrix([JPLANE.position.lat,JPLANE.position.lon])
-				print qj_gps
-				qij = getRelPos(qi_gps,qj_gps).transpose()
+				print 'qj_gps' + str(qj_gps)
+				qij = getRelPos(qj_gps,qi_gps).transpose()
 				print 'qij: ' + str(qij)
-				qdjl = qd[j-1,0:2].transpose()
+				qdjl = qd[j-2,0:2].transpose()
 				print 'qdjl: ' + str(qdjl)
-				ui = ui-ka * (qij+Obi.transpose()*-(qdil-qdjl ))
+				ui = ui-ka * (qij-Obi.transpose()*-(qdil-qdjl ))
 				
 				ata = np.linalg.norm(qij,2)
 				if(ata<d):

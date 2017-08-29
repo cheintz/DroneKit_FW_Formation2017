@@ -6,8 +6,8 @@ import numpy as np
 defaultParams = Parameter()
 defaultParams.receivedTime = time.time()
 defaultParams.isComplete = True
-defaultParams.desiredPosition=np.array([[-0,0,120]])  #Agent, amount forward, amount right, amount below, meters
-defaultParams.ctrlGains = {'kl':0.21, 'ka': 0.0001,'alpha1': 0.001,'alpha2':100,'d':0.01,'vMin': 10,'vMax':28,'kBackstep':0,'aFilter':0.1, 'aFilterThetaDDot': 0.8,'ktheta':0.8, 'headingRateLimit':0.7,'kpAlt':0.2,'kiAlt':0.00,'climbLimit':2.0}
+defaultParams.desiredPosition=np.array([[-100,0,120]])#,[-20,0,140]])  #Agent, amount forward, amount right, amount below, meters
+defaultParams.ctrlGains = {'kl':.2, 'ka': 0.001,'alpha1': 0.001,'alpha2':100,'d':0.01,'vMin': 10,'vMax':28,'kBackstep':0,'aFilter':0.1, 'aFilterThetaDDot': 0.8,'ktheta':0.6, 'headingRateLimit':0.7,'kpAlt':0.2,'kiAlt':0.00,'climbLimit':2.0}
 defaultParams.GCSTimeout = 5 #seconds
 defaultParams.peerTimeout = 1.5 #seconds
 defaultParams.leaderID = 1   #MAV ID of leader
