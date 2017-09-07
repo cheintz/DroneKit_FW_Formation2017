@@ -1,4 +1,7 @@
 from recordtype import recordtype
+import numpy as np
+
+KPID = recordtype('KPID', ['kp','ki','kd'])
 
 Timeout = recordtype('Timeout' , ['GCSTimeoutTime', ('peerTimeoutTime',{}), 'localTimeoutTime', 'GCSLastRx', ('peerLastRX',{})], default = None)
 
