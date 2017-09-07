@@ -68,7 +68,7 @@ def vsToCSV(vs):
 		out+=str(vs.command.climbRate)+','
 		out+=str(vs.command.airSpeed)+','
 		out+=str(vs.command.thetaD)+','
-		out+=str(vs.command.accAltError)+','
+		out+=str(vs.accAltError)+','
 	except (KeyboardInterrupt, SystemExit):
 		raise
 	except:
