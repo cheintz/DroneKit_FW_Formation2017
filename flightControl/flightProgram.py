@@ -17,7 +17,7 @@ AdHocIP = os.environ['ADHOCIP']
 peerReadPort = int(os.environ['PORT'])
 myAddr = (AdHocIP, peerReadPort)
 logPath = os.environ["LOGPATH"]
-broadcastIP= "10.0.2.255"
+broadcastIP= os.environ["BROADCASTIP"]
 transmitAddress = (broadcastIP,peerReadPort)
 
 
