@@ -106,7 +106,7 @@ class Controller(threading.Thread):
 				self.vehicleState.accPosError[msg.content.ID] = np.matrix([[0],[0]])
 			
 	def scaleAndWriteCommands(self):
-	#	print "Commands in units" 
+		#print "Writing RC commands"
 	#	print str(self.vehicleState.command.headingRate)
 		xPWM = self.vehicleState.command.headingRate * self.parameters.headingGain+self.parameters.headingOffset
 		yPWM = self.vehicleState.command.climbRate*self.parameters.climbGain + self.parameters.climbOffset
@@ -124,12 +124,12 @@ class Controller(threading.Thread):
 		xPWM = saturate(xPWM,1000,2000)
 		yPWM = saturate(yPWM,1000,2000)
 		zPWM = saturate(zPWM,1000,2000)
-	#	print 'Saturated: x:' + str(xPWM) + 'y:' + str(yPWM) + 'z: ' + str(zPWM)
+		print 'Saturated: x:' + str(xPWM) + 'y:' + str(yPWM) + 'z: ' + str(zPWM)
 		self.vehicle.channels.overrides = {'1': xPWM, '2': yPWM,'3': zPWM}
 	def releaseControl(self):
 		self.vehicle.channels.overrides = {}
-		print "releasing control"
-		print self.vehicle.channels.overrides 
+		#print "releasing control"
+		#print self.vehicle.channels.overrides 
 		self.vehicleState.accAltError=0
 		self.vehicleState.accHeadingError=0
 		self.vehicleState.accAirspeedError=0
