@@ -68,7 +68,7 @@ class Controller(threading.Thread):
 				self.checkEngageFlocking()
 			if(self.vehicleState.isFlocking and True): #self.vehicleState.ID != self.parameters.leaderID):# and self.parameters.leaderID != self.vehicleState.ID):
 				if(not self.checkAbort()):
-					self.computeControlPID() #swrites the control values to self.vehicleState
+					self.computeControlPID() #writes the control values to self.vehicleState
 					self.scaleAndWriteCommands()
 #			print "pushing to queue" + str(time.time())
 			self.stateVehicles[self.vehicleState.ID] = self.vehicleState
@@ -76,6 +76,8 @@ class Controller(threading.Thread):
 			self.pushStateToLoggingQueue()
 #			self.vehicleState.RCLatch = False
 			print "Is Flocking: " + str(self.vehicleState.isFlocking) + "RC Latch: " + str(self.vehicleState.RCLatch)
+			if(not self.vehicleState.isFlocking): #extra precaution to ensure control is given back
+				self.releaseControl()
 			time.sleep(self.parameters.Ts)
 			
 				#TODO: find a way to clear timeouts, if necessary
@@ -121,14 +123,16 @@ class Controller(threading.Thread):
 
 		xPWM = saturate(xPWM,1000,2000)
 		yPWM = saturate(yPWM,1000,2000)
-		zPWM = saturate(zPWM,1510,2000)
+		zPWM = saturate(zPWM,1000,2000)
 	#	print 'Saturated: x:' + str(xPWM) + 'y:' + str(yPWM) + 'z: ' + str(zPWM)
 		self.vehicle.channels.overrides = {'1': xPWM, '2': yPWM,'3': zPWM}
 	def releaseControl(self):
 		self.vehicle.channels.overrides = {}
+		print "releasing control"
+		print self.vehicle.channels.overrides 
 		self.vehicleState.accAltError=0
-		self.vehicleState.accHeadingError
-		self.vehicleState.accAirspeedError
+		self.vehicleState.accHeadingError=0
+		self.vehicleState.accAirspeedError=0
 
 		
 	def checkAbort(self): #only call if flocking!!
@@ -149,6 +153,7 @@ class Controller(threading.Thread):
 			self.vehicleState.isFlocking = False
 			self.vehicleState.abortReason = "Control Mode" #Elaborate on this to detect RTL due to failsafe
 			# print "About to RTL" + str(time.time())
+			self.releaseControl()			
 			self.commenceRTL()
 			# print "returned from RTL function" + str(time.time())
 			self.vehicleState.command = Command()			
@@ -162,6 +167,7 @@ class Controller(threading.Thread):
 			self.releaseControl()
 			self.vehicleState.command = Command()			
 			self.commenceRTL()
+			return True
 		if (self.vehicle.channels['6'] < 1700 or self.vehicle.channels['6'] > 2100):
 			self.vehicleState.isFlocking = False
 			self.vehicleState.RCLatch = True			
@@ -232,6 +238,9 @@ class Controller(threading.Thread):
 		self.vehicleState.headingRate = (1- a) * lastHeadingRate +a/Ts *(deltaHeading)
 		self.vehicleState.servoOut = self.vehicle.servoOut
 		self.vehicleState.airspeed=self.vehicle.airspeed
+		self.vehicleState.wind_estimate=windHeadingToInertial(self.vehicle.wind_estimate)
+#		print self.vehicle.wind_estimate		
+#		print self.vehicleState.wind_estimate
 		self.vehicleState.time = datetime.now()
 		self.counter+=1
 	def pushStateToTxQueue(self):
@@ -380,12 +389,9 @@ class Controller(threading.Thread):
 		kbackstep = self.parameters.ctrlGains['kBackstep']
 		headingRateLimitAbs = self.parameters.ctrlGains['headingRateLimit']
 		
-		vDesired = np.linalg.norm(qil,2)
-		vDesired=max(vMin,min(vMax,vDesired))
 		theta = self.vehicleState.heading
 		thetaD = m.atan2(ui[1,0],ui[0,0])
 
-		thetaD = m.atan2(ui[0,0],ui[1,0])
 		
 		vDesired = np.linalg.norm(ui,2) * m.cos(theta-thetaD) #reduce commanded velocity based on 
 
