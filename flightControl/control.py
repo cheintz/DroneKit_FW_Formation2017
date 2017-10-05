@@ -157,7 +157,7 @@ class Controller(threading.Thread):
 			self.vehicleState.abortReason = "Control Mode" #Elaborate on this to detect RTL due to failsafe
 			# print "About to RTL" + str(time.time())
 			self.releaseControl()			
-			self.commenceRTL()
+			#self.commenceRTL()
 			# print "returned from RTL function" + str(time.time())
 			self.vehicleState.command = Command()			
 
