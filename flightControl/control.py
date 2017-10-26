@@ -234,7 +234,7 @@ class Controller(threading.Thread):
 		lastHeading = self.vehicleState.heading
 		self.vehicleState.heading = m.atan2(self.vehicleState.velocity[0],self.vehicleState.velocity[1])
 
-		deltaHeading = self.vehicleState.heading -lastHeading
+		deltaHeading = wrapToPi(self.vehicleState.heading -lastHeading)
 		lastHeadingRate = self.vehicleState.headingRate
 		aHdg = self.parameters.ctrlGains['aFilterHdg']
 		Ts = self.parameters.Ts
@@ -516,6 +516,9 @@ class Controller(threading.Thread):
 		n = self.vehicleState.parameters.expectedMAVs
 		Ts = self.vehicleState.parameters.Ts
 
+
+		print "leader roll:" + str(LEADER.attitude.roll)
+
 		vx = self.vehicleState.velocity[1]
 		vy = self.vehicleState.velocity[0]
 		pi = np.matrix([[vx],[vy]])
@@ -566,8 +569,8 @@ class Controller(threading.Thread):
 		eqil = qil - Obi.transpose()* qdil
 
 		Eqil=self.vehicleState.accPosError[(self.parameters.leaderID)]
-		
-		ui = pl -kl.kp * eqil -kl.ki *Eqil   - kl.kd * (pil)
+		print 
+		ui = pl -kl.kp * eqil -kl.ki *Eqil   - kl.kd * (pil) + 0*phiDot * gamma * qdil
 		
 		#integrate
 		Eqil= antiWindupVec(eqil, -vMax,vMax, Eqil, eqil*Ts)
