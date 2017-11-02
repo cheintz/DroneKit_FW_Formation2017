@@ -1,85 +1,126 @@
 import sys
 from vehicleState import *
 from datetime import datetime
+from collections import OrderedDict
+
+attitudeKeys = ['roll','pitch','yaw','rollspeed','pitchspeed','yawspeed']
+positionKeys = ['lat','lon','alt']
+velocityKeys = [0,1,2]
+windKeys = ['vx','vy','vz']
 
 
 
-	
-def vsToCSV(vs):
+
+def vsToLogPrep(vs):
 #	print vs.ID
 #	print vs.command
+
+	headers=[]
+	values=[]
+	
+
 	out=''
-	out+=str(vs.ID) + ','
-	if(vs.isFlocking):
-		out+= '1,'
-	else:
-		out+= '0,'
-	out+=str(vs.attitude.roll)+','
-	out+=str(vs.attitude.pitch)+','
-	out+=str(vs.attitude.yaw)+','
-	out+=str(vs.attitude.rollspeed)+','
-	out+=str(vs.attitude.pitchspeed)+','
-	out+=str(vs.attitude.yawspeed)+','
+	
+	headers.append('ID')
+	values.append(vs.ID)
+	
+	for k in attitudeKeys:
+		headers.append(k)
+		values.append(vs.attitude.__dict__[k])
+	
+	for k in positionKeys:
+		headers.append(k)
+		values.append(vs.position.__dict__[k])
+	
+	headers+=['latSpd','lonSpd','altSpd']
+	values+=vs.velocity
+	
+	headers.append('airspeed')
+	values.append(vs.airspeed)
 
-	#print (vs.position.keys['long])
-	out+=str(vs.position.lat)+','
-	out+=str(vs.position.lon)+','
-	out+=str(vs.position.alt)+','
-	#print (vs.velocity)
-	out+=str(vs.velocity[0])+','
-	out+=str(vs.velocity[1])+','
-	out+=str(vs.velocity[2])+','
-	out+=str(vs.airspeed) + ','
+
 	#print vs.wind_estimate
-	out+=str(vs.wind_estimate['vx']) + ','
-	out+=str(vs.wind_estimate['vy']) + ','
-	out+=str(vs.wind_estimate['vz']) + ','
-	out+=str(vs.heading)+','
-	out+=str(vs.headingRate)+','
-	out+=str(vs.thetaDDotApprox)+','
-
-
-	epoch=datetime.utcfromtimestamp(0)
-	try:
-		out+=str((vs.timeout.GCSLastRx-epoch).total_seconds())+','
-	#print vs.timeout.peerLastRX
-	except: 
-		out+=' ,'
+	headers +=['wind_vx','wind_vy','wind_vz']
+	values += [vs.wind_estimate['vx'],vs.wind_estimate['vy'],vs.wind_estimate['vz']]
 	
-	try:
-		out+=str((vs.timeout.peerLastRX[1]-epoch) . total_seconds())+','
-	except: 
-		out+=' ,'
-	try: 
-		out+=str((vs.timeout.peerLastRX[2]-epoch) . total_seconds())+','
-	except:
-		out+=' ,'
-	try:
-		out+=str((vs.timeout.peerLastRX[3]-epoch) . total_seconds())+','
-	except:
-		out+=' ,'
+	
+	headers+=['heading','headingRate']
+	values+=[vs.heading,vs.headingRate]
+	
+	d = vs.controlState._asdict()
+	for k in d.keys():
+#		print k
+		item = d[k]
+		if isinstance(item,np.matrix):
+			(h,v)=handleMatrix(item,k)
+			headers+=h
+			values+=v
+		elif isinstance(item,dict):
+			for k2 in item.keys():
+				if isinstance(item[k2],np.matrix):
+					(h,v) = handleMatrix(item[k2],str(k)+str(k2))
+					headers+=h
+					values+=v
+				else:
+					headers.append(k2)
+					values.append(item[k2])
+		else:
+			headers.append(k)
+			values.append(item)
 
+
+	headers.append('GCSLastRX')		
+		
 	try:
-		out+=str(vs.abortReason) + ','
-	except:
-		out+=' ,'
+		values.append(str((vs.timeout.GCSLastRx-epoch).total_seconds()))
+	except: 
+		values.append(' ')
+
+	headers.append('GCSLastRX_1')
 	try:
-		out+=str(vs.command.headingRate)+','
-		out+=str(vs.command.climbRate)+','
-		out+=str(vs.command.airSpeed)+','
-		out+=str(vs.command.thetaD)+','
-		out+=str(vs.accAltError)+','
-	except (KeyboardInterrupt, SystemExit):
-		raise
+		values.append(str((vs.timeout.peerLastRX[1]-epoch) . total_seconds()))
+	except: 
+		values.append(' ')
+
+	headers.append('GCSLastRX_2')
+	try:
+		values.append(str((vs.timeout.peerLastRX[2]-epoch) . total_seconds()))
+	except: 
+		values.append(' ')
+
+	headers.append('GCSLastRX_3')
+	try:
+		values.append(str((vs.timeout.peerLastRX[3]-epoch) . total_seconds()))
+	except: 
+		values.append(' ')
+
+
+	headers.append('abortReason')
+	try:
+		values.append(str(vs.abortReason))
 	except:
-		out+=' , , , , ,'
-	out+=str(vs.channels['1']) +', '+ str(vs.channels['2']) +','+ str(vs.channels['3'])+','+str(vs.channels['5'])+','+str(vs.channels['6'])+','
-	out+=str(vs.servoOut['1'])+', ' +str(vs.servoOut['2'])+', ' + str(vs.servoOut['3'])
+		values.append(' ')
+	
+	for i in range(1,8):
+		headers.append("ch"+str(i))
+		values.append(vs.channels[str(i)])
+
+	for i in range(1,4):
+		headers.append("servoOut"+str(i))
+		values.append(vs.servoOut[str(i)])
+	
+
+	out = OrderedDict(zip(headers,values))
 	return out
+
+def handleMatrix(mat,basename):
+	outKey = []
+	outValue = []		
+	for j in range(0,len(mat)):
+		outKey.append(basename+'_'+str(j))
+		outValue.append(mat[j,0])
+	return (outKey,outValue)
+
+			
 	
-def msgToCSVHeaders():
-	str = "Time,ID,roll,pitch,yaw,lat,lon,alt,latSpd,lngSpd,altSpeed,lastRXGnd,lastRX1,lastRX2,lastRX3, headingRateCmd, climbRateCmd, airSpeedCmd,ch1,ch2,ch3,ch5,ch6"
-	return str
-def vsToCSVHeaders():
-	str = "ID,isFlocking,roll,pitch,yaw,rollspeed,pitchspeed,yawspeed,lat,lon,alt,latSpd,lngSpd,altSpeed,windx,windy,windz,airspeed,heading,headingRate,thetaDDotApprox,lastRXGnd,lastRX1,lastRX2,lastRX3,abortReason, headingRateCmd, climbRateCmd, airSpeedCmd,thetaD,accAltError,ch1,ch2,ch3,ch5,ch6,servo1,servo2,servo3"
-	return str
+

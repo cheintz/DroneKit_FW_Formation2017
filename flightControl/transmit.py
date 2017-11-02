@@ -40,7 +40,7 @@ class Transmitter(threading.Thread):
 	def sendMessage(self, msg):
 #		print "About to transmit" + str(msg.content.attitude.roll)
 #		mp = jsonpickle.encode(msg)
-		mp = cPickle.dumps(msg)
+		mp = cPickle.dumps(msg,cPickle.HIGHEST_PROTOCOL)
 #		print "Length: " + str(len(mp))		
 #		print "Encoded is" + mp
 		self.s.sendto(mp,self.sendAddress);

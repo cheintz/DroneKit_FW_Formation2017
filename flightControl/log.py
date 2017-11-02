@@ -17,19 +17,12 @@ class Logger(threading.Thread):
 		threading.Thread.__init__(self)
 		self.logQueue=logQueue
 		self.stoprequest = threading.Event()
+		self.expectedMAVs=n
 #		self.file=open(datetime.now().strftime("%y_%m_%d_%H_%M_%S_log.csv"),'w')
 		#self.file=open(os.path.join("/home/pi/logs" ,datetime.now().strftime("log_%Y_%m_%d__%H_%M_%S.csv")),'w')
 		self.startTime=startTime
 		self.file=open(os.path.join(logPath ,self.startTime.strftime("%Y_%m_%d__%H_%M_%S_log.csv")),'w')
-		headerString=''
-		headerString+='Time, RelTime,'
-		self.expectedMAVs=n
-		for i in range(1,n+1):
-			headerString+=(mutil.vsToCSVHeaders())
-			if(i!=n):
-				headerString+=','
-		headerString+='\n'		
-		self.file.write(headerString)
+		self.headerWritten = False
 	def stop (self):
 		self.stoprequest.set()	
 		print "Stop flag set - Log"
@@ -52,35 +45,56 @@ class Logger(threading.Thread):
 		print "Log Stopped"
 					
 	def logMessage(self, msg):
-#		print "About to transmit" + str(msg.content.attitude.roll)
-		outString = ''
-#		mp = cPickle.dumps(msg)
-#		print "Length: " + str(len(mp))		
-#		print "Encoded is" + mp
 
-		#print str(msg.content)
 		stateVehicles = msg.content['stateVehicles']
 		thisState = msg.content['thisState']
-#		print thisState.command.headingRate
+		if not self.headerWritten: #only do this once
+			myOrderedDict = mutil.vsToLogPrep(thisState)
+			self.writeHeaderString(myOrderedDict.keys())
+			self.numItemsPerMav = len(myOrderedDict.keys())
+			self.headerWritten = True
+
+		
+		outString = ''
+
 		outString+= str(datetime.now()) + ','
 		outString+= str((datetime.now() - thisState.startTime).total_seconds())+',' #relative time
 		for i in range(1,thisState.parameters.expectedMAVs+1):
+			#print "logging: " + str(i)
 			try:
 				if(True):#i!=thisState.ID):
-					outString+= mutil.vsToCSV(stateVehicles[i])
+					stateToWrite= (stateVehicles[i])
 				else:
-					outString +=mutil.vsToCSV(thisState)
-#					print "Writing from ThisState"
+					stateToWrite =thisState
+				
+				myOrderedDict = mutil.vsToLogPrep(stateToWrite)
+				outString += ','.join(map(str, myOrderedDict.values()))
 			except KeyError:
 				print "Attempted to log nonexistant vehicle: " + str(i)
 				outString += str(i)+','
-				for j in range(0,37):
+				for j in range(0,self.numItemsPerMav-2): #write blanks to save the space
 					outString += ', '
 			if(i!=thisState.parameters.expectedMAVs):
 				outString+=', '
 		self.file.write(outString)
 		self.file.write("\n")
-		#print "Send complete"
+		#print "Send complete"ader
+	def writeHeaderString(self,sourceList):
+		headerString=''
+		headerString+='Time, RelTime,'
+		
+		n=self.expectedMAVs
+		for i in range(1,n+1):
+			prefix = "v"+str(i)+"_"
+			tempList = [prefix + s for s in sourceList] #append the mavID to each header
+	
+			headerString+= ','.join(map(str, tempList)) 
+			if(i!=n):
+				headerString+=','
+		headerString+='\n'		
+		self.file.write(headerString)
+
+		
 		
 		
 		
