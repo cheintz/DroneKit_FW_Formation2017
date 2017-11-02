@@ -11,7 +11,7 @@ import math as m
 from datetime import datetime, timedelta
 import numpy as np
 
-acceptableControlMode = VehicleMode("FBWA")
+acceptableControlMode = VehicleMode("FBWB")
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -105,36 +105,28 @@ class Controller(threading.Thread):
 			#self.vehicleState.timeout.peerLastRX[ID]=msg.sendTime
 			self.vehicleState.timeout.peerLastRX[ID]=datetime.now()
 			if(not self.vehicleState.isFlocking): #reset accumulated position error if not flocking
-				self.vehicleState.accPosError[msg.content.ID] = np.matrix([[0],[0]])
+				self.vehicleState.controlState.accPosError[msg.content.ID] = np.matrix([[0],[0]])
 			
 	def scaleAndWriteCommands(self):
 		#print "Writing RC commands"
 	#	print str(self.vehicleState.command.headingRate)
-		xPWM = self.vehicleState.command.headingRate * self.parameters.headingGain+self.parameters.headingOffset
-		yPWM = self.vehicleState.command.climbRate*self.parameters.climbGain + self.parameters.climbOffset
-		zPWM = (self.vehicleState.command.airSpeed-self.parameters.cruiseSpeed)*self.parameters.speedGain + self.parameters.speedOffset
-
-
-		
-	#	xPWM = 1600+100*m.sin(time.time())
-	#	yPWM = 1600+100*m.cos(time.time())
-	#	zPWM = 1510 #This is throttle off
-
-
-	#	print 'x:' + str(xPWM) + 'y:' + str(yPWM) + 'z: ' + str(zPWM)
+		xPWM = self.vehicleState.command.rollCMD * self.parameters.rollGain+self.parameters.rollOffset
+		yPWM = self.vehicleState.command.pitchCMD*self.parameters.pitchGain + self.parameters.pitchOffset
+		zPWM = self.vehicleState.command.throttleCMD*self.parameters.throttleGain + self.parameters.throttleMin
 
 		xPWM = saturate(xPWM,1000,2000)
 		yPWM = saturate(yPWM,1000,2000)
 		zPWM = saturate(zPWM,1510,2000)
-		print 'Saturated: x:' + str(xPWM) + 'y:' + str(yPWM) + 'z: ' + str(zPWM)
+		#print 'Saturated: x:' + str(xPWM) + 'y:' + str(yPWM) + 'z: ' + str(zPWM)
 		self.vehicle.channels.overrides = {'1': xPWM, '2': yPWM,'3': zPWM}
 	def releaseControl(self):
 		self.vehicle.channels.overrides = {}
 		#print "releasing control"
 		#print self.vehicle.channels.overrides 
-		self.vehicleState.accAltError=0
-		self.vehicleState.accHeadingError=0
-		self.vehicleState.accAirspeedError=0
+		self.vehicleState.controlState = ControlState()
+#		self.vehicleState.controlState.accAltError=0
+#		self.vehicleState.controlState.accHeadingError=0
+#		self.vehicleState.controlState.accAirspeedError=0
 		 #This is handled in parseMessage self.vehicleState.accPosError[(self.parameters.leaderID)
 
 		
@@ -234,7 +226,7 @@ class Controller(threading.Thread):
 		lastHeading = self.vehicleState.heading
 		self.vehicleState.heading = m.atan2(self.vehicleState.velocity[0],self.vehicleState.velocity[1])
 
-		deltaHeading = self.vehicleState.heading -lastHeading
+		deltaHeading = wrapToPi(self.vehicleState.heading -lastHeading)
 		lastHeadingRate = self.vehicleState.headingRate
 		aHdg = self.parameters.ctrlGains['aFilterHdg']
 		Ts = self.parameters.Ts
@@ -508,16 +500,24 @@ class Controller(threading.Thread):
 		thisCommand  = Command()
 		qi = np.matrix(self.vehicleState.position).transpose()
 		LEADER = self.stateVehicles[(self.parameters.leaderID)]
-		qi_gps = np.matrix([self.vehicleState.position.lat, self.vehicleState.position.lon])
+		THIS = self.vehicleState
+		CS = THIS.controlState
+		GAINS = THIS.parameters.ctrlGains
+
+		qi = np.matrix(THIS.position).transpose()
+		qi_gps = np.matrix([THIS.position.lat, THIS.position.lon])
 		#print "qi_gps" + str(qi_gps)
 		ql_gps = np.matrix([LEADER.position.lat, LEADER.position.lon])
 		#print "ql_gps" + str(ql_gps)
-		ID = self.vehicleState.ID
-		n = self.vehicleState.parameters.expectedMAVs
-		Ts = self.vehicleState.parameters.Ts
+		ID = THIS.ID
+		n = THIS.parameters.expectedMAVs
+		Ts = THIS.parameters.Ts
 
-		vx = self.vehicleState.velocity[1]
-		vy = self.vehicleState.velocity[0]
+
+		print "leader roll:" + str(LEADER.attitude.roll)
+
+		vx = THIS.velocity[1]
+		vy = THIS.velocity[0]
 		pi = np.matrix([[vx],[vy]])
 		pl = np.matrix([[LEADER.velocity[1]],[LEADER.velocity[0]]]).transpose()
 
@@ -528,31 +528,29 @@ class Controller(threading.Thread):
 		
 		pl.shape =(2,1)
 
-		pil = pi - pl #in plane relative velocity (inertial)
-
-		qd = self.vehicleState.parameters.desiredPosition # qd1 ; qd2 ; qd3 ...
+		qd = THIS.parameters.desiredPosition # qd1 ; qd2 ; qd3 ...
 		qdil=qd[ID-2,np.matrix([0,1])]
 		qdil.shape=(2,1)
 		
 
-		kl = self.vehicleState.parameters.ctrlGains['kl']
-		ka = self.vehicleState.parameters.ctrlGains['ka']
-		alpha2 = self.vehicleState.parameters.ctrlGains['alpha2']
-		alpha1 = self.vehicleState.parameters.ctrlGains['alpha1']
-		d = self.vehicleState.parameters.ctrlGains['d']
+		kl = GAINS['kl']
+		ka = GAINS['ka']
+		alpha2 = GAINS['alpha2']
+		alpha1 = GAINS['alpha1']
+		d = GAINS['d']
 
-		vMin = self.vehicleState.parameters.ctrlGains['vMin']
-		vMax = self.vehicleState.parameters.ctrlGains['vMax']
+		vMin = GAINS['vMin']
+		vMax = GAINS['vMax']
 		gamma = np.matrix([[0,-1],[1,0]])
 
 		phi = LEADER.heading
 		phiDot = LEADER.headingRate
 
-		#phi = m.pi / 2
+		#phi = m.pi / 2  %makes this an inertial frame relative position problem
 		#phiDot = 0
 
 		Obi = np.matrix([[m.cos(phi),m.sin(phi)],[-m.sin(phi),m.cos(phi)]])
-		print 'Time: = ' + str(self.vehicleState.time)
+		print 'Time: = ' + str(THIS.time)
 		
 
 		#print 'pl = ' + str(pl)
@@ -564,15 +562,22 @@ class Controller(threading.Thread):
 		
 		#Compute from leader 
 		eqil = qil - Obi.transpose()* qdil
+		Eqil=CS.accPosError[(self.parameters.leaderID)]
+		pil = pi - pl #in plane relative velocity (inertial)
 
-		Eqil=self.vehicleState.accPosError[(self.parameters.leaderID)]
+		CS.plTerm = pl
+		CS.phiDotTerm = phiDot * gamma * qdil
+		CS.kplTerm = -kl.kp * eqil
+		CS.kilTerm= -kl.ki *Eqil
+		CS.kdlTerm = -kl.kd * (pil)
 		
-		ui = pl -kl.kp * eqil -kl.ki *Eqil   - kl.kd * (pil)
+		ui = CS.plTerm + CS.phiDotTerm+ CS.kplTerm + CS.kilTerm + CS.kdlTerm 
+		CS.uiTarget = ui
 		
-		#integrate
+		#integrate position error
 		Eqil= antiWindupVec(eqil, -vMax,vMax, Eqil, eqil*Ts)
-		Eqil = Eqil / (min(np.linalg.norm(Eqil,2),100)) #more saturation
-		self.vehicleState.accPosError[(self.parameters.leaderID)] = Eqil
+		Eqil = Eqil / (max(1,np.linalg.norm(Eqil,2)/GAINS['maxEqil'])) #more saturation
+		CS.accPosError[(self.parameters.leaderID)] = Eqil
 
 		print 'UI = ' + str(ui)
 		ata = np.linalg.norm(qil,2)
@@ -584,11 +589,10 @@ class Controller(threading.Thread):
 			ui = ui - frepel * qil 
 			
 		#compute from peers
-#		print 'UI = ' + str(ui)
-#		print self.stateVehicles.keys()
+
 		for j in range(1,n+1):
 			#print "in loop for plane:" + str(j)
-			if(ID != j and j !=self.vehicleState.parameters.leaderID):
+			if(ID != j and j !=THIS.parameters.leaderID):
 				print "Computing peer control based on plane " + str(j)
 				print self.stateVehicles.keys()
 				JPLANE = self.stateVehicles[(j)]
@@ -601,26 +605,28 @@ class Controller(threading.Thread):
 				pj = np.matrix([[JPLANE.velocity[1]],[JPLANE.velocity[0]]])
 
 				eqij = qij-Obi.transpose()*-(qdil-qdjl )
-				Eqij=self.vehicleState.accPosError[j]
+				Eqij=CS.accPosError[j]
 				
-				ui = ui-ka.kp * eqij  - ka.ki * Eqij - ka.kd * (pi-pj)
+				ui = ui-ka.kp * eqij  - ka.ki * Eqij - ka.kd * (pi-pj) #not logging this or including phiDot
 
 				Eqij= antiWindupVec(ui, -vMax,vMax, Eqij, eqij*Ts)
-				Eqij = Eqij / (min(np.linalg.norm(Eqij,2),100)) #more saturation
-				self.vehicleState.accPosError[j] = Eqij
+				Eqij = Eqij / (max(1,np.linalg.norm(Eqij,2)/100)) #more saturation
+				THIS.accPosError[j] = Eqij
 				
 				ata = np.linalg.norm(qij,2)
 				if(ata<d):
 					frepel = alpha2/(alpha1+1)-alpha2/(alpha1+m.pow(ata,2)/m.pow(d,2))
 					print 'F Repel:' + str(frepel)
 					ui = ui - frepel * qij 
-		#Backstep
+		
+
+	#Heading Control:
 		
 		ktheta = self.parameters.ctrlGains['ktheta']
 		kbackstep = self.parameters.ctrlGains['kBackstep']
 		headingRateLimitAbs = self.parameters.ctrlGains['headingRateLimit']
 		
-		theta = self.vehicleState.heading
+		theta = THIS.heading
 		thetaD = m.atan2(ui[1,0],ui[0,0])
 
 		
@@ -631,22 +637,19 @@ class Controller(threading.Thread):
 		#print "vDesired: " + str(vDesired)
 		
 		
-		groundspd = np.linalg.norm(pi,2)
-		airspd = self.vehicleState.airspeed
-		#print 'groundspeed: '+str(groundspd)
-		#print 'airspeed: ' + str(airspd)
+		lastThetaDDotApprox = CS.thetaDDotApprox
 
-		
-		asDesired = vDesired + (airspd-groundspd)
-		
-		asDesired=max(vMin,min(vMax,asDesired)) #saturate to limit
-		#asDesired = vDesired	 
-	
-		print "asDesired: " + str(asDesired)
-		#print "vDesired: " + str(vDesired)
-		#print "lastThrottle:" + str(self.vehicleState.channels['3'])
+		a = GAINS['aFilterThetaDDot']
+		Ts = THIS.parameters.Ts
+		if not CS.thetaD:
+			CS.thetaD=thetaD #Handle startup with zero thetaDDotApprox
+		#	print "startup"
+		thetaDLast = CS.thetaD
+	#	print "thetaDLast" + str(thetaDLast)  + " " + str(thetaD)
 
-		#print "ThetaD: " + str(thetaD)
+		thetaDDotApprox  = (1- a) * lastThetaDDotApprox +a/Ts *wrapToPi(thetaD-thetaDLast)
+		CS.thetaDDotApprox = thetaDDotApprox 
+		CS.thetaD=thetaD
 
 		lastThetaDDotApprox = self.vehicleState.thetaDDotApprox
 
@@ -660,81 +663,120 @@ class Controller(threading.Thread):
 		#print "ThetaDDotInstant: " +  str(wrapToPi(thetaD-thetaDLast)/Ts)
 		#print "thetaDDotFilt: " + str(thetaDDotApprox)
 
-		#print "theta: " + str(theta)
-#		print "qil Follower Body: " + str(np.matrix([[m.cos(theta),m.sin(theta)],[-m.sin(theta),m.cos(theta)]])*qil)
+
+		print "qil Follower Body: " + str(np.matrix([[m.cos(theta),m.sin(theta)],[-m.sin(theta),m.cos(theta)]])*qil)
 		print "qil Intertial: " + str(qil)
+
 		etheta = wrapToPi(theta-thetaD)
+		CS.etheta=etheta
+
 		print "etheta: " + str(etheta)		
-		print "kbackstep: " + str(kbackstep)
-		#if(abs(thetaDDotApprox)>10) %mostly for startup. Should probably saturate this a little better
-		        #  thetaDDotApprox=0;
-		
-		thisCommand.thetaD = thetaD #TODO
+
+
+		CS.thetaD = thetaD 
 		eq = Obi*qil-qdil #this is in leader body, only want the first 2 elements
 		eq.shape=(2,1)
 
 		#heading control
 
-		#calcTurnRate = 9.81*self.vehicleState.attitude.roll/ groundspd
-		#calcTurnRate = self.vehicleState.attitude.yawspeed
+		#calcTurnRate = 9.81*THIS.attitude.roll/ groundspd
+		#calcTurnRate = THIS.attitude.yawspeed
+		calcTurnRate = THIS.headingRate #Arduplane uses somethign different, as above
 
-		accHeadingError= self.vehicleState.accHeadingError
+		accHeadingError= CS.accHeadingError
+
+		CS.rollPTerm=	-ktheta.kp*etheta
+		CS.rollITerm=	-ktheta.ki * CS.accHeadingError
+		CS.rollDTerm =  -ktheta.kd * (calcTurnRate-thetaDDotApprox)
+		CS.rollFFTerm = 0
+		print "Etheta: " + str(CS.accHeadingError)
+		print "thetaDDot: " + str(CS.thetaDDotApprox)
+		
+		rollCMD =CS.rollPTerm + CS.rollITerm  + CS.rollDTerm +CS.rollFFTerm
+
+		
 		
 
-		calcTurnRate = self.vehicleState.headingRate #Arduplane uses somethign different, as above
-		u2i = -ktheta.kp*etheta-ktheta.ki * self.vehicleState.accHeadingError         - ktheta.kd * (calcTurnRate-thetaDDotApprox)
-		print 'u2i:' + str(u2i)
-		print "theta Dot: " + str(calcTurnRate)
-		print "thetaD Dot Approx:" + str(thetaDDotApprox)
-		effectiveHeadingRateLimit=headingRateLimitAbs; #provisions for more realistic  velocity dependant ratelimit (since Pixhawk limits the roll angle to a configurable angle)
 		
-		
-		u2i = saturate(u2i,-effectiveHeadingRateLimit,effectiveHeadingRateLimit)
-		print 'u2i saturated: ' + str(u2i)
-		thisCommand.headingRate =u2i
 
-		accHeadingError = antiWindup(u2i,-effectiveHeadingRateLimit/3,effectiveHeadingRateLimit/3,accHeadingError,etheta*Ts)
-		accHeadingError = saturate(accHeadingError,-1,1)		
+		rollLimit=GAINS['rollLimit']
+	
+		#print "rollLimit: " + str(rollLimit)
+		#print "unsaturatedRoll: " + str(rollCMD)
 		
-		self.vehicleState.accHeadingError=accHeadingError
+		rollCMD = saturate(rollCMD,-rollLimit,rollLimit)
+		#print "saturatedRoll: " + str(rollCMD)
+		thisCommand.rollCMD =rollCMD
+		print 'RollTargetDeg:' + str((180/m.pi)*thisCommand.rollCMD)
+
+		accHeadingError = antiWindup(rollCMD,-rollLimit,rollLimit,accHeadingError,etheta*Ts)
+		accHeadingError = saturate(accHeadingError,-GAINS['maxETheta'],GAINS['maxETheta'])		
+		
+		CS.accHeadingError=accHeadingError
 
 
 		#speed control
-		kspeed = self.vehicleState.parameters.ctrlGains['kspeed']
-		rollAngle = self.vehicleState.attitude.roll
-		eSpeed = airspd - asDesired
-
-		accAirspeedError=self.vehicleState.accAirspeedError
+		speedD = np.linalg.norm(ui,2) * m.cos(theta-thetaD) #reduce commanded velocity based on heading error
+		CS.speedD = speedD	
 		
-		thisCommand.airSpeed = self.trimThrottle + 1/m.pow(m.cos(rollAngle),2) - kspeed.kp * eSpeed - kspeed.ki * accAirspeedError - kspeed.kd* self.vehicleState.fwdAccel
-		
+		groundspd = np.linalg.norm(pi,2)
+		airspd = THIS.airspeed
+		#print 'groundspeed: '+str(groundspd)
+		#print 'airspeed: ' + str(airspd)
 
-		thisCommand.airSpeed = 	thisCommand.airSpeed / 100 * (vMax-vMin) + vMin #hack to get this working for now
-		accAirspeedError = antiWindup(thisCommand.airSpeed, vMin,vMax,accAirspeedError, eSpeed*Ts)
+		
+		asTarget = speedD + (airspd-groundspd)
+		
+		asTarget=max(vMin,min(vMax,asTarget)) #saturate to limit
+
+		CS.asTarget = asTarget
+
+		kspeed = GAINS['kSpeed']
+		rollAngle = THIS.attitude.roll
+		eSpeed = airspd - asTarget
+
+		accAirspeedError=CS.accAirspeedError
+
+		CS.throttlePTerm=	- kspeed.kp * eSpeed
+		CS.throttleITerm=	-kspeed.ki * accAirspeedError
+		CS.throttleDTerm =  - kspeed.kd* THIS.fwdAccel
+		CS.throttleFFTerm = self.trimThrottle + 1/m.pow(m.cos(rollAngle),2)
+		
+		thisCommand.throttleCMD = CS.throttlePTerm + CS.throttleITerm +CS.throttleDTerm+CS.throttleFFTerm
+		
+		accAirspeedError = antiWindup(CS.asTarget, vMin,vMax,accAirspeedError, eSpeed*Ts)
 		accAirspeedError = saturate(accAirspeedError,-20,20)		
-		self.vehicleState.accAirspeedError=accAirspeedError
+		CS.accAirspeedError=accAirspeedError
 
 
 		#altitude control
 		print 'qd id ' + str(ID) + str(qd[ID-2,:])
 		desiredAltitude = qd[ID-2,2] #this is AGL  for now
-		altitude = self.vehicleState.position.alt
+		altitude = THIS.position.alt
 		kalt = self.parameters.ctrlGains['kalt']
 		
 		altError = altitude-desiredAltitude
-		accAltError = self.vehicleState.accAltError
-		climbLimit=self.parameters.ctrlGains['climbLimit']
-		print " AltSpeed: " + str(self.vehicleState.velocity[2])
+		accAltError = CS.accAltError
+		pitchLimit=self.parameters.ctrlGains['pitchLimit']
+		print " AltSpeed: " + str(THIS.velocity[2])
 
-		thisCommand.climbRate = -kalt.kp * altError - kalt.ki * accAltError - kalt.kd * self.vehicleState.velocity[2]
-		accAltError = antiWindup(thisCommand.climbRate,-climbLimit,climbLimit,accAltError,altError*Ts)
-		accAltError = saturate(accAltError,-10,10)
+		thisCommand.climbRate = -kalt.kp * altError - kalt.ki * self.vehicleState.accAltError - kalt.kd * self.vehicleState.velocity[2]
+		self.vehicleState.accAltError = antiWindup(thisCommand.climbRate,-climbLimit,climbLimit,self.vehicleState.accAltError,altError*Ts)
 		thisCommand.climbRate=saturate(thisCommand.climbRate,-climbLimit,climbLimit)
 		
 		print "Target climb rate: " + str(thisCommand.climbRate)
 		
 		#thisCommand.climbRate = 0
 
+		CS.pitchPTerm = -kalt.kp* altError
+		CS.pitchITerm = - kalt.ki*accAltError
+		CS.pitchDTerm = - kalt.kd * THIS.velocity[2] #indexed from 0 (x)
+		thisCommand.pitchCMD = CS.pitchPTerm + CS.pitchITerm + CS.pitchDTerm
+
+		accAltError = antiWindup(thisCommand.pitchCMD,-pitchLimit,pitchLimit, accAltError,altError*Ts)
+		accAltError = saturate(accAltError,-GAINS['maxEAlt'],GAINS['maxEAlt']) 
+		CS.accAltError  = accAltError
+		thisCommand.pitchCMD=saturate(thisCommand.pitchCMD,-pitchLimit,pitchLimit)
 		
 	
 		print 'accAltError: ' + str(self.vehicleState.accAltError)
@@ -742,7 +784,7 @@ class Controller(threading.Thread):
 		print '\n\n\n'
 		
 		thisCommand.timestamp = datetime.now()
-		self.vehicleState.command = thisCommand
+		THIS.command = thisCommand
 def saturate(value, minimum, maximum):
 	out = max(value,minimum)
 	out = min(out,maximum)
@@ -767,15 +809,11 @@ def wrapTo2Pi(value):
 #	x = r*m.cosd(lat)*m.cosd(lon)
 #	y = r*m.cosd(lat)*m.sind(lon)
 #	z = r*m.sind(lat)
-def getRelPos(pos1,pos2): #returns the x y delta position of p2-p1
+def getRelPos(pos1,pos2): #returns the x y delta position of p2-p1 with x being longitude (east positive)
 	c = 40074784 # from https://gis.stackexchange.com/questions/2951/algorithm-for-offsetting-a-latitude-longitude-by-some-amount-of-meters
-#	print pos2
-#	print pos2[0,0]
-#	print pos2[0,1]
+
 	dx = (pos2[0,1]-pos1[0,1]) * c * m.cos(m.radians( (pos1[0,0]+pos2[0,0])/ 2))/360
-#	print dx
-	dy = (pos2[0,0]-pos1[0,0]) * c /360
-#	dz = pos2['alt']-pas1['alt']	
+	dy = (pos2[0,0]-pos1[0,0]) * c /360	
 	return np.matrix([dx, dy])
 
 def windHeadingToInertial(windEstimate):
