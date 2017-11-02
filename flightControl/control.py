@@ -124,9 +124,10 @@ class Controller(threading.Thread):
 		self.vehicle.channels.overrides = {}
 		#print "releasing control"
 		#print self.vehicle.channels.overrides 
-		self.vehicleState.controlState.accAltError=0
-		self.vehicleState.controlState.accHeadingError=0
-		self.vehicleState.controlState.accAirspeedError=0
+		self.vehicleState.controlState = ControlState()
+#		self.vehicleState.controlState.accAltError=0
+#		self.vehicleState.controlState.accHeadingError=0
+#		self.vehicleState.controlState.accAirspeedError=0
 		 #This is handled in parseMessage self.vehicleState.accPosError[(self.parameters.leaderID)
 
 		
@@ -149,7 +150,7 @@ class Controller(threading.Thread):
 			self.vehicleState.abortReason = "Control Mode" #Elaborate on this to detect RTL due to failsafe
 			# print "About to RTL" + str(time.time())
 			self.releaseControl()			
-			self.commenceRTL()
+			#self.commenceRTL()
 			# print "returned from RTL function" + str(time.time())
 			self.vehicleState.command = Command()			
 
