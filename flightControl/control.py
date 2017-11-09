@@ -355,7 +355,7 @@ class Controller(threading.Thread):
 		phi = LEADER.heading
 		phiDot = LEADER.headingRate
 
-		#phi = m.pi / 2  %makes this an inertial frame relative position problem
+		#phi = m.pi / 2  #makes this an inertial frame relative position problem
 		#phiDot = 0
 
 		Obi = np.matrix([[m.cos(phi),m.sin(phi)],[-m.sin(phi),m.cos(phi)]])
@@ -366,13 +366,13 @@ class Controller(threading.Thread):
 		#Compute from leader 
 		eqil = qil - Obi.transpose()* qdil
 		Eqil=CS.accPosError[(self.parameters.leaderID)]
-		pil = pi - pl #in plane relative velocity (inertial)
+		pil = pi - (pl + phiDot * gamma * qdil) #in plane relative velocity (inertial)
 
 		CS.plTerm = pl
 		CS.phiDotTerm = phiDot * gamma * qdil
 		CS.kplTerm = -kl.kp * eqil
 		CS.kilTerm= -kl.ki *Eqil
-		CS.kdlTerm = -kl.kd * (pil)
+		CS.kdlTerm = -kl.kd * (pil) #phi dot included in pil
 		
 		ui = CS.plTerm + CS.phiDotTerm+ CS.kplTerm + CS.kilTerm + CS.kdlTerm 
 		CS.uiTarget = ui
@@ -398,21 +398,25 @@ class Controller(threading.Thread):
 				print self.stateVehicles.keys()
 				JPLANE = self.stateVehicles[(j)]
 				qj_gps = np.matrix([JPLANE.position.lat,JPLANE.position.lon])
-				print 'qj_gps' + str(qj_gps)
+				#print 'qj_gps' + str(qj_gps)
 				qij = getRelPos(qj_gps,qi_gps).transpose()
-				print 'qij: ' + str(qij)
-				qdjl = qd[j-2,0:2].transpose()
-				print 'qdjl: ' + str(qdjl)
+				#print 'qij: ' + str(qij)
+				qdjl = qd[j-2,0:2]
+				qdjl.shape=(2,1)
+				#print 'qdjl: ' + str(qdjl)
 				pj = np.matrix([[JPLANE.velocity[1]],[JPLANE.velocity[0]]])
-
-				eqij = qij-Obi.transpose()*-(qdil-qdjl )
+			#	print "pj: " + str(pj)
+				qdij = -(qdil-qdjl )
+				eqij = qij-Obi.transpose()*qdij
+			#	print "eqij: " + str(eqij)
 				Eqij=CS.accPosError[j]
+			#	print "Eqij: " + str(Eqij)
+				print "ka: " + str(ka.kp)
 				
-				ui = ui-ka.kp * eqij  - ka.ki * Eqij - ka.kd * (pi-pj) #not logging this or including phiDot
-
-				Eqij= antiWindupVec(ui, -vMax,vMax, Eqij, eqij*Ts)
+				ui = ui-ka.kp * eqij  - ka.ki * Eqij - ka.kd * (pi-(pj+0*phiDot*gamma*qdij)) #not logging this 
+				Eqij = antiWindupVec(ui, -vMax,vMax, Eqij, eqij*Ts)
 				Eqij = Eqij / (max(1,np.linalg.norm(Eqij,2)/100)) #more saturation
-				THIS.accPosError[j] = Eqij
+				CS.accPosError[j] = Eqij
 				
 				ata = np.linalg.norm(qij,2)
 				if(ata<d):
@@ -463,16 +467,22 @@ class Controller(threading.Thread):
 
 		#heading control
 
-		#calcTurnRate = 9.81*THIS.attitude.roll/ groundspd
-		#calcTurnRate = THIS.attitude.yawspeed
-		calcTurnRate = THIS.headingRate #Arduplane uses somethign different, as above
+		#calcTurnRate = 9.81*THIS.attitude.roll/ groundspd #Used by ArduPlane
+		#calcTurnRate = THIS.attitude.yawspeed #using raw gyro (since no MAVlink data for the ahrs estimated yaw rate)
+		calcTurnRate = THIS.headingRate # (numerically differentiation of heading
+
+		groundspd = np.linalg.norm(pi,2)
 
 		accHeadingError= CS.accHeadingError
 
 		CS.rollPTerm=	-ktheta.kp*etheta
 		CS.rollITerm=	-ktheta.ki * CS.accHeadingError
 		CS.rollDTerm =  -ktheta.kd * (calcTurnRate-thetaDDotApprox)
-		CS.rollFFTerm = 0
+		CS.rollFFTerm = GAINS['kThetaFF']*(thetaDDotApprox * groundspd / 9.81)
+		#CS.rollFFTerm = GAINS['kThetaFF']*LEADER.attitude.roll
+		print "FFTerm " + str(CS.rollFFTerm)
+
+
 		print "Etheta: " + str(CS.accHeadingError)
 		print "thetaDDot: " + str(CS.thetaDDotApprox)
 		
@@ -491,7 +501,7 @@ class Controller(threading.Thread):
 		rollCMD = saturate(rollCMD,-rollLimit,rollLimit)
 		#print "saturatedRoll: " + str(rollCMD)
 		thisCommand.rollCMD =rollCMD
-		print 'RollTargetDeg:' + str((180/m.pi)*thisCommand.rollCMD)
+		print 'RollTarget:' + str(thisCommand.rollCMD)# str((180/m.pi)*thisCommand.rollCMD)
 
 		accHeadingError = antiWindup(rollCMD,-rollLimit,rollLimit,accHeadingError,etheta*Ts)
 		accHeadingError = saturate(accHeadingError,-GAINS['maxETheta'],GAINS['maxETheta'])		
@@ -554,7 +564,7 @@ class Controller(threading.Thread):
 		accAltError = saturate(accAltError,-GAINS['maxEAlt'],GAINS['maxEAlt']) 
 		CS.accAltError  = accAltError
 		thisCommand.pitchCMD=saturate(thisCommand.pitchCMD,-pitchLimit,pitchLimit)
-		
+		print "ErrorNorm: " + str(np.linalg.norm(eqil,2))
 
 		print '\n\n\n'
 		
@@ -613,6 +623,11 @@ def antiWindup(value, lowLimit,highLimit, accumulator, toAdd):
 	return accumulator
 
 def antiWindupVec(value, lowLimit,highLimit, accumulator, toAdd):
+#	print "value" + str(value)
+#	print 'llim' + str(lowLimit)
+#	print 'hlim' + str(highLimit)
+#	print 'acc' + str(accumulator)
+#	print 'toAdd' + str(toAdd)
 	for i in range(0,len(value)):
 		if(value[i]>highLimit): #Saturation and anti-windup
 			if(toAdd[i]>0):
