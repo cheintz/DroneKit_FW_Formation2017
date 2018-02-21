@@ -369,7 +369,7 @@ class Controller(threading.Thread):
 		pil = pi - (pl + phiDot * gamma * qdil) #in plane relative velocity (inertial)
 
 		CS.plTerm = pl
-		CS.phiDotTerm = phiDot * gamma * qdil
+		CS.phiDotTerm = phiDot * gamma * Obi.transpose()*qdil
 		CS.kplTerm = -kl.kp * eqil
 		CS.kilTerm= -kl.ki *Eqil
 		CS.kdlTerm = -kl.kd * (pil) #phi dot included in pil
