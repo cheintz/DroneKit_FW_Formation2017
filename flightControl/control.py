@@ -56,6 +56,7 @@ class Controller(threading.Thread):
 		print "Stop Flag Set - Control"
 	def run(self):
 		while(not self.stoprequest.is_set()):#not self.kill_received):
+			loopStartTime=datetime.now()
 			while(not self.receiveQueue.empty()):
 				try:
 					msg = self.receiveQueue.get(False)
@@ -80,7 +81,9 @@ class Controller(threading.Thread):
 			print "Is Flocking: " + str(self.vehicleState.isFlocking) + "RC Latch: " + str(self.vehicleState.RCLatch)
 			if(not self.vehicleState.isFlocking): #extra precaution to ensure control is given back
 				self.releaseControl()
-			time.sleep(self.parameters.Ts)
+			timeToWait = max(self.parameters.Ts - (datetime.now() -loopStartTime).total_seconds(), .1)
+			print timeToWait
+			time.sleep(timeToWait) #variable pause
 			
 				#TODO: find a way to clear timeouts, if necessary
 		self.stop()
@@ -226,12 +229,21 @@ class Controller(threading.Thread):
 		self.vehicleState.parameters = self.parameters
 		lastHeading = self.vehicleState.heading
 		self.vehicleState.heading = m.atan2(self.vehicleState.velocity[0],self.vehicleState.velocity[1])
+		
+		if not self.vehicleState.time :
+			self.vehicleState.time = datetime.now()
+		Ts = (datetime.now() - self.vehicleState.time).total_seconds()
+		self.vehicleState.time = datetime.now()
+		self.thisTS = Ts
+		
 
 		deltaHeading = wrapToPi(self.vehicleState.heading -lastHeading)
 		lastHeadingRate = self.vehicleState.headingRate
 		aHdg = self.parameters.ctrlGains['aFilterHdg']
-		Ts = self.parameters.Ts
+	
 		self.vehicleState.headingRate = (1- aHdg) * lastHeadingRate +aHdg/Ts *(deltaHeading)
+		self.vehicleState.headingAccel = (lastHeadingRate - self.vehicleState.headingRate )/ Ts
+
 		self.vehicleState.servoOut = self.vehicle.servoOut
 		
 		aSpd = self.parameters.ctrlGains['aFilterSpd']
@@ -251,7 +263,6 @@ class Controller(threading.Thread):
 		#print self.vehicleState.acceleration
 #		print self.vehicle.wind_estimate		
 #		print self.vehicleState.wind_estimate
-		self.vehicleState.time = datetime.now()
 		self.counter+=1
 	def pushStateToTxQueue(self):
 #		print "TXQueueSize = " + str(self.transmitQueue.qsize())
@@ -321,7 +332,7 @@ class Controller(threading.Thread):
 		#print "ql_gps" + str(ql_gps)
 		ID = THIS.ID
 		n = THIS.parameters.expectedMAVs
-		Ts = THIS.parameters.Ts
+		Ts =self.thisTS
 
 
 		print "leader roll:" + str(LEADER.attitude.roll)
@@ -330,6 +341,7 @@ class Controller(threading.Thread):
 		vy = THIS.velocity[0]
 		pi = np.matrix([[vx],[vy]])
 		pl = np.matrix([[LEADER.velocity[1]],[LEADER.velocity[0]]]).transpose()
+		sl =np.linalg.norm(pl,2);
 
 		#print 'pl = ' + str(pl)
 
@@ -353,7 +365,8 @@ class Controller(threading.Thread):
 		gamma = np.matrix([[0,-1],[1,0]])
 
 		phi = LEADER.heading
-		phiDot = LEADER.headingRate
+		phiDot = LEADER.headingRate #need to estimate these better
+		phiDDot = LEADER.headingAccel #need to estimate these better
 
 		#phi = m.pi / 2  #makes this an inertial frame relative position problem
 		#phiDot = 0
@@ -438,7 +451,7 @@ class Controller(threading.Thread):
 		lastThetaDDotApprox = CS.thetaDDotApprox
 
 		a = GAINS['aFilterThetaDDot']
-		Ts = THIS.parameters.Ts
+	
 		if not CS.thetaD:
 			CS.thetaD=thetaD #Handle startup with zero thetaDDotApprox
 		#	print "startup"
@@ -511,16 +524,29 @@ class Controller(threading.Thread):
 
 		#speed control
 		speedD = np.linalg.norm(ui,2) * m.cos(theta-thetaD) #reduce commanded velocity based on heading error
-		CS.speedD = speedD	
+		speedD = np.linalg.norm(ui,2)  #reduce commanded velocity based on heading error
+		#CS.speedD = speedD 
+
+		qldd = LEADER.acceleration.x * np.matrix([[m.cos(phi)],[m.sin(phi)]]) + phiDot * np.matrix([[-m.sin(phi)],[m.cos(phi)]]) * sl 
+			
+
+		CS.speedDDot = (ui.transpose() / speedD) * ( qldd + phiDDot * gamma * Obi.transpose() * qdil - phiDot**2 *Obi.transpose()*qdil - kl.kp * (pl - phiDot*gamma*Obi.transpose()*qdil))
 		
 		groundspd = np.linalg.norm(pi,2)
 		airspd = THIS.airspeed
 		#print 'groundspeed: '+str(groundspd)
 		#print 'airspeed: ' + str(airspd)
+		eSpeed = airspd - speedD #TODO
+		
+		sej = np.matrix([[0],[0]]); #TODO
 
+		fi = np.matrix([[m.cos(THIS.heading)],[m.cos(THIS.heading)]])
+		
+
+		#asTarget = speedD + (airspd-groundspd) + 1/GAINS['aSpeed'] * (-GAINS['Ks'] * eSpeed +CS.speedDDot + sej.transpose() * fi + eqil.transpose()*fi)
 		
 		asTarget = speedD + (airspd-groundspd)
-		
+
 		asTarget=max(vMin,min(vMax,asTarget)) #saturate to limit
 
 		CS.asTarget = asTarget
