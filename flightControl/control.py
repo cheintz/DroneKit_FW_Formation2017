@@ -523,14 +523,19 @@ class Controller(threading.Thread):
 
 
 		#speed control
-		speedD = np.linalg.norm(ui,2) * m.cos(theta-thetaD) #reduce commanded velocity based on heading error
+		#speedD = np.linalg.norm(ui,2) * m.cos(theta-thetaD) #reduce commanded velocity based on heading error
 		speedD = np.linalg.norm(ui,2)  #reduce commanded velocity based on heading error
 		#CS.speedD = speedD 
 
+		speedD = 30
+
 		qldd = LEADER.acceleration.x * np.matrix([[m.cos(phi)],[m.sin(phi)]]) + phiDot * np.matrix([[-m.sin(phi)],[m.cos(phi)]]) * sl 
+		#print 'qldd: ' + str(qldd)
 			
 
-		CS.speedDDot = (ui.transpose() / speedD) * ( qldd + phiDDot * gamma * Obi.transpose() * qdil - phiDot**2 *Obi.transpose()*qdil - kl.kp * (pl - phiDot*gamma*Obi.transpose()*qdil))
+		CS.speedDDot = (ui.transpose() / speedD) * ( qldd + phiDDot * gamma * Obi.transpose() * qdil - phiDot**2 *Obi.transpose()*qdil - kl.kp * ( pi- pl - phiDot*gamma*Obi.transpose()*qdil))
+
+		print 'SpeedDDot: ' + str(CS.speedDDot)
 		
 		groundspd = np.linalg.norm(pi,2)
 		airspd = THIS.airspeed
@@ -540,14 +545,16 @@ class Controller(threading.Thread):
 		
 		sej = np.matrix([[0],[0]]); #TODO
 
-		fi = np.matrix([[m.cos(THIS.heading)],[m.cos(THIS.heading)]])
+		fi = np.matrix([[m.cos(THIS.heading)],[m.sin(THIS.heading)]])
 		
+		asTarget = speedD + (airspd-groundspd) #the basic one
+#		asTarget = speedD + (airspd-groundspd) + 1/GAINS['aSpeed'] * (-GAINS['Ks'] * eSpeed +CS.speedDDot*0 +  0*eqil.transpose()*fi)
+		print "asTarget " + str(asTarget)
 
-		#asTarget = speedD + (airspd-groundspd) + 1/GAINS['aSpeed'] * (-GAINS['Ks'] * eSpeed +CS.speedDDot + sej.transpose() * fi + eqil.transpose()*fi)
+		print 'eSpeed ' + str(eSpeed)
 		
-		asTarget = speedD + (airspd-groundspd)
-
 		asTarget=max(vMin,min(vMax,asTarget)) #saturate to limit
+		
 
 		CS.asTarget = asTarget
 
