@@ -81,8 +81,8 @@ class Controller(threading.Thread):
 			print "Is Flocking: " + str(self.vehicleState.isFlocking) + "RC Latch: " + str(self.vehicleState.RCLatch)
 			if(not self.vehicleState.isFlocking): #extra precaution to ensure control is given back
 				self.releaseControl()
-			timeToWait = max(self.parameters.Ts - (datetime.now() -loopStartTime).total_seconds(), .1)
-			print timeToWait
+			timeToWait = max(self.parameters.Ts - (datetime.now() -loopStartTime).total_seconds(), 0)
+			#print timeToWait
 			time.sleep(timeToWait) #variable pause
 			
 				#TODO: find a way to clear timeouts, if necessary
@@ -444,10 +444,16 @@ class Controller(threading.Thread):
 		
 		theta = THIS.heading
 		thetaD = m.atan2(ui[1,0],ui[0,0])
-		
 
-		
-		
+
+		#for step response:
+		##if (datetime.now() - self.startTime).total_seconds() < 30:
+		#	thetaD = 0
+		#else:
+		#	thetaD = 0.8
+
+
+
 		lastThetaDDotApprox = CS.thetaDDotApprox
 
 		a = GAINS['aFilterThetaDDot']
@@ -456,7 +462,7 @@ class Controller(threading.Thread):
 			CS.thetaD=thetaD #Handle startup with zero thetaDDotApprox
 		#	print "startup"
 		thetaDLast = CS.thetaD
-	#	print "thetaDLast" + str(thetaDLast)  + " " + str(thetaD)
+		print "thetaDLast: " + str(thetaDLast)  + " " + str(thetaD)
 
 		thetaDDotApprox  = (1- a) * lastThetaDDotApprox +a/Ts *wrapToPi(thetaD-thetaDLast)
 		CS.thetaDDotApprox = thetaDDotApprox 
@@ -493,18 +499,19 @@ class Controller(threading.Thread):
 		CS.rollDTerm =  -ktheta.kd * (calcTurnRate-thetaDDotApprox)
 		CS.rollFFTerm = GAINS['kThetaFF']*(thetaDDotApprox * groundspd / 9.81)
 		#CS.rollFFTerm = GAINS['kThetaFF']*LEADER.attitude.roll
-		print "FFTerm " + str(CS.rollFFTerm)
+
+
+
+		#print 'RollPTerm: ' + str(CS.rollPTerm)
+		#print 'RollITerm: ' + str(CS.rollITerm)
+		#print 'RollDTerm: ' + str(CS.rollDTerm)
+		#print "FFTerm " + str(CS.rollFFTerm)
 
 
 		print "Etheta: " + str(CS.accHeadingError)
 		print "thetaDDot: " + str(CS.thetaDDotApprox)
 		
 		rollCMD =CS.rollPTerm + CS.rollITerm  + CS.rollDTerm +CS.rollFFTerm
-
-		
-		
-
-		
 
 		rollLimit=GAINS['rollLimit']
 	
@@ -527,7 +534,7 @@ class Controller(threading.Thread):
 		speedD = np.linalg.norm(ui,2)  #reduce commanded velocity based on heading error
 		#CS.speedD = speedD 
 
-		speedD = 30
+		#speedD = 30
 
 		qldd = LEADER.acceleration.x * np.matrix([[m.cos(phi)],[m.sin(phi)]]) + phiDot * np.matrix([[-m.sin(phi)],[m.cos(phi)]]) * sl 
 		#print 'qldd: ' + str(qldd)
@@ -564,9 +571,9 @@ class Controller(threading.Thread):
 
 		accAirspeedError=CS.accAirspeedError
 
-		CS.throttlePTerm=	- kspeed.kp * eSpeed
-		CS.throttleITerm=	-kspeed.ki * accAirspeedError
-		CS.throttleDTerm =  - kspeed.kd* THIS.fwdAccel
+		CS.throttlePTerm = -kspeed.kp * eSpeed
+		CS.throttleITerm = -kspeed.ki * accAirspeedError
+		CS.throttleDTerm = -kspeed.kd * THIS.fwdAccel
 		CS.throttleFFTerm = self.trimThrottle + 1/m.pow(m.cos(rollAngle),2)
 		
 		thisCommand.throttleCMD = CS.throttlePTerm + CS.throttleITerm +CS.throttleDTerm+CS.throttleFFTerm
