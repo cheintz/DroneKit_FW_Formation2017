@@ -4,7 +4,7 @@ import logging
 from vehicleState import *
 import os
 import Queue
-import threading
+import multiprocessing
 import recordtype
 import jsonpickle
 import math as m
@@ -18,10 +18,10 @@ logging.basicConfig(level=logging.WARNING)
 
 	
 
-class Controller(threading.Thread):
+class Controller(multiprocessing.Process):
 	
 	def __init__(self,loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams,startTime):
-		threading.Thread.__init__(self)
+		multiprocessing.Process.__init__(self)
 		self.isRunning=True
 		self.loggingQueue = loggingQueue
 		self.transmitQueue = transmitQueue
@@ -38,7 +38,7 @@ class Controller(threading.Thread):
 		# print "Constructor \n\n"
 		# print type(self.vehicleState)
 #		self.command = Command()
-		self.stoprequest = threading.Event()
+		self.stoprequest = multiprocessing.Event()
 		self.lastGCSContact = -1
 		self.startTime=startTime
 		
@@ -57,12 +57,13 @@ class Controller(threading.Thread):
 	def run(self):
 		while(not self.stoprequest.is_set()):#not self.kill_received):
 			loopStartTime=datetime.now()
-			while(not self.receiveQueue.empty()):
+			while(not self.stoprequest.is_set()):
 				try:
 					msg = self.receiveQueue.get(False)
 					self.updateGlobalStateWithData(msg)
-					self.receiveQueue.task_done() #May or may not be helpful
-				except Queue.Empty:
+					#self.receiveQueue.task_done() #May or may not be helpful
+				#except Queue.Empty:
+				except:
 					break #no more messages.
 			self.getVehicleState() #Get update from the Pixhawk
 			print "RelTime: " + str((datetime.now() - self.startTime).total_seconds())
@@ -265,7 +266,7 @@ class Controller(threading.Thread):
 #		print self.vehicleState.wind_estimate
 		self.counter+=1
 	def pushStateToTxQueue(self):
-#		print "TXQueueSize = " + str(self.transmitQueue.qsize())
+		print "TXQueueSize = " + str(self.transmitQueue.qsize())
 		msg=Message()
 		msg.type = "UAV"
 		msg.sendTime = datetime.now()

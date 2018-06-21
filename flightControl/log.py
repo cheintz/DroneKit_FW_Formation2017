@@ -3,7 +3,7 @@ from vehicleState import *
 import socket
 import Queue
 import logging
-import threading
+import multiprocessing
 import jsonpickle
 import cPickle
 import os
@@ -11,12 +11,12 @@ import time
 import mutil
 from datetime import datetime
 
-class Logger(threading.Thread):
+class Logger(multiprocessing.Process):
 
 	def __init__(self,logQueue,logPath,n,startTime):
-		threading.Thread.__init__(self)
+		multiprocessing.Process.__init__(self)
 		self.logQueue=logQueue
-		self.stoprequest = threading.Event()
+		self.stoprequest = multiprocessing.Event()
 		self.expectedMAVs=n
 #		self.file=open(datetime.now().strftime("%y_%m_%d_%H_%M_%S_log.csv"),'w')
 		#self.file=open(os.path.join("/home/pi/logs" ,datetime.now().strftime("log_%Y_%m_%d__%H_%M_%S.csv")),'w')
@@ -28,14 +28,14 @@ class Logger(threading.Thread):
 		print "Stop flag set - Log"
 	def run(self):
 		while( not self.stoprequest.is_set()):
-			while( not self.logQueue.empty()):
+			while( not self.stoprequest.is_set()):
 				if(self.logQueue.qsize()>5):
 					print "Log Queue Size: " + str(self.logQueue.qsize())
 				try:
 					msg = self.logQueue.get(True, 0.5)
 					self.logMessage(msg)
 					#print "Sent a message"
-					self.logQueue.task_done() #May or may not be helpful
+				#	self.logQueue.task_done() #May or may not be helpful
 				except Queue.Empty:
 					thread.sleep(0.001)
 					break #no more messages.
