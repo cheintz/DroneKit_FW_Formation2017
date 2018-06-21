@@ -36,13 +36,15 @@ class Receiver(multiprocessing.Process):
 	def receiveMessage(self):
 		try:
 			mp = self.s.recvfrom(4096)
-			mp = zlib.decompress(mp)
+
+			print "received message"
 			if(False):
 #			if(mp[1] == (self.AdHocIP,self.port)):
 #				print "received my own message"
 				pass
 			else:
 				mp=mp[0]
+				mp = zlib.decompress(mp)
 #				print mp
 				try:
 				#	print mp + "\n\n\n"
