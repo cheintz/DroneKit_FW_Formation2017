@@ -10,6 +10,7 @@ import jsonpickle
 import math as m
 from datetime import datetime, timedelta
 import numpy as np
+import signal
 
 acceptableControlMode = VehicleMode("FBWA")
 
@@ -55,6 +56,7 @@ class Controller(threading.Thread):
 		self.stoprequest.set()
 		print "Stop Flag Set - Control"
 	def run(self):
+		#signal.signal(signal.SIGINT, signal.SIG_IGN)
 		while(not self.stoprequest.is_set()):#not self.kill_received):
 			loopStartTime=datetime.now()
 			while(not self.stoprequest.is_set()):

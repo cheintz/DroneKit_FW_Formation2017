@@ -8,6 +8,7 @@ import jsonpickle
 import cPickle
 import zlib
 import time
+import signal
 
 class Transmitter(multiprocessing.Process):
 
@@ -25,6 +26,7 @@ class Transmitter(multiprocessing.Process):
 		self.stoprequest.set()	
 		print "Stop flag set - Transmit"
 	def run(self):
+		signal.signal(signal.SIGINT, signal.SIG_IGN)
 		while( not self.stoprequest.is_set()):
 			while( not self.stoprequest.is_set()):
 #				print "Have a message to transmit"

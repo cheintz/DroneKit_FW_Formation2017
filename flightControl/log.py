@@ -10,6 +10,7 @@ import os
 import time
 import mutil
 from datetime import datetime
+import signal
 
 class Logger(multiprocessing.Process):
 
@@ -27,6 +28,7 @@ class Logger(multiprocessing.Process):
 		self.stoprequest.set()	
 		print "Stop flag set - Log"
 	def run(self):
+		signal.signal(signal.SIGINT, signal.SIG_IGN)
 		while( not self.stoprequest.is_set()):
 			while( not self.stoprequest.is_set()):
 				if(self.logQueue.qsize()>5):
@@ -37,7 +39,7 @@ class Logger(multiprocessing.Process):
 					#print "Sent a message"
 				#	self.logQueue.task_done() #May or may not be helpful
 				except Queue.Empty:
-					thread.sleep(0.001)
+					time.sleep(0.001)
 					break #no more messages.
 		self.file.flush()
 		os.fsync(self.file.fileno())

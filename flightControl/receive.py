@@ -7,6 +7,7 @@ import multiprocessing
 import jsonpickle
 import cPickle
 import zlib
+import signal
 
 class Receiver(multiprocessing.Process):
 	def __init__(self,receiveQueue,AdHocIP, port):
@@ -25,6 +26,7 @@ class Receiver(multiprocessing.Process):
 		self.stoprequest.set()
 		print "Stop flag set - Receive"
 	def run(self):
+		signal.signal(signal.SIGINT, signal.SIG_IGN)
 		while( not self.stoprequest.is_set()):
 #			print "Processing any received"
 			try:
