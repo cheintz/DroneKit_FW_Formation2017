@@ -7,6 +7,7 @@ import Queue
 import jsonpickle
 import cPickle
 import zlib
+import time
 
 class Transmitter(multiprocessing.Process):
 
@@ -35,7 +36,7 @@ class Transmitter(multiprocessing.Process):
 #					print "sending message"
 				#	self.transmitQueue.task_done() #May or may not be helpful
 				except Queue.Empty:
-					thread.sleep(0.001)
+					time.sleep(0.001)
 					break #no more messages.
 		print "Transmit Stopped"
 					

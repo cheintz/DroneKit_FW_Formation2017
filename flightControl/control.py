@@ -4,7 +4,7 @@ import logging
 from vehicleState import *
 import os
 import Queue
-import multiprocessing
+import threading
 import recordtype
 import jsonpickle
 import math as m
@@ -18,10 +18,10 @@ logging.basicConfig(level=logging.WARNING)
 
 	
 
-class Controller(multiprocessing.Process):
+class Controller(threading.Thread):
 	
 	def __init__(self,loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams,startTime):
-		multiprocessing.Process.__init__(self)
+		threading.Thread.__init__(self)
 		self.isRunning=True
 		self.loggingQueue = loggingQueue
 		self.transmitQueue = transmitQueue
@@ -38,7 +38,7 @@ class Controller(multiprocessing.Process):
 		# print "Constructor \n\n"
 		# print type(self.vehicleState)
 #		self.command = Command()
-		self.stoprequest = multiprocessing.Event()
+		self.stoprequest = threading.Event()
 		self.lastGCSContact = -1
 		self.startTime=startTime
 		
@@ -266,7 +266,7 @@ class Controller(multiprocessing.Process):
 #		print self.vehicleState.wind_estimate
 		self.counter+=1
 	def pushStateToTxQueue(self):
-		print "TXQueueSize = " + str(self.transmitQueue.qsize())
+		#print "TXQueueSize = " + str(self.transmitQueue.qsize())
 		msg=Message()
 		msg.type = "UAV"
 		msg.sendTime = datetime.now()
