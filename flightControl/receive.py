@@ -39,7 +39,7 @@ class Receiver(multiprocessing.Process):
 		try:
 			mp = self.s.recvfrom(4096)
 
-			print "received message"
+#			print "received message"
 			if(False):
 #			if(mp[1] == (self.AdHocIP,self.port)):
 #				print "received my own message"
