@@ -14,7 +14,7 @@ Command = recordtype('Command',['rollCMD','pitchCMD','throttleCMD','timestamp'],
 ControlState = recordtype('ControlState',[('accPosError',{1:zeroVect,2:zeroVect,3:zeroVect}),('plTerm',zeroVect),('kplTerm',zeroVect)
 	,('phiDotTerm',zeroVect),('kilTerm',zeroVect), ('kdlTerm',zeroVect),('uiTarget',zeroVect),('thetaD',None),'thetaDDotApprox','speedDDot'
 	,'etheta','speedD','asTarget','accHeadingError','rollPTerm','rollITerm','rollDTerm','rollFFTerm','accAirspeedError'
-	,'throttlePTerm','throttleITerm','throttleDTerm','throttleFFTerm','accAltError','pitchPTerm','pitchITerm','pitchDTerm']
+	,'throttlePTerm','throttleITerm','throttleDTerm','throttleFFTerm','accAltError','pitchPTerm','pitchITerm','pitchDTerm','backstepSpeed','backstepSpeedError','backstepSpeedRate','backstepPosError']
 	, default = 0.0)
 
 VehicleState = recordtype('VehicleState', [ ('startTime',None),('isArmable' , False) ,'ID', 'time',  'attitude','acceleration'
