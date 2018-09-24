@@ -4,7 +4,7 @@ from datetime import datetime
 from collections import OrderedDict
 
 attitudeKeys = ['roll','pitch','yaw','rollspeed','pitchspeed','yawspeed']
-positionKeys = ['lat','lon','alt']
+positionKeys = ['lat','lon','alt','time']
 velocityKeys = [0,1,2]
 
 def vsToLogPrep(vs):

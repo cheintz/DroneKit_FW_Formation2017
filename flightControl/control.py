@@ -244,6 +244,10 @@ class Controller(threading.Thread):
 
 		self.vehicleState.channels = dict(zip(self.vehicle.channels.keys(),self.vehicle.channels.values())) #necessary to be able to serialize it
 		self.vehicleState.position = self.vehicle.location.global_relative_frame
+		
+#		print (datetime.now() -self.vehicleState.position.time).total_seconds() #to check the timing
+
+
 		self.vehicleState.wind_estimate=windHeadingToInertial(self.vehicle.wind_estimate)
 		self.vehicleState.acceleration = self.vehicle.acceleration
 		self.vehicleState.isArmable = self.vehicle.is_armable
@@ -274,7 +278,7 @@ class Controller(threading.Thread):
 
 	#heading Accel
 		self.vehicleState.headingAccel = (1- aHdg) * lastHeadingAccel + aHdg/Ts * (
-		self.vehicleState.headingRate -lastHeadingRate) 	 #Use filter for heading accel		;
+		self.vehicleState.headingRate -lastHeadingRate) 	 #Use filter for heading accel		
 
 		ATT=self.vehicleState.attitude
 		s = self.vehicleState.groundspeed;
@@ -294,6 +298,10 @@ class Controller(threading.Thread):
 		lastFwdAccel = self.vehicleState.fwdAccel
 		self.vehicleState.fwdAccel =  (1- aSpd) * lastFwdAccel +aSpd/Ts *(deltaSpd)
 #		print "accel:" + str( self.vehicleState.fwdAccel) + "\tlastSpd:" + str(lastSpeed) + "\tDeltaSpeed: " + str(deltaSpd)
+
+
+		#self.vehicleState.heading = (datetime.now() -self.vehicleState.position.time).total_seconds()
+		
 	def pushStateToTxQueue(self):
 		#print "TXQueueSize = " + str(self.transmitQueue.qsize())
 		msg=Message()
@@ -595,16 +603,11 @@ class Controller(threading.Thread):
 		#asTarget = speedD + (airspd-groundspd) #the basic one
 
 		CS.backstepSpeed = speedD
-		CS.backstepSpeedError =  1/GAINS['aSpeed']* -GAINS['Ks'] * eSpeed
+		CS.backstepSpeedError =  1/GAINS['aSpeed']* -GAINS['gamma'] * eSpeed
 		CS.backstepSpeedRate = 1/GAINS['aSpeed'] * CS.speedDDot
-		CS.backstepPosError =  1/GAINS['aSpeed'] * -eqil.transpose()*fi
+		CS.backstepPosError =  1/GAINS['aSpeed'] * -eqil.transpose()*fi*1/GAINS['lambda']
 		
 		asTarget = CS.backstepSpeed + CS.backstepSpeedRate + CS.backstepSpeedRate + CS.backstepPosError
-
-
-		#asTarget = speedD + 0*(airspd-groundspd) + 1/GAINS['aSpeed'] * (-GAINS['Ks'] * eSpeed +CS.speedDDot +  -eqil.transpose()*fi) #TODO
-
-
 
 		print "asTarget " + str(asTarget)
 		
