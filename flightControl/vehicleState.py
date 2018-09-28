@@ -12,16 +12,16 @@ Parameter = recordtype('Parameter','receivedTime,isComplete,desiredPosition,ctrl
 Command = recordtype('Command',['rollCMD','pitchCMD','throttleCMD','timestamp'], default = None)#,use_slots=False)	
 
 ControlState = recordtype('ControlState',[('accPosError',{1:zeroVect,2:zeroVect,3:zeroVect}),('plTerm',zeroVect),('kplTerm',zeroVect)
-	,('phiDotTerm',zeroVect),('kilTerm',zeroVect), ('kdlTerm',zeroVect),('uiTarget',zeroVect),('thetaD',None),'thetaDDotApprox'
+	,('phiDotTerm',zeroVect),('kilTerm',zeroVect), ('kdlTerm',zeroVect),('uiTarget',zeroVect),('thetaD',None),'thetaDDotApprox','speedDDot'
 	,'etheta','speedD','asTarget','accHeadingError','rollPTerm','rollITerm','rollDTerm','rollFFTerm','accAirspeedError'
-	,'throttlePTerm','throttleITerm','throttleDTerm','throttleFFTerm','accAltError','pitchPTerm','pitchITerm','pitchDTerm']
+	,'throttlePTerm','throttleITerm','throttleDTerm','throttleFFTerm','accAltError','pitchPTerm','pitchITerm','pitchDTerm','backstepSpeed','backstepSpeedError','backstepSpeedRate','backstepPosError']
 	, default = 0.0)
 
 VehicleState = recordtype('VehicleState', [ ('startTime',None),('isArmable' , False) ,'ID', 'time',  'attitude','acceleration'
-	, 'channels', 'position', 'velocity',('heading',0.0),('headingRate',0.0), 'mode', ('command',Command())
+	, 'channels', 'position', 'velocity',('heading',0.0),('headingRate',None),('headingAccel',None), 'mode', ('command',Command())
 	,('controlState',ControlState()), ('isFlocking',False), ('RCLatch', True), ('abortReason',None), ('timeout', Timeout())
-	,('parameters',Parameter()),('servoOut',{'1':None,'2':None,'3':None}),('airspeed',0.0)
-	,('wind_estimate',{'vx':None,'vy':None,'vz':None}),('fwdAccel',0)], default = None )
+	,('parameters',Parameter()),('servoOut',{'1':None,'2':None,'3':None}),('airspeed',0.0),('groundspeed',0.0)
+	,('wind_estimate',{'vx':None,'vy':None,'vz':None}),('fwdAccel',None),('propagated',0),('counter',0)], default = None )
 		
 
 Message = recordtype('Message','type,sendTime,content', default = None) #content shall contain the timestamp of the most recent parameter set.

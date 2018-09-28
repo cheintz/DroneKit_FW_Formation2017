@@ -3,13 +3,15 @@ from vehicleState import *
 import socket
 import Queue
 import logging
-import threading
+import multiprocessing
 import jsonpickle
 import cPickle
+import zlib
+import signal
 
-class Receiver(threading.Thread):
+class Receiver(multiprocessing.Process):
 	def __init__(self,receiveQueue,AdHocIP, port):
-		threading.Thread.__init__(self)
+		multiprocessing.Process.__init__(self)
 		self.s = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 		self.s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
 		self.AdHocIP = AdHocIP
@@ -18,12 +20,13 @@ class Receiver(threading.Thread):
 		self.s.bind((ip,self.port))
 		self.s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 		self.receiveQueue=receiveQueue
-		self.stoprequest = threading.Event()
+		self.stoprequest = multiprocessing.Event()
 		self.s.settimeout(1)
 	def stop(self):
 		self.stoprequest.set()
 		print "Stop flag set - Receive"
 	def run(self):
+		signal.signal(signal.SIGINT, signal.SIG_IGN)
 		while( not self.stoprequest.is_set()):
 #			print "Processing any received"
 			try:
@@ -35,12 +38,15 @@ class Receiver(threading.Thread):
 	def receiveMessage(self):
 		try:
 			mp = self.s.recvfrom(4096)
-			if(False):
-#			if(mp[1] == (self.AdHocIP,self.port)):
+
+#			print "received message"
+#			if(False):
+			if(mp[1] == (self.AdHocIP,self.port)):
 #				print "received my own message"
 				pass
 			else:
 				mp=mp[0]
+				mp = zlib.decompress(mp)
 #				print mp
 				try:
 				#	print mp + "\n\n\n"
