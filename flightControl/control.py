@@ -347,7 +347,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		#if(True):
 			self.vehicleState.timeout.GCSTimeoutTime = time.time()
 #			didTimeOut = True
-		for IDS in self.stateVehicles.keys():
+		if(False):
+#		for IDS in self.stateVehicles.keys():
 			ID=int(IDS)	
 			if(self.vehicleState.timeout.peerLastRX[ID]<datetime.now()-timedelta(seconds = self.parameters.peerTimeout)):
 				self.vehicleState.timeout.peerTimeoutTime[ID]=datetime.now()
@@ -376,7 +377,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 	def computeControlPID(self):
 		#overhead
 		thisCommand  = Command()
-		LEADER = self.stateVehicles[(self.parameters.leaderID)]
+		#LEADER = self.stateVehicles[(self.parameters.leaderID)]
+		LEADER = self.stateVehicles[2]
 		THIS = self.vehicleState
 		CS = THIS.controlState
 		GAINS = THIS.parameters.ctrlGains
@@ -391,7 +393,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		Ts =self.thisTS
 
 
-		print "leader roll:" + str(LEADER.attitude.roll)
+		#print "leader roll:" + str(LEADER.attitude.roll)
 
 		vx = THIS.velocity[1]
 		vy = THIS.velocity[0]
@@ -499,11 +501,14 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		thetaD = m.atan2(ui[1,0],ui[0,0])
 
 		#for step response:
-		##if (datetime.now() - self.startTime).total_seconds() < 30:
-		#	thetaD = 0
-		#else:
-		#	thetaD = 0.8
-
+		pdiDot = np.matrix([[0],[0]])
+		qldd = 0
+		if (datetime.now() - self.startTime).total_seconds() < 30:
+			thetaD = 0
+		else:
+			thetaD = 0.8
+		ui = np.matrix([[m.cos(thetaD)],[m.sin(thetaD)]]) * 20		
+		
 		lastThetaDDotApprox = CS.thetaDDotApprox
 		a = GAINS['aFilterThetaDDot']
 	
@@ -516,7 +521,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 	#Desired Heading Rate
 		#thetaDDotApprox  = (1- a) * lastThetaDDotApprox +a/Ts *wrapToPi(thetaD-thetaDLast)  #Desired heading rate from numerical differentiation
 		thetaDDotApprox = np.asscalar( 1.0/(1+ui[1]**2/ui[0]**2) * (ui[0]*pdiDot[1]-ui[1]*pdiDot[0])/ui[0]**2 )
-	
+		theteaDDotApprox = 0
 		CS.thetaDDotApprox = thetaDDotApprox 
 		CS.thetaD=thetaD
 
@@ -643,10 +648,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.throttleFFTerm = self.trimThrottle + 1/m.pow(m.cos(rollAngle),2) #TODO: use FF gain
 
 		print "\n\n\n"
-		print "Speed P: "+str(CS.throttlePTerm)
-		print "Speed I: "+str(CS.throttleITerm)
-		print "Speed D: "+str(CS.throttleDTerm)
-		print "Speed FF: "+str(CS.throttleFFTerm)
+	#	print "Speed P: "+str(CS.throttlePTerm)
+	#	print "Speed I: "+str(CS.throttleITerm)
+	#	print "Speed D: "+str(CS.throttleDTerm)
+	#	print "Speed FF: "+str(CS.throttleFFTerm)
 
 		thisCommand.throttleCMD = CS.throttlePTerm + CS.throttleITerm +CS.throttleDTerm+CS.throttleFFTerm
 

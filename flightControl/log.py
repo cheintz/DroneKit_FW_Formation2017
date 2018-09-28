@@ -72,7 +72,7 @@ class Logger(multiprocessing.Process):
 		
 		outString = ''
 
-		outString += str(thisState.time)
+		outString += str(thisState.time) + ','
 		outString+= str((thisState.time - thisState.startTime).total_seconds())+',' #relative time
 		for i in range(1,thisState.parameters.expectedMAVs+1):
 			#print "logging: " + str(i)
