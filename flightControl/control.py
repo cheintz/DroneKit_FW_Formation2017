@@ -155,7 +155,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.vehicleState.command = Command()			
 
 			return True
-		if (self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 2100):
+		#if (self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 2100):
+		if(False):
 			print "Abort - Geofence not enabled"
 			self.vehicleState.RCLatch = True
 			self.vehicleState.isFlocking = False
@@ -196,8 +197,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			print "Won't engage - control mode" 
 			print "In Mode: "  + str(self.vehicle.mode)
 			self.vehicleState.RCLatch = True			
-			return False			
-		if(self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 2100): #Geofence
+			return False
+		if(False):			
+	#	if(self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 2100): #Geofence
 			print "Won't engage. Geofence not enabled"
 			print "Ch7: " +str(self.vehicle.channels['7'])
 			self.vehicleState.RCLatch = True
@@ -503,7 +505,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		#for step response:
 		pdiDot = np.matrix([[0],[0]])
 		qldd = 0
-		if (datetime.now() - self.startTime).total_seconds() < 30:
+		if (self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 2100):
 			thetaD = 0
 		else:
 			thetaD = 0.8
