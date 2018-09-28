@@ -4,7 +4,7 @@ import logging
 from vehicleState import *
 import os
 import Queue
-import multiprocessing
+import threading
 import recordtype
 import jsonpickle
 import math as m
@@ -20,10 +20,12 @@ logging.basicConfig(level=logging.WARNING)
 
 	
 
-class Controller(multiprocessing.Process):
+class Controller(threading.Thread): 	#Note: This is a thread, not a process,  because the DroneKit vehicle doesn't play nice with processes. 
+					#There is little to no performance problem, because the "main" process doesn't do much, and 
+					#so the GIL isn't an issue for speed
 	
 	def __init__(self,loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams,startTime):
-		multiprocessing.Process.__init__(self)
+		threading.Thread.__init__(self)
 		self.isRunning=True
 		self.loggingQueue = loggingQueue
 		self.transmitQueue = transmitQueue
@@ -37,7 +39,7 @@ class Controller(multiprocessing.Process):
 		self.vehicleState.counter = 0
 		self.trimThrottle= self.vehicle.parameters['TRIM_THROTTLE'] 
 		self.rollToThrottle = self.vehicle.parameters['TECS_RLL2THR'] 
-		self.stoprequest = multiprocessing.Event()
+		self.stoprequest = threading.Event()
 		self.lastGCSContact = -1
 		self.startTime=startTime
 
@@ -247,6 +249,8 @@ class Controller(multiprocessing.Process):
 
 		self.vehicleState.channels = dict(zip(self.vehicle.channels.keys(),self.vehicle.channels.values())) #necessary to be able to serialize it
 		self.vehicleState.position = self.vehicle.location.global_relative_frame
+
+#		print "postime" + str(self.vehicleState.position.time)
 		
 #		print (datetime.now() -self.vehicleState.position.time).total_seconds() #to check the timing
 
@@ -275,7 +279,10 @@ class Controller(multiprocessing.Process):
 		deltaHeading = wrapToPi(self.vehicleState.heading -lastHeading)
 
 		#self.vehicleState.headingRate = -1* 9.81*self.vehicleState.attitude.roll/ self.vehicleState.groundspeed  #Use roll for heading rate
-		self.vehicleState.headingRate = -9.81/self.vehicleState.groundspeed * m.tan(self.vehicleState.attitude.roll * m.cos(self.vehicleState.attitude.pitch))
+		if(self.vehicleState.groundspeed >5):
+			self.vehicleState.headingRate = -9.81/self.vehicleState.groundspeed * m.tan(self.vehicleState.attitude.roll * m.cos(self.vehicleState.attitude.pitch))
+		else:
+			self.vehicleState.headingRate = -self.vehicle.attitude.yawspeed
 		#print "Roll Estimated HdgRate: " + str(self.vehicleState.headingRate)	
 		#self.vehicleState.headingRate = (1- aHdg) * lastHeadingRate +aHdg/Ts * (deltaHeading)	
 
@@ -285,9 +292,12 @@ class Controller(multiprocessing.Process):
 
 		ATT=self.vehicleState.attitude
 		s = self.vehicleState.groundspeed;
-		self.vehicleState.headingAccel = np.asscalar( 9.81/ s**2 *(s*ATT.pitchspeed*m.sin(ATT.pitch)*m.tan(ATT.roll)
-			-s*m.cos(ATT.pitch)*ATT.rollspeed*1/(m.cos(ATT.roll)**2) 
-			+ m.cos(ATT.pitch)*m.tan(ATT.roll)*self.vehicleState.fwdAccel) )#use heuristic for heading acceleration
+		if(s>5):
+			self.vehicleState.headingAccel = np.asscalar( 9.81/ s**2 *(s*ATT.pitchspeed*m.sin(ATT.pitch)*m.tan(ATT.roll)
+				-s*m.cos(ATT.pitch)*ATT.rollspeed*1/(m.cos(ATT.roll)**2) 
+				+ m.cos(ATT.pitch)*m.tan(ATT.roll)*self.vehicleState.fwdAccel) )#use heuristic for heading acceleration
+		else:
+			self.vehicleState.headingAccel = 0
 
 #		print "Filter Estimated HdgRate: " + str(self.vehicleState.headingRate) + "\t HdgAccel: " + str(self.vehicleState.headingAccel)
 #		print "hdgrt:" + str( self.vehicleState.headingRate) + "\tlastHeading:" + str(lastHeading)
