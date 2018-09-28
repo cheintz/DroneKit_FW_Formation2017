@@ -22,5 +22,4 @@ defaultParams.pitchGain = -500/(20/(180/m.pi)) #m/s per PWM
 defaultParams.pitchOffset = 1500
 defaultParams.throttleMin = 1000
 defaultParams.throttleGain = (2000-1000)/100
-defaultParams.Ts = 0.1
-
+defaultParams.Ts = 1.0/1000

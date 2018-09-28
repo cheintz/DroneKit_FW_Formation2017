@@ -18,6 +18,8 @@ def vsToLogPrep(vs):
 	
 	headers.append('ID')
 	values.append(vs.ID)
+	headers.append('Counter')
+	values.append(vs.counter)
 	
 	for k in attitudeKeys:
 		headers.append(k)

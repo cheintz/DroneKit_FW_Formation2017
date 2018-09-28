@@ -40,8 +40,8 @@ class Receiver(multiprocessing.Process):
 			mp = self.s.recvfrom(4096)
 
 #			print "received message"
-			if(False):
-#			if(mp[1] == (self.AdHocIP,self.port)):
+#			if(False):
+			if(mp[1] == (self.AdHocIP,self.port)):
 #				print "received my own message"
 				pass
 			else:

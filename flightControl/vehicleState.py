@@ -21,7 +21,7 @@ VehicleState = recordtype('VehicleState', [ ('startTime',None),('isArmable' , Fa
 	, 'channels', 'position', 'velocity',('heading',0.0),('headingRate',None),('headingAccel',None), 'mode', ('command',Command())
 	,('controlState',ControlState()), ('isFlocking',False), ('RCLatch', True), ('abortReason',None), ('timeout', Timeout())
 	,('parameters',Parameter()),('servoOut',{'1':None,'2':None,'3':None}),('airspeed',0.0),('groundspeed',0.0)
-	,('wind_estimate',{'vx':None,'vy':None,'vz':None}),('fwdAccel',None),('propagated',0)], default = None )
+	,('wind_estimate',{'vx':None,'vy':None,'vz':None}),('fwdAccel',None),('propagated',0),('counter',0)], default = None )
 		
 
 Message = recordtype('Message','type,sendTime,content', default = None) #content shall contain the timestamp of the most recent parameter set.

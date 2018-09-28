@@ -30,15 +30,15 @@ class Transmitter(multiprocessing.Process):
 		while( not self.stoprequest.is_set()):
 			while( not self.stoprequest.is_set()):
 #				print "Have a message to transmit"
-				if(self.transmitQueue.qsize()>5):
-					print "TX Queue" + str(self.transmitQueue.qsize())
+			#	if(self.transmitQueue.qsize()>5):
+				#	print "TX Queue" + str(self.transmitQueue.qsize())
 				try:
 					msg = self.transmitQueue.get(True, 0.5)
 					self.sendMessage(msg)
 #					print "sending message"
 				#	self.transmitQueue.task_done() #May or may not be helpful
 				except Queue.Empty:
-					time.sleep(0.001)
+					time.sleep(0.00001)
 					break #no more messages.
 		print "Transmit Stopped"
 					
