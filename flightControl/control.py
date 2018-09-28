@@ -599,7 +599,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		
 #For sinusoidal speed command
 		"""t = (datetime.now() - self.startTime).total_seconds()
-		amp = 2
+		amp = 2gitk
 		f = 0.1
 		speedD = 20 + amp*m.sin(2*m.pi*f*t)
 		speedDDot = amp * 2*m.pi*f*m.cos(2*m.pi*f*t)
