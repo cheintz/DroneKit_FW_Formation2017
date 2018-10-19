@@ -6,6 +6,7 @@ from collections import OrderedDict
 attitudeKeys = ['roll','pitch','yaw','rollspeed','pitchspeed','yawspeed']
 positionKeys = ['lat','lon','alt','time']
 velocityKeys = [0,1,2]
+courseAngleKeys = ['value','rate','accel']
 
 def vsToLogPrep(vs):
 #	print vs.ID
@@ -41,7 +42,11 @@ def vsToLogPrep(vs):
 	values += [vs.wind_estimate['vx'],vs.wind_estimate['vy'],vs.wind_estimate['vz']]
 	
 	headers+=['heading','headingRate','headingAccel']
-	values+=[vs.heading,vs.headingRate,vs.headingAccel]
+	values+=[vs.heading.value,vs.heading.rate,vs.heading.accel]
+
+	headers+=['pitch','pitchRate','pitchAccel']
+	values += [vs.pitch.value,vs.pitch.rate,vs.pitch.accel]
+	
 	
 	d = vs.controlState._asdict()
 	for k in d.keys():
@@ -67,7 +72,6 @@ def vsToLogPrep(vs):
 
 	d = vs.command._asdict()
 	for k in d.keys():
-#		print k
 		item = d[k]
 		if isinstance(item,np.matrix):
 			(h,v)=handleMatrix(item,k)

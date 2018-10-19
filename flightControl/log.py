@@ -8,13 +8,13 @@ import jsonpickle
 import cPickle
 import os
 import time
-import mutil
 from datetime import datetime
 import signal
+import copy
 
 class Logger(multiprocessing.Process):
 
-	def __init__(self,logQueue,logPath,n,startTime):
+	def __init__(self,logQueue,logPath,n,startTime,fileSuffix):
 		multiprocessing.Process.__init__(self)
 		self.logQueue=logQueue
 		self.stoprequest = multiprocessing.Event()
@@ -22,9 +22,11 @@ class Logger(multiprocessing.Process):
 #		self.file=open(datetime.now().strftime("%y_%m_%d_%H_%M_%S_log.csv"),'w')
 		#self.file=open(os.path.join("/home/pi/logs" ,datetime.now().strftime("log_%Y_%m_%d__%H_%M_%S.csv")),'w')
 		self.startTime=startTime
-		self.file=open(os.path.join(logPath ,self.startTime.strftime("%Y_%m_%d__%H_%M_%S_log.csv")),'w')
+		self.file=open(os.path.join(logPath,  self.startTime.strftime("%Y_%m_%d__%H_%M_%S_log") + fileSuffix+ '.csv'),'w' ) 
 		self.headerWritten = False
 		self.lastLogged = 0
+		self.numItemsPerSelf=0
+		self.numItemsPerOther=0
 	def stop (self):
 		self.stoprequest.set()	
 		print "Stop flag set - Log"
@@ -51,61 +53,56 @@ class Logger(multiprocessing.Process):
 	def logMessage(self, msg):
 		stateVehicles = msg.content['stateVehicles']
 		thisState = msg.content['thisState']
-		self.lastState = thisState
+		thisDict = thisState.getCSVLists()	
 
-		if(thisState.counter<= self.lastLogged):
-			print "Error: Logged states out of order: Last Logged: " + str(self.lastLogged)+ ", This Counter: " + str(thisState.counter) 
-			#print "last state: "  + str(self.lastState.time)
-	#		#print "this state: " + str(thisState.time)
-	#		raise ValueError('Attempt to log vehicleStates out of sequence!!') 
-		#print "lastDiff" + str(thisState.counter - self.lastLogged)
-#		print "\t\t" + str(thisState.counter) + "\t" + str(self.logQueue.qsize())	
-		self.lastLogged = thisState.counter
-		self.lastTransmittedState = thisState
-
-		if not self.headerWritten: #only do this once
-			myOrderedDict = mutil.vsToLogPrep(thisState)
-			self.writeHeaderString(myOrderedDict.keys())
-			self.numItemsPerMav = len(myOrderedDict.keys())
+		if not self.headerWritten: #only do this once	
+			#Assume same type of logging as this vehicle
+			self.writeHeaderString(thisState)
 			self.headerWritten = True
 
-		
-		outString = ''
-
-		outString += str(thisState.time) + ','
+		outString = str(thisState.time) + ','
 		outString+= str((thisState.time - thisState.startTime).total_seconds())+',' #relative time
 		for i in range(1,thisState.parameters.expectedMAVs+1):
-			#print "logging: " + str(i)
 			try:
-				if(True):#i!=thisState.ID):
+				if i!=thisState.ID: #if other UAV
 					stateToWrite= (stateVehicles[i])
 				else:
 					stateToWrite =thisState
 				
-				myOrderedDict = mutil.vsToLogPrep(stateToWrite)
+				myOrderedDict = stateToWrite.getCSVLists()
 				outString += ','.join(map(str, myOrderedDict.values()))
 			except KeyError:
-#				print "Attempted to log nonexistant vehicle: " + str(i)
 				outString += str(i)+','
-				for j in range(0,self.numItemsPerMav-2): #write blanks to save the space
-					outString += ', '
+				for j in range(0,self.numItemsPerOther-2): #write blanks to save the space
+					outString += ','
 			if(i!=thisState.parameters.expectedMAVs):
-				outString+=', '
+				outString+=','
 		self.file.write(outString)
 		self.file.write("\n")
-		#print "Send complete"ader
-	def writeHeaderString(self,sourceList):
+	def writeHeaderString(self,thisState):
 		headerString=''
 		headerString+='Time, RelTime,'
-		
 		n=self.expectedMAVs
+
+		thisList =thisState.getCSVLists().keys()
+		self.numItemsPerSelf = len(thisList)
+		if(thisState.parameters.txStateType == 'basic'):
+			temp = BasicVehicleState(copy.deepcopy(thisState))
+			otherList = temp.getCSVLists()
+			self.numItemsPerOther = len(otherList)
+		else:
+			otherList = thisList
+
 		for i in range(1,n+1):
 			prefix = "v"+str(i)+"_"
-			tempList = [prefix + s for s in sourceList] #append the mavID to each header
-	
-			headerString+= ','.join(map(str, tempList)) 
+			if not thisState.ID == i: #other vehicles
+				tempList = [prefix + s for s in otherList] #append the mavID to each header
+				headerString+= ','.join(map(str, tempList)) 
+			else: 
+				tempList = [prefix + s for s in thisList] #append my mavID to each header
+				headerString+= ','.join(map(str, tempList)) 
 			if(i!=n):
-				headerString+=','
+				headerString+=',' #no trailing comma, but commas between MAVs
 		headerString+='\n'		
 		self.file.write(headerString)
 
