@@ -178,7 +178,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.releaseControl()
 			self.vehicleState.command = Command()			
 			return True
-		print "Do not abort flocking"
 		return False
 		
 	def checkEngageFlocking(self):
