@@ -4,6 +4,8 @@ import socket
 import logging
 import multiprocessing
 import Queue
+import logging
+import threading
 import jsonpickle
 import cPickle
 import zlib
@@ -45,10 +47,9 @@ class Transmitter(multiprocessing.Process):
 	def sendMessage(self, msg):
 #		print "About to transmit" + str(msg.content.attitude.roll)
 #		mp = jsonpickle.encode(msg)
-		
 		mp = cPickle.dumps(msg,cPickle.HIGHEST_PROTOCOL)
 		mp = zlib.compress(mp)
-#		print "Length: " + str(len(mp))	
+		#print "Length: " + str(len(mp))	
 
 #		print "Length zlib: "+str(len(zlib.compress(mp)))	
 #		print "Encoded is" + mp

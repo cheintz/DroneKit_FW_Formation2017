@@ -6,6 +6,7 @@ from collections import OrderedDict
 attitudeKeys = ['roll','pitch','yaw','rollspeed','pitchspeed','yawspeed']
 positionKeys = ['lat','lon','alt','time']
 velocityKeys = [0,1,2]
+courseAngleKeys = ['value','rate','accel']
 
 def vsToLogPrep(vs):
 #	print vs.ID
@@ -14,6 +15,7 @@ def vsToLogPrep(vs):
 	headers=[]
 	values=[]
 	
+
 	out=''
 	
 	headers.append('ID')
@@ -37,11 +39,17 @@ def vsToLogPrep(vs):
 	headers.append('groundspeed')
 	values.append(vs.groundspeed)
 
+
+	#print vs.wind_estimate
 	headers +=['wind_vx','wind_vy','wind_vz']
 	values += [vs.wind_estimate['vx'],vs.wind_estimate['vy'],vs.wind_estimate['vz']]
 	
 	headers+=['heading','headingRate','headingAccel']
-	values+=[vs.heading,vs.headingRate,vs.headingAccel]
+	values+=[vs.heading.value,vs.heading.rate,vs.heading.accel]
+
+	headers+=['pitch','pitchRate','pitchAccel']
+	values += [vs.pitch.value,vs.pitch.rate,vs.pitch.accel]
+	
 	
 	d = vs.controlState._asdict()
 	for k in d.keys():
@@ -67,7 +75,6 @@ def vsToLogPrep(vs):
 
 	d = vs.command._asdict()
 	for k in d.keys():
-#		print k
 		item = d[k]
 		if isinstance(item,np.matrix):
 			(h,v)=handleMatrix(item,k)
@@ -111,6 +118,7 @@ def vsToLogPrep(vs):
 	except: 
 		values.append(' ')
 
+
 	headers.append('abortReason')
 	try:
 		values.append(str(vs.abortReason))
@@ -125,6 +133,7 @@ def vsToLogPrep(vs):
 		headers.append("servoOut"+str(i))
 		values.append(vs.servoOut[str(i)])
 	
+
 	out = OrderedDict(zip(headers,values))
 	return out
 
