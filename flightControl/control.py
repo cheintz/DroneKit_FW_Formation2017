@@ -477,7 +477,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		
 		fi = np.matrix([[m.cos(THIS.heading.value)],[m.sin(THIS.heading.value)]])
 		#asTarget = speedD + (airspd-groundspd) #the basic one
-		CS.backstepSpeed = THIS.command.speedD
+		CS.backstepSpeed = THIS.command.speedD + (airspd-groundspd)
 		CS.backstepSpeedError =  1/GAINS['aSpeed']* -GAINS['gamma'] * eSpeed
 		CS.backstepSpeedRate = 1/GAINS['aSpeed'] * THIS.command.speedDDot
 		CS.backstepPosError =  np.asscalar(1/GAINS['aSpeed'] * -eqil.transpose()*fi*1/GAINS['lambda'])
