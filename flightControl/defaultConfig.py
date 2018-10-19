@@ -11,9 +11,9 @@ defaultParams.gains = {'kl':.35 , 'ka': .1 ,'alpha1': 0.001,'alpha2':100,'d':0.0
 	,'vMin': 13,'vMax':24,'kBackstep':0,'aFilterHdg':0.1,'aFilterSpd':.02, 'aFilterThetaDDot': .8,'kTheta':KPID(1,0.1,0.5)
 	,'kSpeed':KPID(10,2,4),'rollLimit':50/(180/m.pi),'kAlt':KPID(0.05,.01,.01),'pitchLimit':20/(180/m.pi)
 	, 'maxETheta':5,'maxEAlt':50,'maxESpeed':20,'kThetaFF':1, 'aSpeed':0.4,'gamma':1,'lambda':10000,'kSpdToThrottle':2.9,'nomSpeed':18.5}
-defaultParams.config = {'printEvery':10,'ignoreSelfPackets':False,'propagateStates':False , 'geofenceAbort':False
+defaultParams.config = {'printEvery':10,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
 	,'mode':'MiddleLoopSimultaneous',
-	'acceptableEngageMode': (VehicleMode('FBWA'),VehicleMode('AUTO'),VehicleMode('RTL'),VehicleMode('CIRCLE') ) }
+	'acceptableEngageMode': (VehicleMode('FBWA'),) }
 defaultParams.GCSTimeout = 5 #seconds
 defaultParams.peerTimeout = 4 #seconds
 defaultParams.leaderID = 1   #MAV ID of leader
