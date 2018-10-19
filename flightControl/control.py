@@ -133,7 +133,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicleState.controlState = ControlState()
 
 	def checkAbort(self): #only call if flocking!!
-		# print "in checkAbort" + str(time.time())
 		if(self.checkTimeouts()): #If we had a timeout
 			"Abort - Timeout" + str(datetime.now())
 			self.vehicleStateabortReason = "Timeout"
@@ -152,8 +151,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.releaseControl()			
 			self.vehicleState.command = Command()			
 			return True
-		if (self.parameters.config['geofenceAbort'] and ( self.vehicle.channels['7'] < 1700 
-			or self.vehicle.channels['7'] > 2100)):
+		if not (self.parameters.config['geofenceAbort'] and ( self.vehicle.channels['7'] < 1700 
+				or self.vehicle.channels['7'] > 2100)):
 			self.pm.p("Abort - Geofence not enabled")
 			self.vehicleState.RCLatch = True
 			self.vehicleState.isFlocking = False
@@ -183,15 +182,14 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.pm.p( "Won't engage; Not enough MAVs. Expecting " + str(self.parameters.expectedMAVs) + ". Connected to:" + str(self.stateVehicles.keys()))
 			self.vehicleState.RCLatch = True
 			return False	
-
-		#Check RC enable
-		if (not (self.vehicle.mode in  self.parameters.config['acceptableEngageMode'])): #if switched out of acceptable modes
+		if (not (self.vehicle.mode in  self.parameters.config['acceptableEngageMode'])): #if switched
+				# out of acceptable modes
 			self.pm.p( "Won't engage - control mode" )
 			self.pm.p( "In Mode: "  + str(self.vehicle.mode))
 			self.vehicleState.RCLatch = True			
 			return False
-		if(False):			
-	#	if(self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 2100): #Geofence
+		if  (self.parameters.config['geofenceAbort'] and ( self.vehicle.channels['7'] < 1700 
+				or self.vehicle.channels['7'] > 2100)):
 			self.pm.p( "Won't engage. Geofence not enabled")
 			self.pm.p( "Ch7: " +str(self.vehicle.channels['7']))
 			self.vehicleState.RCLatch = True
