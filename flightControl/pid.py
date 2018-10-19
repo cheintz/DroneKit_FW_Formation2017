@@ -17,9 +17,8 @@ class PIDController:
 		terms.ff = ff  
 		output = terms.p+terms.d+terms.i+terms.ff
 		output = saturate(output,self._lowerOutSat,self._upperOutSat)
-		antiWindup(output,self._lowerOutSat,self._upperOutSat,self.integrator,e*Ts)
+		self.integrator =antiWindup(output,self._lowerOutSat,self._upperOutSat,self.integrator,e*Ts)
 		self.integrator = saturate(self.integrator,self._lowerIntSat,self._upperIntSat)
-
 		return [output, terms]
 	def reset(self):
 		self.terms=PIDTerms()

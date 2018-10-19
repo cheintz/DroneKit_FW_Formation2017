@@ -10,7 +10,6 @@ import jsonpickle
 import math as m
 from datetime import datetime, timedelta
 import numpy as np
-import signal
 import copy
 from pid import PIDController
 
@@ -52,7 +51,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			,-gains['maxESpeed'],gains['maxESpeed'])
 		self.pitchController = PIDController(gains['kAlt'], -gains['pitchLimit'],gains['pitchLimit']
 			,-gains['maxEAlt'],gains['maxEAlt'])
-
 	def stop(self):
 		self.stoprequest.set()
 		print "Stop Flag Set - Control"
@@ -64,9 +62,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				try:
 					msg = self.receiveQueue.get(False)
 					self.updateGlobalStateWithData(msg)
-					#self.receiveQueue.task_done() #May or may not be helpful
 				except Queue.Empty:
-				#except:
 					break #no more messages.
 			self.getVehicleState() #Get update from the Pixhawk
 			self.pm.p( "RelTime: " + str((datetime.now() - self.startTime).total_seconds()))
@@ -105,39 +101,37 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else: #From GCS
 			self.parseGCSMessage(msg)
 		
-	def parseUAVMessage(self,msg):
+	def parseUAVMessage(self,msg): #Propagating is donw in checkTimeouts
 		if(msg.content.ID>0):
 			ID=int(msg.content.ID)
 #			print "received from:" + str(ID)
 			self.stateVehicles[ID] = msg.content
+			self.stateVehicles[ID].timestamp = msg.sendTime #update vehicleState with sent time (assumes they are SENT instantly from the txQueue)
+			dt = (datetime.now() - self.stateVehicles[ID].timestamp).total_seconds()
+			if (self.parameters.config['propagateStates']):
+				propagateVehicleState(self.stateVehicles[ID],dt) #will propagate from when we received. Other agent propagates forward from its Pixhawk position update time. The actual communication latency is not included in this.
+
 			#self.vehicleState.timeout.peerLastRX[ID]=msg.sendTime
-			self.vehicleState.timeout.peerLastRX[ID]=datetime.now()
+			self.vehicleState.timeout.peerLastRX[ID]=msg.sendTime	
 			if(not self.vehicleState.isFlocking): #reset accumulated position error if not flocking
 				pass
 			
 	def scaleAndWriteCommands(self):
 	#	print str(self.vehicleState.command.heading.rate)
+		params = self.parameters
 		xPWM = self.vehicleState.command.rollCMD * self.parameters.rollGain+self.parameters.rollOffset
 		yPWM = self.vehicleState.command.pitchCMD*self.parameters.pitchGain + self.parameters.pitchOffset
 		zPWM = self.vehicleState.command.throttleCMD*self.parameters.throttleGain + self.parameters.throttleMin
-
 		xPWM = saturate(xPWM,1000,2000)
 		yPWM = saturate(yPWM,1000,2000)
-		zPWM = saturate(zPWM,1000,2000)
-
+		zPWM = saturate(zPWM,params.throttleMin,params.throttleMin+100*self.parameters.throttleGain)
 		self.vehicle.channels.overrides = {'1': xPWM, '2': yPWM,'3': zPWM}
+		#self.vehicle.channels.overrides = {'1': xPWM, '2': yPWM}
 
 	def releaseControl(self):
 		self.vehicle.channels.overrides = {}
-#		print "releasing control"
-#		print self.vehicle.channels.overrides 
 		self.vehicleState.controlState = ControlState()
-#		self.vehicleState.controlState.accAltError=0
-#		self.vehicleState.controlState.accHeadingError=0
-#		self.vehicleState.controlState.accAirspeedError=0
-		 #This is handled in parseMessage self.vehicleState.accPosError[(self.parameters.leaderID)
 
-		
 	def checkAbort(self): #only call if flocking!!
 		# print "in checkAbort" + str(time.time())
 		if(self.checkTimeouts()): #If we had a timeout
@@ -149,22 +143,17 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.commenceRTL()
 			self.vehicleState.command = Command()			
 			return True
-
 		if (not (self.vehicle.mode == acceptableControlMode)): #if switched out of acceptable modes
 			self.pm.p( "Abort - control mode" + str(datetime.now()))
 			self.pm.p( "Flight Mode: " + str(self.vehicle.mode))
 			self.vehicleState.RCLatch = True			
 			self.vehicleState.isFlocking = False
 			self.vehicleState.abortReason = "Control Mode" #Elaborate on this to detect RTL due to failsafe
-			# print "About to RTL" + str(time.time())
 			self.releaseControl()			
-			#self.commenceRTL()
-			# print "returned from RTL function" + str(time.time())
 			self.vehicleState.command = Command()			
-
 			return True
-		#if (self.vehicle.channels['7'] < 1700 or self.vehicle.channels['7'] > 2100):
-		if(False):
+		if (self.parameters.config['geofenceAbort'] and ( self.vehicle.channels['7'] < 1700 
+			or self.vehicle.channels['7'] > 2100)):
 			self.pm.p("Abort - Geofence not enabled")
 			self.vehicleState.RCLatch = True
 			self.vehicleState.isFlocking = False
@@ -196,7 +185,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			return False	
 
 		#Check RC enable
-		if (not (self.vehicle.mode == acceptableControlMode)): #if switched out of acceptable modes
+		if (not (self.vehicle.mode in  self.parameters.config['acceptableEngageMode'])): #if switched out of acceptable modes
 			self.pm.p( "Won't engage - control mode" )
 			self.pm.p( "In Mode: "  + str(self.vehicle.mode))
 			self.vehicleState.RCLatch = True			
@@ -212,10 +201,12 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.vehicleState.RCLatch = False #We got this far, which means that the only issue is the enable. Thus, if they enable, we can engage
 			return False
 		elif(self.vehicleState.RCLatch == True): #Catch the latch to ensure any new passing condition doesn't cause flocking to (re)start
+			self.pm.p( "Won't engage. RC Latch" )
 			return False
 
 		self.vehicleState.RCLatch = True #Set the latch
 		self.vehicleState.isFlocking= True #enable flocking
+		self.vehicle.mode = VehicleMode('FBWA')
 		self.pm.p( "OK to engage flocking")
 		return True
 			
@@ -224,7 +215,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicleState.timeout.localTimeoutTime=lastPX4RxTime =datetime.now()
 
 		if self.vehicleState.timestamp is None: #startup calculation of Ts
-			self.vehicleState.time = datetime.now() 
+			self.vehicleState.timestamp = datetime.now() 
 			Ts = self.parameters.Ts
 		else:
 			Ts = (datetime.now() - self.vehicleState.time).total_seconds()
@@ -334,18 +325,14 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		#if(True):
 			self.vehicleState.timeout.GCSTimeoutTime = time.time()
 #			didTimeOut = True
-		if(False):
-#		for IDS in self.stateVehicles.keys():
-			ID=int(IDS)	
-			if(self.vehicleState.timeout.peerLastRX[ID]<datetime.now()-timedelta(seconds = self.parameters.peerTimeout)):
-				self.vehicleState.timeout.peerTimeoutTime[ID]=datetime.now()
-				self.pm.p( "Timeout - ID: " + str(ID))
-#				print "LastRX: " + str(self.vehicleState.timeout.peerLastRX[ID]) + "\t" + 
-				didTimeOut = True
-			else: #propagate forward
-				dt = (datetime.now() - self.stateVehicles[ID].time).total_seconds()
-				if (self.parameters.config['propagateStates']):
-					propagateVehicleState(self.stateVehicles[ID],dt) #will propagate from when we received. Other agent propagates forward from its Pixhawk position update time. The actual communication latency is not included in this.
+		if(self.parameters.config['mode'] == 'Formation'):
+			for IDS in self.stateVehicles.keys():
+				ID=int(IDS)	
+				if(self.vehicleState.timeout.peerLastRX[ID]<datetime.now()-timedelta(seconds = self.parameters.peerTimeout)):
+					self.vehicleState.timeout.peerTimeoutTime[ID]=datetime.now()
+					self.pm.p( "Timeout - ID: " + str(ID))
+#					print "LastRX: " + str(self.vehicleState.timeout.peerLastRX[ID]) + "\t" + 
+					didTimeOut = True
 		return didTimeOut
 	def parseGCSMessage(self, msg):
 #		self.vehicleState.packets.lastGCS = time.time() #Should implement checking that this isn't far from the present time
@@ -360,13 +347,38 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 #			self.vehicleState.timeout.GCSLastRx = msg.sendTime()
 
 	def computeControl(self):
-		self.computeFlockingControl()
+		if (self.parameters.config['mode'] == 'Formation'):
+			self.computeFlockingControl()
+		elif (self.parameters.config['mode'] == 'MiddleLoopSimultaneous' ):
+			self.PilotMiddleLoopRefs()
 		self.rollControl()
 		self.throttleControl()
 		self.pitchControl()
 
-
-	#using PID for inertial velocity commands, for heading comand, and for altitude
+	def PilotMiddleLoopRefs(self):
+		#Let Channel 7 determine if this is a speed, altitude, or heading test:
+		normInput = (self.vehicle.channels['8'] - 1000.0) / 1000.0
+		self.pm.p("Norm Input: " + str(normInput))
+		THIS = self.vehicleState
+		speedInput = 0.5
+		altInput = 1
+		headingInput = 1.0/6 + .5 #default to parallel to LMAC
+		if (self.vehicle.channels['7']< 1200): #Speed Control Mode
+			speedInput = normInput			
+		elif (self.vehicle.channels['7']< 1700): #Middle: altitude
+			altInput = normInput
+		else: #heading
+			headingInput= normInput
+		
+		THIS.command.speedD = ((self.parameters.gains['vMax']-self.parameters.gains['vMin']) * speedInput  
+			+ self.parameters.gains['vMin'] )
+		THIS.command.asTarget = THIS.command.speedD 
+		THIS.command.desiredAlt = 0.5*(THIS.parameters.desiredPosition[THIS.ID-2,2]) * (1.0 + altInput) #half alt to full alt
+		THIS.command.thetaD = wrapToPi(-2*m.pi * (headingInput-0.5)+m.pi/2) #North is Middle of range		
+		THIS.command.speedDDot = 0
+		THIS.command.thetaDDot = 0				
+		
+		
 	def computeFlockingControl(self):
 		thisCommand  = Command()
 		LEADER = self.stateVehicles[(self.parameters.leaderID)]
@@ -462,8 +474,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS.command.thetaDDot = np.asscalar( 1.0/(1+ui[1]**2/ui[0]**2) * (ui[0]*pdiDot[1]-ui[1]*pdiDot[0])/ui[0]**2 )
 
 	#Compute desired speed and "speed command" ui
-		THIS.command.speedD = saturate(np.linalg.norm(ui,2),vMin,vMax)  #Don't reduce commanded velocity based on heading error
-		THIS.command.speedDDot = (ui.transpose() / THIS.command.speedD) * ( pdiDot)
+		THIS.command.speedD = saturate(np.linalg.norm(ui,2),vMin,vMax)  #Don't reduce commanded velocity
+						# based on heading error		
+		#THIS.command.speedD = np.linalg.norm(ui,2)
+		THIS.command.speedDDot = np.asscalar((ui.transpose() / THIS.command.speedD) * ( pdiDot))
 	
 		groundspd = THIS.groundspeed
 		airspd = THIS.airspeed
@@ -474,9 +488,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.backstepSpeed = THIS.command.speedD
 		CS.backstepSpeedError =  1/GAINS['aSpeed']* -GAINS['gamma'] * eSpeed
 		CS.backstepSpeedRate = 1/GAINS['aSpeed'] * THIS.command.speedDDot
-		CS.backstepPosError =  1/GAINS['aSpeed'] * -eqil.transpose()*fi*1/GAINS['lambda']
+		CS.backstepPosError =  np.asscalar(1/GAINS['aSpeed'] * -eqil.transpose()*fi*1/GAINS['lambda'])
 		asTarget = CS.backstepSpeed + CS.backstepSpeedRate + CS.backstepSpeedRate + CS.backstepPosError
 		THIS.command.asTarget=saturate(asTarget,vMin,vMax)
+		THIS.command.desiredAlt=THIS.parameters.desiredPosition[THIS.ID-2,2] #this is AGL  for now
+		self.pm.p('SDesired: ' + str(THIS.command.speedD))
 	
 
 	def rollControl(self):
@@ -493,6 +509,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			(calcTurnRate-cmd.thetaDDot),self.thisTS,rollFFTerm)
 		CS.accHeadingError=self.rollController.integrator
 		cmd.timestamp = datetime.now()
+		self.pm.p( "thetaD: " + str(THIS.command.thetaD) )	
 		self.pm.p( "etheta: " + str(etheta) )
 
 	#speed control
@@ -506,30 +523,30 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		kspeed = THIS.parameters.gains['kSpeed']
 		rollAngle = THIS.attitude.roll
 		eSpeed = THIS.airspeed - cmd.asTarget
-
-		throttleFFTerm = self.trimThrottle + 1/m.pow(m.cos(rollAngle),2) #TODO: use FF gain
+		throttleFFTerm = (self.trimThrottle + self.vehicle.parameters['TECS_RLL2THR']/m.pow(m.cos(rollAngle),2) +
+			self.parameters.gains['kSpdToThrottle']  *(cmd.asTarget - self.parameters.gains['nomSpeed'])   )#TODO: use FF gain
 
 		(cmd.throttleCMD , CS.throttleTerms) = self.throttleController.update(eSpeed,
-			(THIS.fwdAccel),self.thisTS,throttleFFTerm)
+			(THIS.fwdAccel - cmd.speedDDot),self.thisTS,throttleFFTerm)
 		CS.accSpeedError=self.throttleController.integrator
 		cmd.timestamp = datetime.now()
-		self.pm.p('eSpeed ' + str(eSpeed))
-		self.pm.p('ASDesired: ' + str(cmd.asTarget))
+		self.pm.p('eAirSpeed: ' + str(eSpeed))
+		self.pm.p('ASTarget: ' + str(cmd.asTarget))
 
 	#altitude control
 	def pitchControl(self):
 		THIS = self.vehicleState
 		cmd = THIS.command
 		CS = THIS.controlState
-		desiredAltitude = qd = THIS.parameters.desiredPosition[THIS.ID-2,2] #this is AGL  for now
 		altitude = THIS.position.alt
 	
-		altError = altitude-desiredAltitude
+		altError = altitude-cmd.desiredAlt
 
-		(cmd.pitchCMD , CS.pitchTerms) = self.throttleController.update(altError,
+		(cmd.pitchCMD , CS.pitchTerms) = self.pitchController.update(altError,
 			THIS.velocity[2],self.thisTS,0)
-		CS.accAltError  = self.throttleController.integrator
+		CS.accAltError  = self.pitchController.integrator
 		cmd.timestamp = datetime.now()
+		self.pm.p('Alt Error: ' + str(altError))
 
 def wrapToPi(value):
 	return wrapTo2Pi(value+m.pi)-m.pi
@@ -578,9 +595,9 @@ def propagateVehicleState(state, dt): #assumes heading rate and fwdAccel are con
 	vx = state.velocity[1]
 	vy = state.velocity[0]
 
-	s = state.groundspeed
+	s = m.sqrt(vx**2+vy**2)
 	sf = s+sDot*dt
-	psif = state.heading+psiDot*dt
+	psif = state.heading.value+psiDot*dt
 	
 #	dx = psiDot*(sf)*m.sin(psif)+sDot*m.cos(psif)-psiDot*s*m.sin(psi)-sDot*m.cos(psi)
 #	dy = -psiDot*sf*m.cos(psif)+sDot*(m.sin(psif)-m.sin(psi))+psiDot*s*m.cos(psiDot)
@@ -600,7 +617,7 @@ def propagateVehicleState(state, dt): #assumes heading rate and fwdAccel are con
 	#write output back to state
 	state.velocity[0] = sf * m.sin(psif)#yes; this is the Y direction velocity 
 	state.velocity[1] = sf *m.cos(psif) #yes; the X velocity
-	state.heading = wrapToPi(psif)
+	state.heading.value = wrapToPi(psif)
 
 	qGPS = np.matrix([state.position.lat, state.position.lon])
 	dqGPS = getRelPos(qGPS,qGPS + 1e-6) / 1e-6
@@ -608,8 +625,8 @@ def propagateVehicleState(state, dt): #assumes heading rate and fwdAccel are con
 	state.position.lon = state.position.lon + dx/dqGPS[0,0]
 	state.position.alt = state.position.alt + dz
 	
-#	print "T1: " + str(state.time)	
-	state.time = state.time + timedelta(seconds = dt)
-#	print "T2: " + str(state.time)		
+#	print "T1: " + str(state.timestamp)	
+	state.timestamp = state.timestamp + timedelta(seconds = dt)
+#	print "T2: " + str(state.timestamp)		
 	state.propagated = 1
 	

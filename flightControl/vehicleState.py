@@ -14,12 +14,12 @@ Timeout = recordtype('Timeout' , ['GCSTimeoutTime', ('peerTimeoutTime',{}), 'loc
 Parameter = recordtype('Parameter',['receivedTime','desiredPosition','gains', 'Ts', 'GCSTimeout', 'peerTimeout', 'leaderID', 'expectedMAVs', 'rollGain', 'config', 'rollOffset', 'pitchGain', 'pitchOffset', 'throttleGain', 'throttleMin',('txStateType','basic')], default = None)
 
 Command = recordtype('Command',['speedD','speedDDot','asTarget','thetaD','thetaDDot','rollCMD',
-	'pitchCMD','throttleCMD','timestamp'], default = None)
+	'pitchCMD','throttleCMD','timestamp','desiredAlt'], default = None)
 
 CourseAngle = recordtype('CourseAngle',['value','rate','accel'],default=0.0)	
 
 ControlState = recordtype('ControlState',[('plTerm',zeroVect),('kplTerm',zeroVect),('kpjTerm',{}),'qldd'
-	,('phiDotTerm',zeroVect),('kilTerm',zeroVect), ('uiTarget',zeroVect),'accHeadingError',('rollTerms',PIDTerms()),'accSpeedError'
+	,('phiDotTerm',zeroVect), ('uiTarget',zeroVect),'accHeadingError',('rollTerms',PIDTerms()),'accSpeedError'
 	,('throttleTerms',PIDTerms()),'accAltError',('pitchTerms',PIDTerms())
 	,'backstepSpeed','backstepSpeedError','backstepSpeedRate','backstepPosError']
 	, default = 0.0)

@@ -8,6 +8,7 @@ import jsonpickle
 import cPickle
 import zlib
 import signal
+from datetime import datetime
 
 class Receiver(multiprocessing.Process):
 	def __init__(self,receiveQueue,AdHocIP, port,ignoreSelfPackets):
@@ -39,13 +40,13 @@ class Receiver(multiprocessing.Process):
 		try:
 			mp = self.s.recvfrom(4096)
 			if(self.ignoreSelfPackets and mp[1] == (self.AdHocIP,self.port)):
-				print "received my own message"
 				pass
 			else:
 				mp=mp[0]
 				mp = zlib.decompress(mp)
 				try:
 					msg=cPickle.loads(mp)
+					msg.sendTime = datetime.now() #Can't account for latency without synced system clocks
 					self.receiveQueue.put(msg)
 					pass
 				except ValueError:
