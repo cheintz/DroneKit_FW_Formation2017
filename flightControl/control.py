@@ -146,7 +146,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.commenceRTL()
 			self.vehicleState.command = Command()			
 			return True
-		print "Flight Mode: " + str(self.vehicle.mode)
 		if (not (self.vehicle.mode == acceptableControlMode)): #if switched out of acceptable modes
 			self.pm.p( "Abort - control mode" + str(datetime.now()))
 			self.pm.p( "Flight Mode: " + str(self.vehicle.mode))
@@ -496,7 +495,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		
 		fi = np.matrix([[m.cos(THIS.heading.value)],[m.sin(THIS.heading.value)]])
 		#asTarget = speedD + (airspd-groundspd) #the basic one
-		CS.backstepSpeed = THIS.command.speedD
+		CS.backstepSpeed = THIS.command.speedD +(airspd-groundspd)
 		CS.backstepSpeedError =  1/GAINS['aSpeed']* -GAINS['gamma'] * eSpeed
 		CS.backstepSpeedRate = 1/GAINS['aSpeed'] * THIS.command.speedDDot
 		CS.backstepPosError =  np.asscalar(1/GAINS['aSpeed'] * -eqil.transpose()*fi*1/GAINS['lambda'])
