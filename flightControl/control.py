@@ -75,7 +75,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 					self.computeControl() #writes the control values to self.vehicleState
 					self.scaleAndWriteCommands()
 #			print "pushing to queue" + str(time.time())
-			self.stateVehicles[self.vehicleState.ID] = self.vehicleState
 			self.pushStateToTxQueue() #sends the state to the UDP sending threading
 			self.pushStateToLoggingQueue()
 			self.pm.p('\n\n')
@@ -101,23 +100,19 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else: #From GCS
 			self.parseGCSMessage(msg)
 		
-	def parseUAVMessage(self,msg): #Propagating is donw in checkTimeouts
-		if(msg.content.ID>0):
+	def parseUAVMessage(self,msg): 
+		if(msg.content.ID>0 and msg.content.ID != self.vehicleState.ID):
 			ID=int(msg.content.ID)
-#			print "received from:" + str(ID)
 			self.stateVehicles[ID] = msg.content
-			self.stateVehicles[ID].timestamp = msg.sendTime #update vehicleState with sent time (assumes they are SENT instantly from the txQueue)
+			self.stateVehicles[ID].timestamp = msg.sendTime #update vehicleState with sent time (assumes they are SENT instantly from the txQueue of the other agent)
 			dt = (datetime.now() - self.stateVehicles[ID].timestamp).total_seconds()
 			if (self.parameters.config['propagateStates']):
 				propagateVehicleState(self.stateVehicles[ID],dt) #will propagate from when we received. Other agent propagates forward from its Pixhawk position update time. The actual communication latency is not included in this.
 
 			#self.vehicleState.timeout.peerLastRX[ID]=msg.sendTime
 			self.vehicleState.timeout.peerLastRX[ID]=msg.sendTime	
-			if(not self.vehicleState.isFlocking): #reset accumulated position error if not flocking
-				pass
 			
 	def scaleAndWriteCommands(self):
-	#	print str(self.vehicleState.command.heading.rate)
 		params = self.parameters
 		xPWM = self.vehicleState.command.rollCMD * self.parameters.rollGain+self.parameters.rollOffset
 		yPWM = self.vehicleState.command.pitchCMD*self.parameters.pitchGain + self.parameters.pitchOffset
@@ -134,7 +129,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	def checkAbort(self): #only call if flocking!!
 		if(self.checkTimeouts()): #If we had a timeout
-			"Abort - Timeout" + str(datetime.now())
+			self.pm.p("Abort - Timeout" + str(datetime.now()))
 			self.vehicleStateabortReason = "Timeout"
 			self.vehicleState.isFlocking = False
 			self.vehicleState.RCLatch = True
@@ -151,7 +146,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.releaseControl()			
 			self.vehicleState.command = Command()			
 			return True
-		if not (self.parameters.config['geofenceAbort'] and ( self.vehicle.channels['7'] < 1700 
+		if (self.parameters.config['geofenceAbort'] and ( self.vehicle.channels['7'] < 1700 
 				or self.vehicle.channels['7'] > 2100)):
 			self.pm.p("Abort - Geofence not enabled")
 			self.vehicleState.RCLatch = True
@@ -178,7 +173,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.vehicleState.RCLatch = True
 			return False
 		#check expected number of peers
-		if(len(self.stateVehicles) < self.parameters.expectedMAVs-1):
+		if(self.parameters.config['mode'] == 'Formation' and len(self.stateVehicles) < self.parameters.expectedMAVs-1):
 			self.pm.p( "Won't engage; Not enough MAVs. Expecting " + str(self.parameters.expectedMAVs) + ". Connected to:" + str(self.stateVehicles.keys()))
 			self.vehicleState.RCLatch = True
 			return False	
@@ -323,7 +318,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		#if(True):
 			self.vehicleState.timeout.GCSTimeoutTime = time.time()
 #			didTimeOut = True
-		if(self.parameters.config['mode'] == 'Formation'):
+		if(self.parameters.config['mode'] == 'Formation'): #only care about timeouts for formation flight
 			for IDS in self.stateVehicles.keys():
 				ID=int(IDS)	
 				if(self.vehicleState.timeout.peerLastRX[ID]<datetime.now()-timedelta(seconds = self.parameters.peerTimeout)):
@@ -380,7 +375,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 	def computeFlockingControl(self):
 		thisCommand  = Command()
 		LEADER = self.stateVehicles[(self.parameters.leaderID)]
-		#LEADER = self.stateVehicles[(2)]
 		THIS = self.vehicleState
 		CS = THIS.controlState
 		GAINS = THIS.parameters.gains
@@ -472,9 +466,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS.command.thetaDDot = np.asscalar( 1.0/(1+ui[1]**2/ui[0]**2) * (ui[0]*pdiDot[1]-ui[1]*pdiDot[0])/ui[0]**2 )
 
 	#Compute desired speed and "speed command" ui
-		THIS.command.speedD = saturate(np.linalg.norm(ui,2),vMin,vMax)  #Don't reduce commanded velocity
+		#THIS.command.speedD = saturate(np.linalg.norm(ui,2),vMin,vMax)  #Don't reduce commanded velocity
 						# based on heading error		
-		#THIS.command.speedD = np.linalg.norm(ui,2)
+		THIS.command.speedD = np.linalg.norm(ui,2)
 		THIS.command.speedDDot = np.asscalar((ui.transpose() / THIS.command.speedD) * ( pdiDot))
 	
 		groundspd = THIS.groundspeed
