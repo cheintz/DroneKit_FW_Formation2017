@@ -8,6 +8,7 @@ import jsonpickle
 import cPickle
 import zlib
 import signal
+from datetime import datetime
 
 class Receiver(multiprocessing.Process):
 	def __init__(self,receiveQueue,AdHocIP, port,ignoreSelfPackets):
@@ -29,7 +30,6 @@ class Receiver(multiprocessing.Process):
 	def run(self):
 		signal.signal(signal.SIGINT, signal.SIG_IGN)
 		while( not self.stoprequest.is_set()):
-#			print "Processing any received"
 			try:
 				self.receiveMessage()
 			except Queue.Empty:
@@ -40,31 +40,19 @@ class Receiver(multiprocessing.Process):
 		try:
 			mp = self.s.recvfrom(4096)
 			if(self.ignoreSelfPackets and mp[1] == (self.AdHocIP,self.port)):
-				print "received my own message"
 				pass
 			else:
 				mp=mp[0]
 				mp = zlib.decompress(mp)
 				try:
-				#	print mp + "\n\n\n"
-			#		print type(mp)
-#					msg = jsonpickle.decode(mp)
 					msg=cPickle.loads(mp)
-			#		print msg
-			#		msg = { str(key):value for key,value in msg.items() }
-			#		print "\n\n\n"
-			#		print msg
-#					print msg.keys()
-#					print type(msg)
-#					print msg.content
-#					print "Received valid packet from" + str(msg.content.ID) + " With Roll: " + str(msg.content.attitude.roll)
+					msg.sendTime = datetime.now() #Can't account for latency without synced system clocks
 					self.receiveQueue.put(msg)
 					pass
 				except ValueError:
 					print "received invalid packet"
 				if(self.receiveQueue.qsize()>5):
 					print "Receive Queue Size" + str(self.receiveQueue.qsize())
-			#	print "Received, did nothing"
 		except socket.error, e:
 			if not e.args[0] == 'timed out':
 				raise e

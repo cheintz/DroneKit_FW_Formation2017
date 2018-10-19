@@ -8,7 +8,6 @@ import jsonpickle
 import cPickle
 import os
 import time
-import mutil
 from datetime import datetime
 import signal
 import copy
@@ -52,7 +51,6 @@ class Logger(multiprocessing.Process):
 		print "Log Stopped"
 					
 	def logMessage(self, msg):
-
 		stateVehicles = msg.content['stateVehicles']
 		thisState = msg.content['thisState']
 		thisDict = thisState.getCSVLists()	
@@ -65,7 +63,6 @@ class Logger(multiprocessing.Process):
 		outString = str(thisState.time) + ','
 		outString+= str((thisState.time - thisState.startTime).total_seconds())+',' #relative time
 		for i in range(1,thisState.parameters.expectedMAVs+1):
-			#print "logging: " + str(i)
 			try:
 				if i!=thisState.ID: #if other UAV
 					stateToWrite= (stateVehicles[i])
@@ -75,7 +72,6 @@ class Logger(multiprocessing.Process):
 				myOrderedDict = stateToWrite.getCSVLists()
 				outString += ','.join(map(str, myOrderedDict.values()))
 			except KeyError:
-				print "Attempted to log nonexistant vehicle: " + str(i)
 				outString += str(i)+','
 				for j in range(0,self.numItemsPerOther-2): #write blanks to save the space
 					outString += ','
@@ -86,7 +82,6 @@ class Logger(multiprocessing.Process):
 	def writeHeaderString(self,thisState):
 		headerString=''
 		headerString+='Time, RelTime,'
-		
 		n=self.expectedMAVs
 
 		thisList =thisState.getCSVLists().keys()

@@ -15,7 +15,6 @@ def vsToLogPrep(vs):
 	headers=[]
 	values=[]
 	
-
 	out=''
 	
 	headers.append('ID')
@@ -39,8 +38,6 @@ def vsToLogPrep(vs):
 	headers.append('groundspeed')
 	values.append(vs.groundspeed)
 
-
-	#print vs.wind_estimate
 	headers +=['wind_vx','wind_vy','wind_vz']
 	values += [vs.wind_estimate['vx'],vs.wind_estimate['vy'],vs.wind_estimate['vz']]
 	
@@ -118,7 +115,6 @@ def vsToLogPrep(vs):
 	except: 
 		values.append(' ')
 
-
 	headers.append('abortReason')
 	try:
 		values.append(str(vs.abortReason))
@@ -133,7 +129,6 @@ def vsToLogPrep(vs):
 		headers.append("servoOut"+str(i))
 		values.append(vs.servoOut[str(i)])
 	
-
 	out = OrderedDict(zip(headers,values))
 	return out
 
