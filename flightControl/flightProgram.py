@@ -6,7 +6,7 @@ import Queue
 import multiprocessing	
 import transmit, control, receive, log
 import vehicleState
-from defaultConfig import *
+import defaultConfig
 
 import numpy as np
 import argparse 
@@ -20,6 +20,8 @@ myAddr = (AdHocIP, peerReadPort)
 logPath = os.environ["LOGPATH"]
 broadcastIP= os.environ["BROADCASTIP"]
 transmitAddress = (broadcastIP,peerReadPort)
+
+defaultParams = defaultConfig.getParams()
 
 
 

@@ -12,6 +12,8 @@ from datetime import datetime, timedelta
 import numpy as np
 import copy
 from pid import PIDController
+from curtsies import Input
+import defaultConfig
 
 acceptableControlMode = VehicleMode("FBWA")
 
@@ -83,6 +85,17 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 #			print "Is Flocking: " + str(self.vehicleState.isFlocking) + "RC Latch: " + str(self.vehicleState.RCLatch)
 			if(not self.vehicleState.isFlocking): #extra precaution to ensure control is given back
 				self.releaseControl()
+			with Input() as ig:
+				e=ig.send(1e-8)
+				if(e=='r'):
+					try:
+						reload(defaultConfig)
+						self.parameters = defaultConfig.getParams()
+						print "Successfullly updated parameters!!!"
+						print "Counter: " + str(self.vehicleState.counter)
+					except Exception as ex:
+						print "Failed to update parameters!!!"
+						print ex
 			timeToWait = max(self.parameters.Ts - (datetime.now() -loopStartTime).total_seconds(), 1E-6)
 			self.pm.p('Waiting: ' + str(timeToWait))
 			self.pm.increment()
@@ -100,8 +113,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else: #From GCS
 			self.parseGCSMessage(msg)
 		
-	def parseUAVMessage(self,msg): 
-		if(msg.content.ID>0 and msg.content.ID != self.vehicleState.ID):
+	def parseUAVMessage(self,msg): #Propagating is donw in checkTimeouts
+		if(msg.content.ID>0):
 			ID=int(msg.content.ID)
 			self.stateVehicles[ID] = msg.content
 			self.stateVehicles[ID].timestamp = msg.sendTime #update vehicleState with sent time (assumes they are SENT instantly from the txQueue of the other agent)
@@ -117,7 +130,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		xPWM = self.vehicleState.command.rollCMD * self.parameters.rollGain+self.parameters.rollOffset
 		yPWM = self.vehicleState.command.pitchCMD*self.parameters.pitchGain + self.parameters.pitchOffset
 		zPWM = self.vehicleState.command.throttleCMD*self.parameters.throttleGain + self.parameters.throttleMin
-
 		xPWM = saturate(xPWM,1000,2000)
 		yPWM = saturate(yPWM,1000,2000)
 		zPWM = saturate(zPWM,params.throttleMin,params.throttleMin+100*self.parameters.throttleGain)
@@ -126,17 +138,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	def releaseControl(self):
 		self.vehicle.channels.overrides = {}
-		#print "releasing control"
-		#print self.vehicle.channels.overrides 
 		self.vehicleState.controlState = ControlState()
-#		self.vehicleState.controlState.accAltError=0
-#		self.vehicleState.controlState.accHeadingError=0
-#		self.vehicleState.controlState.accAirspeedError=0
-		 #This is handled in parseMessage self.vehicleState.accPosError[(self.parameters.leaderID)
 
-		
 	def checkAbort(self): #only call if flocking!!
-		# print "in checkAbort" + str(time.time())
 		if(self.checkTimeouts()): #If we had a timeout
 			self.pm.p("Abort - Timeout" + str(datetime.now()))
 			self.vehicleStateabortReason = "Timeout"
@@ -152,12 +156,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.vehicleState.RCLatch = True			
 			self.vehicleState.isFlocking = False
 			self.vehicleState.abortReason = "Control Mode" #Elaborate on this to detect RTL due to failsafe
-			# print "About to RTL" + str(time.time())
 			self.releaseControl()			
-			#self.commenceRTL()
-			# print "returned from RTL function" + str(time.time())
 			self.vehicleState.command = Command()			
-
 			return True
 		if (self.parameters.config['geofenceAbort'] and ( self.vehicle.channels['7'] < 1700 
 				or self.vehicle.channels['7'] > 2100)):
@@ -246,13 +246,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicleState.airspeed=self.vehicle.airspeed
 		self.vehicleState.attitude = self.vehicle.attitude
 		self.vehicleState.channels = dict(zip(self.vehicle.channels.keys(),self.vehicle.channels.values())) #necessary to be able to serialize it
-#		print	str(time.time())  +"\t" + str(self.vehicle.attitude.roll) + "\t" + str((self.vehicleState.timeout.peerTimeoutTime)) + "\t" + str((self.vehicleState.timeout.peerLastRX))
 		self.vehicleState.position = self.vehicle.location.global_relative_frame
 		self.vehicleState.wind_estimate=windHeadingToInertial(self.vehicle.wind_estimate)
 		self.vehicleState.acceleration = self.vehicle.acceleration
 		self.vehicleState.isArmable = self.vehicle.is_armable
 		self.vehicleState.mode = self.vehicle.mode
-		self.vehicleState.timeout.localTimeoutTime=lastPX4RxTime =datetime.now()
 		self.vehicleState.parameters = self.parameters
 		self.vehicleState.servoOut = self.vehicle.servoOut
 
@@ -396,9 +394,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		qi = np.matrix(THIS.position).transpose()
 		qi_gps = np.matrix([THIS.position.lat, THIS.position.lon])
-		#print "qi_gps" + str(qi_gps)
 		ql_gps = np.matrix([LEADER.position.lat, LEADER.position.lon])
-		#print "ql_gps" + str(ql_gps)
 		ID = THIS.ID
 		n = THIS.parameters.expectedMAVs
 		Ts =self.thisTS
@@ -417,7 +413,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		qdil=qd[ID-2,np.matrix([0,1])]
 		qdil.shape=(2,1)
 		
-
 		kl = GAINS['kl']
 		ka = GAINS['ka']
 		alpha2 = GAINS['alpha2']
@@ -495,7 +490,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		
 		fi = np.matrix([[m.cos(THIS.heading.value)],[m.sin(THIS.heading.value)]])
 		#asTarget = speedD + (airspd-groundspd) #the basic one
-		CS.backstepSpeed = THIS.command.speedD +(airspd-groundspd)
+		CS.backstepSpeed = THIS.command.speedD + (airspd-groundspd)
 		CS.backstepSpeedError =  1/GAINS['aSpeed']* -GAINS['gamma'] * eSpeed
 		CS.backstepSpeedRate = 1/GAINS['aSpeed'] * THIS.command.speedDDot
 		CS.backstepPosError =  np.asscalar(1/GAINS['aSpeed'] * -eqil.transpose()*fi*1/GAINS['lambda'])
@@ -622,3 +617,21 @@ def propagateVehicleState(state, dt): #assumes heading rate and fwdAccel are con
 #	print "dx: " + str(dx)
 #	print "dy: " + str(dy)
 
+	dz = state.velocity[2]*dt
+
+	#write output back to state
+	state.velocity[0] = sf * m.sin(psif)#yes; this is the Y direction velocity 
+	state.velocity[1] = sf *m.cos(psif) #yes; the X velocity
+	state.heading.value = wrapToPi(psif)
+
+	qGPS = np.matrix([state.position.lat, state.position.lon])
+	dqGPS = getRelPos(qGPS,qGPS + 1e-6) / 1e-6
+	state.position.lat = state.position.lat + dy/dqGPS[0,1]
+	state.position.lon = state.position.lon + dx/dqGPS[0,0]
+	state.position.alt = state.position.alt + dz
+	
+#	print "T1: " + str(state.timestamp)	
+	state.timestamp = state.timestamp + timedelta(seconds = dt)
+#	print "T2: " + str(state.timestamp)		
+	state.propagated = 1
+	
