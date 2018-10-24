@@ -12,13 +12,12 @@ from datetime import datetime, timedelta
 import numpy as np
 import copy
 from pid import PIDController
+from curtsies import Input
+import defaultConfig
 
 acceptableControlMode = VehicleMode("FBWA")
 
 logging.basicConfig(level=logging.WARNING)
-
-
-	
 
 class Controller(threading.Thread): 	#Note: This is a thread, not a process,  because the DroneKit vehicle doesn't play nice with processes. 
 					#There is little to no performance problem, because the "main" process doesn't do much, and 
@@ -83,6 +82,17 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 #			print "Is Flocking: " + str(self.vehicleState.isFlocking) + "RC Latch: " + str(self.vehicleState.RCLatch)
 			if(not self.vehicleState.isFlocking): #extra precaution to ensure control is given back
 				self.releaseControl()
+			with Input() as ig:
+				e=ig.send(1e-8)
+				if(e=='r'):
+					try:
+						reload(defaultConfig)
+						self.parameters = defaultConfig.getParams()
+						print "Successfullly updated parameters!!!"
+						print "Counter: " + str(self.vehicleState.counter)
+					except Exception as ex:
+						print "Failed to update parameters!!!"
+						print ex
 			timeToWait = max(self.parameters.Ts - (datetime.now() -loopStartTime).total_seconds(), 1E-6)
 			self.pm.p('Waiting: ' + str(timeToWait))
 			self.pm.increment()
