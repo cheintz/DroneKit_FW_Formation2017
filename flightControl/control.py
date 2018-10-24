@@ -92,6 +92,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 						reload(defaultConfig)
 						self.parameters = defaultConfig.getParams()
 						print "Successfullly updated parameters!!!"
+						print self.parameters
 						print "Counter: " + str(self.vehicleState.counter)
 					except Exception as ex:
 						print "Failed to update parameters!!!"
