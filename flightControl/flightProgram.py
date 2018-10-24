@@ -56,9 +56,13 @@ if not connection_string:
 # Connect to the Vehicle. 
 #   Set `wait_ready=True` to ensure default attributes are populated before `connect()` returns.
 print "\nConnecting to vehicle on: %s" % connection_string
-vehicle = connect(connection_string, wait_ready=True, rate=1/defaultParams.Ts, baud=1500000,vehicle_class=ServoVehicle)
+vehicle = connect(connection_string, wait_ready=True, baud=1500000,vehicle_class=ServoVehicle)
 
 vehicle.wait_ready('autopilot_version')
+vehicle.parameters['SR0_POSITION']=20
+vehicle.parameters['SR0_RC_CHAN']=20
+vehicle.parameters['SR0_EXTRA1']=20
+
 
 receiveThread = receive.Receiver(receiveQueue,AdHocIP,peerReadPort,defaultParams.config['ignoreSelfPackets'])
 transmitThread = transmit.Transmitter(transmitQueue,AdHocIP,peerReadPort,transmitAddress)
