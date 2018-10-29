@@ -32,6 +32,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.stateVehicles = {}
 		self.vehicle=vehicle
 		self.parameters = defaultParams
+		self.backupParams=copy.deepcopy(defaultParams)
 		self.vehicleState = FullVehicleState()
 		self.vehicleState.ID = int(self.vehicle.parameters['SYSID_THISMAV'])
 		self.vehicleState.startTime = datetime.now()
@@ -57,48 +58,60 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		#signal.signal(signal.SIGINT, signal.SIG_IGN) #not needed because this is a thread in the same process as flightProgram.py
 		while(not self.stoprequest.is_set()):#not self.kill_received):
 			loopStartTime=datetime.now()
-			while(not self.stoprequest.is_set()):
+			while(not self.stoprequest.is_set()): #process all received messages
 				try:
 					msg = self.receiveQueue.get(False)
 					self.updateGlobalStateWithData(msg)
 				except Queue.Empty:
 					break #no more messages.
-			self.getVehicleState() #Get update from the Pixhawk
-			self.pm.p( "RelTime: " + str((datetime.now() - self.startTime).total_seconds()))
-			self.pm.p( "counter: " + str(self.vehicleState.counter))
 
-			if(not self.vehicleState.isFlocking): #Should we engage flocking
-				self.checkEngageFlocking()
-			if(self.vehicleState.isFlocking and True): #self.vehicleState.ID != self.parameters.leaderID):# and self.parameters.leaderID != self.vehicleState.ID):
-				if(not self.checkAbort()):
-					self.computeControl() #writes the control values to self.vehicleState
-					self.scaleAndWriteCommands()
-#			print "pushing to queue" + str(time.time())
-			self.pushStateToTxQueue() #sends the state to the UDP sending threading
-			self.pushStateToLoggingQueue()
-			self.pm.p('\n\n')
-			
-#			self.vehicleState.RCLatch = False
-#			print "Is Flocking: " + str(self.vehicleState.isFlocking) + "RC Latch: " + str(self.vehicleState.RCLatch)
-			if(not self.vehicleState.isFlocking): #extra precaution to ensure control is given back
+			try: #big try block to make sure everything works right
+				self.getVehicleState() #Get update from the Pixhawk
+				self.pm.p( "RelTime: " + str((datetime.now() - self.startTime).total_seconds()))
+				self.pm.p( "counter: " + str(self.vehicleState.counter))
+
+				if(not self.vehicleState.isFlocking): #Should we engage flocking
+					self.checkEngageFlocking()
+				if(self.vehicleState.isFlocking and self.vehicleState.ID != self.parameters.leaderID): #):# and self.parameters.leaderID != self.vehicleState.ID):
+					if(not self.checkAbort()):
+						self.computeControl() #writes the control values to self.vehicleState
+						self.scaleAndWriteCommands()
+	#			print "pushing to queue" + str(time.time())
+				self.pushStateToTxQueue() #sends the state to the UDP sending threading
+				self.pushStateToLoggingQueue()
+				self.pm.p('\n\n')
+				
+	#			self.vehicleState.RCLatch = False
+	#			print "Is Flocking: " + str(self.vehicleState.isFlocking) + "RC Latch: " + str(self.vehicleState.RCLatch)
+				if(not self.vehicleState.isFlocking): #extra precaution to ensure control is given back
+					self.releaseControl()
+				with Input() as ig: #update config if r key received
+					e=ig.send(1e-8)
+					if(e=='r'):
+						try:
+							reload(defaultConfig)
+							self.parameters = defaultConfig.getParams()
+							print "Successfullly updated parameters!!!"
+							print "Counter: " + str(self.vehicleState.counter)
+						except Exception as ex:
+							print "Failed to update parameters!!!"
+							self.parameters=self.backupParams
+							print ex
+							print "Reverting to original parameters"
+							self.releaseControl()
+							print "Released Control"
+				timeToWait = max(self.parameters.Ts - (datetime.now() -loopStartTime).total_seconds(), 1E-6)
+				self.pm.p('Waiting: ' + str(timeToWait))
+				self.pm.increment()
+				time.sleep(timeToWait) #variable pause
+				self.pm.p( "kTheta" + str(self.parameters.gains['kTheta']))
+			except Exception as ex:
+				print "Failed to use new config"
+				self.parameters=self.backupParams
+				print "need to revert to old config"
 				self.releaseControl()
-			with Input() as ig:
-				e=ig.send(1e-8)
-				if(e=='r'):
-					try:
-						reload(defaultConfig)
-						self.parameters = defaultConfig.getParams()
-						print "Successfullly updated parameters!!!"
-						print "Counter: " + str(self.vehicleState.counter)
-					except Exception as ex:
-						print "Failed to update parameters!!!"
-						print ex
-			timeToWait = max(self.parameters.Ts - (datetime.now() -loopStartTime).total_seconds(), 1E-6)
-			self.pm.p('Waiting: ' + str(timeToWait))
-			self.pm.increment()
-			time.sleep(timeToWait) #variable pause
-			
-				#TODO: find a way to clear timeouts, if necessary
+	
+							#TODO: find a way to clear timeouts, if necessary
 		self.stop()
 		self.releaseControl()
 		self.vehicle.close()			
@@ -136,6 +149,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 	def releaseControl(self):
 		self.vehicle.channels.overrides = {}
 		self.vehicleState.controlState = ControlState()
+		self.vehicleState.isFlocking = False
 
 	def checkAbort(self): #only call if flocking!!
 		if(self.checkTimeouts()): #If we had a timeout
@@ -367,11 +381,14 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		altInput = 1
 		headingInput = 1.0/6 + .5 #default to parallel to LMAC
 		if (self.vehicle.channels['7']< 1200): #Speed Control Mode
-			speedInput = normInput			
+			speedInput = normInput
+			self.pm.p("Speed Control Mode")			
 		elif (self.vehicle.channels['7']< 1700): #Middle: altitude
 			altInput = normInput
+			self.pm.p("Alt Control Mode")
 		else: #heading
 			headingInput= normInput
+			self.pm.p("Heading Control Mode")
 		
 		THIS.command.speedD = ((self.parameters.gains['vMax']-self.parameters.gains['vMin']) * speedInput  
 			+ self.parameters.gains['vMin'] )

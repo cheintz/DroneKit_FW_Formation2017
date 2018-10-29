@@ -12,7 +12,7 @@ def getParams():
 	defaultParams.gains = {'kl':.35 , 'ka': .1 ,'alpha1': 0.001,'alpha2':100,'d':0.01
 		,'vMin': 12,'vMax':24,'kBackstep':0,'aFilterHdg':0.1,'aFilterSpd':.02, 'aFilterThetaDDot': .8,'kTheta':KPID(1,0.1,0.5)
 		,'kSpeed':KPID(10,2,4),'rollLimit':50/(180/m.pi),'kAlt':KPID(0.05,.01,.01),'pitchLimit':20/(180/m.pi)
-		, 'maxETheta':5,'maxEAlt':50,'maxESpeed':20,'kThetaFF':1, 'aSpeed':0.4,'gamma':1,'lambda':10000,'kSpdToThrottle':2.9,'nomSpeed':18.5}
+		, 'maxETheta':5,'maxEAlt':50,'maxESpeed':20,'kThetaFF':1, 'aSpeed':0.4,'gamma':1,'lambda':10000,'kSpdToThrottle':0,'nomSpeed':18.5}
 	defaultParams.config = {'printEvery':10,'ignoreSelfPackets':False,'propagateStates':False , 'geofenceAbort':False
 		,'mode':'MiddleLoopSimultaneous',
 		'acceptableEngageMode': (VehicleMode('FBWA'),VehicleMode('AUTO'),VehicleMode('RTL'),VehicleMode('CIRCLE') ) }
