@@ -1,3 +1,4 @@
+
 from vehicleState import Parameter, KPID
 from dronekit import  VehicleMode
 import time
@@ -27,5 +28,7 @@ def getParams():
 	defaultParams.throttleGain = (1934-defaultParams.throttleMin)/100.0
 	defaultParams.Ts = 1.0/10.0
 	defaultParams.txStateType = 'basic'
+
 	return defaultParams
+
 
