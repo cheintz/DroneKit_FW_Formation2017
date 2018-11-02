@@ -14,9 +14,9 @@ def getParams():
 		,'kSpeed':KPID(6,1,4),'rollLimit':50/(180/m.pi),'kAlt':KPID(0.026,.0017,.0105),'pitchLimit':20/(180/m.pi)
 		, 'maxETheta':5,'maxEAlt':50,'maxESpeed':300, 'aSpeed':0.4,'gamma':1,'lambda':10000,'kSpdToThrottle':0,'nomSpeed':18.5
 		,'kThrottleFF': 1,'kRollFF':1}
-	defaultParams.config = {'printEvery':10,'ignoreSelfPackets':False,'propagateStates':True , 'geofenceAbort':False
+	defaultParams.config = {'printEvery':10,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
 		,'mode':'Formation',
-		'acceptableEngageMode': (VehicleMode('FBWA')) }
+		'acceptableEngageMode': (VehicleMode('FBWA'),) }
 	defaultParams.GCSTimeout = 5 #seconds
 	defaultParams.peerTimeout = 4 #seconds
 	defaultParams.leaderID = 1   #MAV ID of leader
