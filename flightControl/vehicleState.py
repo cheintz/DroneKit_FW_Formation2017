@@ -114,6 +114,9 @@ class FullVehicleState(BasicVehicleState):
 		headers +=['wind_vx','wind_vy','wind_vz']
 		values += [self.wind_estimate['vx'],self.wind_estimate['vy'],self.wind_estimate['vz']]
 		
+		headers +=['IMU_ax', 'IMU_ay', 'IMU_az']
+		values+= [ self.imuAccel.x , self.imuAccel.y, self.imuAccel.z]
+		
 		(h,v) = recordTypeToLists(self.controlState)
 		headers += h
 		values += v

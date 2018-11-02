@@ -42,15 +42,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.stoprequest = threading.Event()
 		self.lastGCSContact = -1
 		self.startTime=startTime
-		gains = self.parameters.gains
-		self.pm = PrintManager(self.parameters.config['printEvery'])
+		self.updateInternalObjects()
 
-		self.rollController = PIDController(gains['kTheta'], -gains['rollLimit'],gains['rollLimit']
-			,-gains['maxETheta'],gains['maxETheta'])
-		self.throttleController = PIDController(gains['kSpeed'],0,100
-			,-gains['maxESpeed'],gains['maxESpeed'])
-		self.pitchController = PIDController(gains['kAlt'], -gains['pitchLimit'],gains['pitchLimit']
-			,-gains['maxEAlt'],gains['maxEAlt'])
+		
 	def stop(self):
 		self.stoprequest.set()
 		print "Stop Flag Set - Control"
@@ -91,6 +85,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 						try:
 							reload(defaultConfig)
 							self.parameters = defaultConfig.getParams()
+							self.updateInternalObjects()
 							print "Successfullly updated parameters!!!"
 							print "Counter: " + str(self.vehicleState.counter)
 						except Exception as ex:
@@ -104,11 +99,12 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				self.pm.p('Waiting: ' + str(timeToWait))
 				self.pm.increment()
 				time.sleep(timeToWait) #variable pause
-				self.pm.p( "kTheta" + str(self.parameters.gains['kTheta']))
 			except Exception as ex:
 				print "Failed to use new config"
 				self.parameters=self.backupParams
-				print "need to revert to old config"
+				self.updateInternalObjects()
+				print ex
+				print "Reverting to original parameters"
 				self.releaseControl()
 	
 							#TODO: find a way to clear timeouts, if necessary
@@ -259,7 +255,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicleState.channels = dict(zip(self.vehicle.channels.keys(),self.vehicle.channels.values())) #necessary to be able to serialize it
 		self.vehicleState.position = self.vehicle.location.global_relative_frame
 		self.vehicleState.wind_estimate=windHeadingToInertial(self.vehicle.wind_estimate)
-		self.vehicleState.acceleration = self.vehicle.acceleration
+		self.vehicleState.imuAccel = self.vehicle.acceleration
 		self.vehicleState.isArmable = self.vehicle.is_armable
 		self.vehicleState.mode = self.vehicle.mode
 		self.vehicleState.parameters = self.parameters
@@ -505,9 +501,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		fi = np.matrix([[m.cos(THIS.heading.value)],[m.sin(THIS.heading.value)]])
 		#asTarget = speedD + (airspd-groundspd) #the basic one
 		CS.backstepSpeed = THIS.command.speedD + (airspd-groundspd)
-		CS.backstepSpeedError =  1/GAINS['aSpeed']* -GAINS['gamma'] * eSpeed
-		CS.backstepSpeedRate = 1/GAINS['aSpeed'] * THIS.command.speedDDot
-		CS.backstepPosError =  np.asscalar(1/GAINS['aSpeed'] * -eqil.transpose()*fi*1/GAINS['lambda'])
+		CS.backstepSpeedError =  1.0/GAINS['aSpeed']* -GAINS['gamma'] * eSpeed
+		CS.backstepSpeedRate = 1.0/GAINS['aSpeed'] * THIS.command.speedDDot
+		CS.backstepPosError =  np.asscalar(1/GAINS['aSpeed'] * -eqil.transpose()*fi*1.0/GAINS['lambda'])
 		asTarget = CS.backstepSpeed + CS.backstepSpeedRate + CS.backstepSpeedRate + CS.backstepPosError
 		THIS.command.asTarget=saturate(asTarget,vMin,vMax)
 		THIS.command.desiredAlt=THIS.parameters.desiredPosition[THIS.ID-2,2] #this is AGL  for now
@@ -522,7 +518,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		theta = THIS.heading.value
 		etheta = wrapToPi(theta-THIS.command.thetaD)	
 		calcTurnRate = THIS.heading.rate 
-		rollFFTerm = THIS.parameters.gains['kThetaFF']*m.atan(cmd.thetaDDot * THIS.groundspeed / 9.81 
+		rollFFTerm = THIS.parameters.gains['kRollFF']*m.atan(cmd.thetaDDot * THIS.groundspeed / 9.81 
 			* m.cos(THIS.attitude.pitch))	
 		(cmd.rollCMD , CS.rollTerms) = self.rollController.update(etheta,
 			(calcTurnRate-cmd.thetaDDot),self.thisTS,rollFFTerm)
@@ -538,25 +534,29 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS = self.vehicleState
 		CS = THIS.controlState
 		cmd = THIS.command
+		gains = THIS.parameters.gains
 
-		kspeed = THIS.parameters.gains['kSpeed']
+		kspeed = gains['kSpeed']
 		rollAngle = THIS.attitude.roll
 		eSpeed = THIS.airspeed - cmd.asTarget
-		throttleFFTerm = (self.trimThrottle + self.vehicle.parameters['TECS_RLL2THR']/m.pow(m.cos(rollAngle),2) +
+		throttleFFTerm = (self.trimThrottle + gains['kThrottleFF']*self.vehicle.parameters['TECS_RLL2THR']*(1.0/m.pow(m.cos(rollAngle),2)-1) +
 			self.parameters.gains['kSpdToThrottle']  *(cmd.asTarget - self.parameters.gains['nomSpeed'])   )#TODO: use FF gain
 
 		(cmd.throttleCMD , CS.throttleTerms) = self.throttleController.update(eSpeed,
-			(THIS.fwdAccel - cmd.speedDDot),self.thisTS,throttleFFTerm)
+			(THIS.fwdAccel - 0*cmd.speedDDot),self.thisTS,throttleFFTerm)
 		CS.accSpeedError=self.throttleController.integrator
 		cmd.timestamp = datetime.now()
 		self.pm.p('eAirSpeed: ' + str(eSpeed))
 		self.pm.p('ASTarget: ' + str(cmd.asTarget))
+		self.pm.p( 'kSpeed: ' + str(kspeed))
+		self.pm.p('ESpeed: ' + str(CS.accSpeedError))
 
 	#altitude control
 	def pitchControl(self):
 		THIS = self.vehicleState
 		cmd = THIS.command
 		CS = THIS.controlState
+
 		altitude = THIS.position.alt
 	
 		altError = altitude-cmd.desiredAlt
@@ -566,6 +566,16 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.accAltError  = self.pitchController.integrator
 		cmd.timestamp = datetime.now()
 		self.pm.p('Alt Error: ' + str(altError))
+	def updateInternalObjects(self):#This unfortunately also resets integrator states, 
+					#but this should never be called when the controll is running anyway...
+		gains = self.parameters.gains
+		self.pm = PrintManager(self.parameters.config['printEvery'])
+		self.rollController = PIDController(gains['kTheta'], -gains['rollLimit'],gains['rollLimit']
+			,-gains['maxETheta'],gains['maxETheta'])
+		self.throttleController = PIDController(gains['kSpeed'],0,100
+			,-gains['maxESpeed'],gains['maxESpeed'])
+		self.pitchController = PIDController(gains['kAlt'], -gains['pitchLimit'],gains['pitchLimit']
+			,-gains['maxEAlt'],gains['maxEAlt'])
 
 def wrapToPi(value):
 	return wrapTo2Pi(value+m.pi)-m.pi
