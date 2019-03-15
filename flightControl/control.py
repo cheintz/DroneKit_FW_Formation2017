@@ -19,7 +19,7 @@ acceptableControlMode = VehicleMode("FBWA")
 
 logging.basicConfig(level=logging.WARNING)
 
-class Controller(threading.Thread): 	#Note: This is a thread, not a process,  because the DroneKit vehicle doesn't play nice with processes. 
+class Controller(threading.Thread): 	#Note: This is a thread, not a process,  because the DroneKit vehicle doesn't play nice with processes.
 					#There is little to no performance problem, because the "main" process doesn't do much, and 
 					#so the GIL isn't an issue for speed
 	
@@ -106,6 +106,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				print ex
 				print "Reverting to original parameters"
 				self.releaseControl()
+				self.commenceRTL()
+				raise
 	
 							#TODO: find a way to clear timeouts, if necessary
 		self.stop()
@@ -150,7 +152,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 	def checkAbort(self): #only call if flocking!!
 		if(self.checkTimeouts()): #If we had a timeout
 			self.pm.p("Abort - Timeout" + str(datetime.now()))
-			self.vehicleStateabortReason = "Timeout"
+			self.vehicleState.abortReason = "Timeout"
 			self.vehicleState.isFlocking = False
 			self.vehicleState.RCLatch = True
 			self.releaseControl()
@@ -233,7 +235,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else:
 			Ts = (datetime.now() - self.vehicleState.time).total_seconds()
 
-		#Record sample time 
+		#Record sample time
 		self.vehicleState.counter+=1
 		self.vehicleState.propagated = 0
 		self.vehicleState.time = datetime.now()
@@ -244,10 +246,18 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		lastSpeed = self.vehicleState.groundspeed
 		lastHeadingRate = self.vehicleState.heading.rate
 		lastHeadingAccel = self.vehicleState.heading.accel
-		
 		self.vehicleState.velocity = self.vehicle.velocity
-		self.vehicleState.heading.value = m.atan2(self.vehicleState.velocity[0],self.vehicleState.velocity[1])
-		self.vehicleState.groundspeed = np.linalg.norm(np.matrix([[self.vehicleState.velocity[1]],[self.vehicleState.velocity[0]]]),2)
+		velocityVector= np.matrix([[self.vehicleState.velocity[0] ],[self.vehicleState.velocity[1]],[self.vehicleState.velocity[2] ]])
+
+		self.vehicleState.groundspeed = np.linalg.norm(velocityVector,2)
+		if self.vehicleState.groundspeed>3:
+			self.vehicleState.heading.value = m.atan2(velocityVector[1],velocityVector[0])
+			self.pm.p("heading rate: " + str(self.vehicleState.heading.rate))
+			self.vehicleState.pitch.value = m.asin(velocityVector[2]/ max(np.linalg.norm(velocityVector[0:2],2),abs(velocityVector[2]))   ) # These velocites seem to be N, E, U, not NED
+		else:
+			self.vehicleState.heading.value = self.vehicleState.attitude.yaw
+			self.vehicleState.pitch.value = self.vehicleState.attitude.pitch
+
 
 	#copy other states over
 		self.vehicleState.airspeed=self.vehicle.airspeed
@@ -277,21 +287,21 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		#self.vehicleState.heading.rate = -1* 9.81*self.vehicleState.attitude.roll/ self.vehicleState.groundspeed  #Use roll for heading rate
 		if(self.vehicleState.groundspeed >5):
-			self.vehicleState.heading.rate = -9.81/self.vehicleState.groundspeed * m.tan(self.vehicleState.attitude.roll * m.cos(self.vehicleState.attitude.pitch))
+			self.vehicleState.heading.rate = 9.81/self.vehicleState.groundspeed * m.tan(self.vehicleState.attitude.roll * m.cos(self.vehicleState.attitude.pitch))
 		else: #low speed condition; don't divide by small groundspeed
-			self.vehicleState.heading.rate = -self.vehicle.attitude.yawspeed
+			self.vehicleState.heading.rate = self.vehicle.attitude.yawspeed
 		#self.vehicleState.heading.rate = (1- aHdg) * lastHeadingRate +aHdg/Ts * (deltaHeading)	
 
 	#heading Accel
-		self.vehicleState.heading.accel = (1- aHdg) * lastHeadingAccel + aHdg/Ts * (
-		self.vehicleState.heading.rate -lastHeadingRate) 	 #Use filter for heading accel		
+		#self.vehicleState.heading.accel = (1- aHdg) * lastHeadingAccel + aHdg/Ts * (
+		#self.vehicleState.heading.rate -lastHeadingRate) 	 #Use filter for heading accel
 
 		ATT=self.vehicleState.attitude
 		s = self.vehicleState.groundspeed;
 		if(s>5):
-			self.vehicleState.heading.accel = np.asscalar( 9.81/ s**2 *(s*ATT.pitchspeed*m.sin(ATT.pitch)*m.tan(ATT.roll)
+			self.vehicleState.heading.accel = -(np.asscalar( 9.81/ s**2 *(s*ATT.pitchspeed*m.sin(ATT.pitch)*m.tan(ATT.roll)
 				-s*m.cos(ATT.pitch)*ATT.rollspeed*1/(m.cos(ATT.roll)**2) 
-				+ m.cos(ATT.pitch)*m.tan(ATT.roll)*self.vehicleState.fwdAccel) )#use heuristic for heading acceleration
+				+ m.cos(ATT.pitch)*m.tan(ATT.roll)*self.vehicleState.fwdAccel) ))#use heuristic for heading acceleration
 		else:
 			self.vehicleState.heading.accel = 0
 
@@ -361,7 +371,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	def computeControl(self):
 		if (self.parameters.config['mode'] == 'Formation'):
-			self.computeFlockingControl()
+			self.computeFormationControl()
 		elif (self.parameters.config['mode'] == 'MiddleLoopSimultaneous' ):
 			self.PilotMiddleLoopRefs()
 		self.rollControl()
@@ -390,39 +400,37 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			+ self.parameters.gains['vMin'] )
 		THIS.command.asTarget = THIS.command.speedD 
 		THIS.command.desiredAlt = 0.5*(THIS.parameters.desiredPosition[THIS.ID-2,2]) * (1.0 + altInput) #half alt to full alt
-		THIS.command.thetaD = wrapToPi(-2*m.pi * (headingInput-0.5)+m.pi/2) #North is Middle of range		
+		THIS.command.thetaD = wrapToPi(-2*m.qiDot * (headingInput-0.5)+m.qiDot/2) #North is Middle of range
 		THIS.command.speedDDot = 0
-		THIS.command.thetaDDot = 0				
-		
-		
-	def computeFlockingControl(self):
+		THIS.command.thetaDDot = 0
+
+
+	def computeFormationControl(self):
 		thisCommand  = Command()
 		LEADER = self.stateVehicles[(self.parameters.leaderID)]
 		THIS = self.vehicleState
 		CS = THIS.controlState
 		GAINS = THIS.parameters.gains
 
-		qi = np.matrix(THIS.position).transpose()
-		qi_gps = np.matrix([THIS.position.lat, THIS.position.lon])
-		ql_gps = np.matrix([LEADER.position.lat, LEADER.position.lon])
+		qi_gps = np.matrix([[THIS.position.lat], [THIS.position.lon],[-THIS.position.alt]])
+		ql_gps = np.matrix([[LEADER.position.lat], [LEADER.position.lon],[-LEADER.position.alt]])
 		ID = THIS.ID
 		n = THIS.parameters.expectedMAVs
 		Ts =self.thisTS
 
-		vx = THIS.velocity[1]
-		vy = THIS.velocity[0]
-		pi = np.matrix([[vx],[vy]])
-		pl = np.matrix([[LEADER.velocity[1]],[LEADER.velocity[0]]]).transpose()
-		sl =np.linalg.norm(pl,2);
+		vx = THIS.velocity[0]
+		vy = THIS.velocity[1]
+		vz = -THIS.velocity[2]
+		qiDot = np.matrix([[vx],[vy],[vz]])
+		pg = np.matrix([[LEADER.velocity[0]],[LEADER.velocity[1]],[-LEADER.velocity[2]]] )
+		sg =np.linalg.norm(pg,2)
 
 		qil = getRelPos(ql_gps,qi_gps)
-		qil.shape=(2,1)
-		pl.shape =(2,1)
 
 		qd = THIS.parameters.desiredPosition # qd1 ; qd2 ; qd3 ...
-		qdil=qd[ID-2,np.matrix([0,1])]
-		qdil.shape=(2,1)
-		
+		di=qd[ID-2,np.matrix([0,1,2])]
+		di.shape=(3,1)
+
 		kl = GAINS['kl']
 		ka = GAINS['ka']
 		alpha2 = GAINS['alpha2']
@@ -431,105 +439,145 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		vMin = GAINS['vMin']
 		vMax = GAINS['vMax']
-		gamma = np.matrix([[0,-1],[1,0]])
+		e1=np.matrix([[1],[0],[0]])
 
-		phi = LEADER.heading.value
-		phiDot = LEADER.heading.rate #need to estimate these better
-		phiDDot = LEADER.heading.accel #need to estimate these better
+		psiG = LEADER.heading.value
+		thetaG = LEADER.pitch.value
+		phiG = LEADER.roll.value #This should be zero for all time
 
-		Obi = np.matrix([[m.cos(phi),m.sin(phi)],[-m.sin(phi),m.cos(phi)]])
-		self.pm.p( 'Time: = ' + str(THIS.time))	
-	#Compute from leader 
-		eqil = qil - Obi.transpose()* qdil
+		Rg = eul2rotm(psiG,thetaG,phiG)
+		OmegaG = skew(ERatesToW(psiG,thetaG,phiG,LEADER.heading.rate,LEADER.pitch.rate,LEADER.roll.rate))
+		OmegaGDot = skew(EAccelToAlpha(LEADER.heading,LEADER.pitch,LEADER.roll))
+
+		RgDot = Rg*OmegaG;
+		RgDDot =Rg*OmegaG*OmegaG+Rg*OmegaGDot;
+		pgDot = LEADER.fwdAccel * Rg*e1 + (Rg * OmegaG) * e1 * sg #assumes zero leader acceleration
+
+		self.pm.p( 'Time: = ' + str(THIS.time))
+	#Compute from leader
+		zetai = qil - Rg* di
 		self.pm.p("qil Inertial: " + str(qil))
-		self.pm.p("qil Leader: " + str(Obi*qil))
-		pil = pi - (pl + phiDot * gamma * qdil) #in plane relative velocity (inertial)
+		self.pm.p("qil Leader: " + str(Rg.transpose()*qil))
+		#pdi = qiDot - (pg + psiGDot * gamma * di) #in plane relative velocity (inertial)
+		#pdiDot = 0
 
-		CS.plTerm = pl
-		CS.phiDotTerm = phiDot * gamma * Obi.transpose()*qdil
-		CS.kplTerm = -kl * eqil
-		
-		ui = CS.plTerm + CS.phiDotTerm+ CS.kplTerm 
-		CS.uiTarget = ui
+		CS.pgTerm = pg
+		CS.rotFFTerm = RgDot*di
+		CS.kplTerm = -kl * zetai
 
-		ata = np.linalg.norm(qil,2)
-		if(ata<d):
-			frepel = alpha2/(alpha1+1)-alpha2/(alpha1+m.pow(ata,2) /m.pow(d,2))
-			self.pm.p( 'F Repel:' + str(frepel))
-			ui = ui - frepel * qil 
-			
+		pdiDot = pgDot+RgDDot*di  - kl*(qiDot-pg-RgDot*di)
+		CS.kpjTerm = np.matrix([[0],[0],[0]])
+
 	#compute from peers
 		for j in range(1,n+1):
 			if(ID != j and j !=THIS.parameters.leaderID):
 				JPLANE = self.stateVehicles[(j)]
-				qj_gps = np.matrix([JPLANE.position.lat,JPLANE.position.lon])
-				qij = getRelPos(qj_gps,qi_gps).transpose()
-				qdjl = qd[j-2,0:2]
-				qdjl.shape=(2,1)
+				qj_gps = np.matrix([[JPLANE.position.lat], [JPLANE.position.lon],[-JPLANE.position.alt]])
+				qij = getRelPos(qj_gps,qi_gps)
+				qdjl = qd[j-2,0:3]
+				qdjl.shape=(3,1)
+				pj = np.matrix([[JPLANE.velocity[0]],[JPLANE.velocity[1]],[-JPLANE.velocity[2]]])
+				dij = (di-qdjl )
+				zetaij = qij-Rg*dij
+				CS.kpjTerm = CS.kpjTerm -ka* zetaij
+				pdiDot = pdiDot + ka * (qiDot - pj - RgDot * dij)
 
-				pj = np.matrix([[JPLANE.velocity[1]],[JPLANE.velocity[0]]])
-				qdij = (qdil-qdjl )
-				eqij = qij-Obi.transpose()*qdij
-									
-				ui = ui -ka* eqij  
-				
-				ata = np.linalg.norm(qij,2)
-				if(ata<d):
-					frepel = alpha2/(alpha1+1)-alpha2/(alpha1+m.pow(ata,2)/m.pow(d,2))
-					self.pm.p( 'F Repel:' + str(frepel))
-					ui = ui - frepel * qij 
 
-		qldd = LEADER.fwdAccel * np.matrix([[m.cos(phi)],[m.sin(phi)]]) + phiDot * np.matrix([[-m.sin(phi)],[m.cos(phi)]]) * sl 
-		pdiDot = ( qldd + phiDDot * gamma * Obi.transpose() * qdil 
-			-phiDot**2 *Obi.transpose()*qdil 
-			-kl * ( pi- pl - phiDot*gamma*Obi.transpose()*qdil))
+		pdi=CS.pgTerm+CS.rotFFTerm+CS.kplTerm+CS.kpjTerm
+		CS.pdi=pdi
 
-	#Compute desired heading
-		THIS.command.thetaD = m.atan2(ui[1,0],ui[0,0])		
-		THIS.command.thetaDDot = np.asscalar( 1.0/(1+ui[1]**2/ui[0]**2) * (ui[0]*pdiDot[1]-ui[1]*pdiDot[0])/ui[0]**2 )
-
-	#Compute desired speed and "speed command" ui
-		#THIS.command.speedD = saturate(np.linalg.norm(ui,2),vMin,vMax)  #Don't reduce commanded velocity
-						# based on heading error		
-		THIS.command.speedD = np.linalg.norm(ui,2)
-		THIS.command.speedDDot = np.asscalar((ui.transpose() / THIS.command.speedD) * ( pdiDot))
-	
 		groundspd = THIS.groundspeed
 		airspd = THIS.airspeed
-		eSpeed = groundspd - THIS.command.speedD
-		
-		fi = np.matrix([[m.cos(THIS.heading.value)],[m.sin(THIS.heading.value)]])
+
+	#Compute intermediates
+		Ri = eul2rotm(THIS.heading.value,THIS.pitch.value,THIS.roll.value)
+		sdi = np.linalg.norm(pdi,2)
+		bdi = pdi / sdi
+		THIS.command.sdi=sdi
+		CS.bdi = bdi
+		sdiDot = (pdi.transpose() / sdi) * pdiDot
+		bdiDot = 1.0 / sdi * (np.identity(3) - 1.0 / sdi**2 * (pdi * pdi.transpose()) )*pdiDot
+		THIS.command.sdiDot=sdiDot
+		CS.bdiDot = bdiDot
+		siTilde = groundspd - sdi
+	# Compute controls
+		sdt = sdi #saturate(sdi, vMin, vMax)
+		Omega = (GAINS['eta']*sdt*(Ri.transpose()*pdi*e1.transpose()-e1*pdi.transpose()*Ri)+
+			1.0/sdt**2.0*Ri.transpose()*(pdiDot*pdi.transpose()-pdi*pdiDot.transpose())*Ri)
+		omega=np.matrix([[Omega[2,1] ], [-Omega[2,0] ], [Omega[1,0] ]])
+		THIS.command.omega=omega
+		CS.backstepSpeed = THIS.command.sdi + (airspd-groundspd)
+		CS.backstepSpeedError =  1.0/GAINS['aSpeed']* -GAINS['gamma'] * siTilde
+		CS.backstepSpeedRate = 1.0 / GAINS['aSpeed'] * THIS.command.sdiDot
+		asTarget = CS.backstepSpeed + CS.backstepSpeedRate + CS.backstepSpeedRate
+		THIS.command.asTarget = saturate(asTarget, vMin, vMax)
+		self.pm.p("Commanded omega_z:" + str(omega[2,0]))
+	#compute implementable controls
+
+		#compute a good roll so that we don't need any rollspeed
+		CS.phiNew=0
+		try:
+			CS.phiNew = -2 * m.atan(m.sqrt(
+				omega[0, 0] ** 2 + omega[1, 0] ** 2 * m.tan(THIS.pitch.value) ** 2 + omega[2, 0] ** 2 * m.tan(
+					THIS.pitch.value) ** 2) /
+									(omega[0, 0] - omega[2, 0] * m.tan(THIS.pitch.value)) +
+									(omega[1, 0] * m.tan(THIS.pitch.value)) / (
+												omega[0, 0] - omega[2, 0] * m.tan(THIS.pitch.value)))*0
+		except ValueError as ex:
+			CS.phiNew = -2*m.atan(m.sqrt(-omega[0,0]**2+omega[1,0]**2*m.tan(THIS.pitch.value)**2+omega[2,0]**2*m.tan(THIS.pitch.value)**2)/
+							  (omega[0,0]-omega[2,0]*m.tan(THIS.pitch.value)) +
+							  (omega[1,0]*m.tan(THIS.pitch.value))/(omega[0,0]-omega[2,0]*m.tan(THIS.pitch.value)))*0
+		#	print ex
+
+
+		self.pm.p("Fake Roll: " + str(CS.phiNew))
+		test = omega[0, 0] + m.sin(CS.phiNew) * m.tan(THIS.pitch.value) * omega[1, 0] + m.cos(CS.phiNew) * m.tan(
+			THIS.pitch.value) * omega[2, 0]
+		CS.angleRateTarget = np.linalg.inv(computeQ(THIS.heading.value,THIS.pitch.value,CS.phiNew)) * THIS.command.omega
+		CS.angleRateTarget = THIS.command.omega
+		self.pm.p("Commanded roll rate: "+str(CS.angleRateTarget[0, 0]))
+	#	self.pm.p( "omega: "+  str(omega))
+#		self.pm.p( "eulrSpeedsFlipped: " + str(np.flipud(CS.angleRateTarget)))
+
+		#write roll rate and pitch rate commands for middle loops
+		THIS.command.thetaDDot = CS.angleRateTarget[1,0]
+		THIS.command.psiDDot = CS.angleRateTarget[2,0]
+		THIS.command.thetaD = m.asin(-pdi[2,0]/sdi)
+
+		#if not THIS.command.thetaD:
+		#	THIS.command.thetaD = 0
+		#THIS.command.thetaD = THIS.command.thetaD + self.thisTS*THIS.command.thetaDDot
+	#	THIS.command.thetaD=saturate(THIS.command.thetaD,-GAINS['pitchLimit'],GAINS['pitchLimit'])
+		#self.pm.p("Desired Pitch: " + str(THIS.command.thetaD))
+
+		THIS.command.psiD = m.atan2(pdi[1,0],pdi[0,0])
+		#THIS.command.psiDDot = np.asscalar( 1.0/(1+pdi[1]**2/pdi[0]**2) * (pdi[0]*pdiDot[1]-pdi[1]*pdiDot[0])/pdi[0]**2 ) #old
+
 		#asTarget = speedD + (airspd-groundspd) #the basic one
-		CS.backstepSpeed = THIS.command.speedD + (airspd-groundspd)
-		CS.backstepSpeedError =  1.0/GAINS['aSpeed']* -GAINS['gamma'] * eSpeed
-		CS.backstepSpeedRate = 1.0/GAINS['aSpeed'] * THIS.command.speedDDot
-		CS.backstepPosError =  np.asscalar(1/GAINS['aSpeed'] * -eqil.transpose()*fi*1.0/GAINS['lambda'])
-		asTarget = CS.backstepSpeed + CS.backstepSpeedRate + CS.backstepSpeedRate + CS.backstepPosError
-		THIS.command.asTarget=saturate(asTarget,vMin,vMax)
-		THIS.command.desiredAlt=THIS.parameters.desiredPosition[THIS.ID-2,2] #this is AGL  for now
-		self.pm.p('SDesired: ' + str(THIS.command.speedD))
-	
+
+		self.pm.p('SDesired: ' + str(THIS.command.sdi))
+
 
 	def rollControl(self):
-		THIS=self.vehicleState	
+		THIS=self.vehicleState
 		cmd = THIS.command
-		CS = THIS.controlState	
-			
-		theta = THIS.heading.value
-		etheta = wrapToPi(theta-THIS.command.thetaD)	
-		calcTurnRate = THIS.heading.rate 
-		rollFFTerm = THIS.parameters.gains['kRollFF']*m.atan(cmd.thetaDDot * THIS.groundspeed / 9.81 
-			* m.cos(THIS.attitude.pitch))	
-		(cmd.rollCMD , CS.rollTerms) = self.rollController.update(etheta,
-			(calcTurnRate-cmd.thetaDDot),self.thisTS,rollFFTerm)
+		CS = THIS.controlState
+
+		psi = THIS.heading.value
+		ePsi = wrapToPi(psi-THIS.command.psiD)
+		calcTurnRate = THIS.heading.rate
+		rollFFTerm = THIS.parameters.gains['kRollFF']*m.atan(cmd.psiDDot * THIS.groundspeed / 9.81
+			* m.cos(THIS.attitude.pitch))
+		(cmd.rollCMD , CS.rollTerms) = self.rollController.update(ePsi,
+			(calcTurnRate-cmd.psiDDot),self.thisTS,rollFFTerm)
 		CS.accHeadingError=self.rollController.integrator
 		cmd.timestamp = datetime.now()
-		self.pm.p( "thetaD: " + str(THIS.command.thetaD) )	
-		self.pm.p( "etheta: " + str(etheta) )
+		self.pm.p("Commanded heading rate (rllctrl): " + str(THIS.command.psiDDot))
+	#	self.pm.p( "ePsi: " + str(ePsi) )
 
 	#speed control
-		#speedD = np.linalg.norm(ui,2) * m.cos(theta-thetaD) #reduce commanded velocity based on heading error
-	
+		#speedD = np.linalg.norm(pdi,2) * m.cos(theta-thetaD) #reduce commanded velocity based on heading error
+
 	def throttleControl(self):
 		THIS = self.vehicleState
 		CS = THIS.controlState
@@ -543,7 +591,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.parameters.gains['kSpdToThrottle']  *(cmd.asTarget - self.parameters.gains['nomSpeed'])   )#TODO: use FF gain
 
 		(cmd.throttleCMD , CS.throttleTerms) = self.throttleController.update(eSpeed,
-			(THIS.fwdAccel - 0*cmd.speedDDot),self.thisTS,throttleFFTerm)
+			(THIS.fwdAccel - 0*cmd.sdiDot),self.thisTS,throttleFFTerm)
 		CS.accSpeedError=self.throttleController.integrator
 		cmd.timestamp = datetime.now()
 		self.pm.p('eAirSpeed: ' + str(eSpeed))
@@ -557,29 +605,28 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		cmd = THIS.command
 		CS = THIS.controlState
 
-		altitude = THIS.position.alt
-	
-		altError = altitude-cmd.desiredAlt
+		eTheta = (self.vehicleState.pitch.value- cmd.thetaD)  # no feedback for now
 
-		(cmd.pitchCMD , CS.pitchTerms) = self.pitchController.update(altError,
-			THIS.velocity[2],self.thisTS,0)
-		CS.accAltError  = self.pitchController.integrator
+		(cmd.pitchCMD , CS.pitchTerms) = self.pitchController.update(eTheta,
+			THIS.pitch.rate - cmd.thetaDDot ,self.thisTS,cmd.thetaD)
+		CS.accPitchError  = self.pitchController.integrator
 		cmd.timestamp = datetime.now()
-		self.pm.p('Alt Error: ' + str(altError))
-	def updateInternalObjects(self):#This unfortunately also resets integrator states, 
-					#but this should never be called when the controll is running anyway...
+		self.pm.p('Pitch Error: ' + str(eTheta))
+		self.pm.p('cmd Pitch Rate: ' + str(cmd.thetaDDot))
+	def updateInternalObjects(self):#This unfortunately also resets integrator states,
+					#but this should never be called when the control is running anyway...
 		gains = self.parameters.gains
 		self.pm = PrintManager(self.parameters.config['printEvery'])
-		self.rollController = PIDController(gains['kTheta'], -gains['rollLimit'],gains['rollLimit']
-			,-gains['maxETheta'],gains['maxETheta'])
+		self.rollController = PIDController(gains['kHeading'], -gains['rollLimit'],gains['rollLimit']
+			,-gains['maxEHeading'],gains['maxEHeading'])
 		self.throttleController = PIDController(gains['kSpeed'],0,100
 			,-gains['maxESpeed'],gains['maxESpeed'])
-		self.pitchController = PIDController(gains['kAlt'], -gains['pitchLimit'],gains['pitchLimit']
-			,-gains['maxEAlt'],gains['maxEAlt'])
+		self.pitchController = PIDController(gains['kPitch'], -gains['pitchLimit'],gains['pitchLimit']
+			,-gains['maxEPitch'],gains['maxEPitch'])
 
 def wrapToPi(value):
 	return wrapTo2Pi(value+m.pi)-m.pi
-	
+
 def wrapTo2Pi(value):
 	if(value<0):
 		n=m.ceil(abs(value / (2*m.pi)))
@@ -599,14 +646,14 @@ def wrapTo2Pi(value):
 #	z = r*m.sind(lat)
 def getRelPos(pos1,pos2): #returns the x y delta position of p2-p1 with x being longitude (east positive)
 	c = 40074784 # from https://gis.stackexchange.com/questions/2951/algorithm-for-offsetting-a-latitude-longitude-by-some-amount-of-meters
-
-	dx = (pos2[0,1]-pos1[0,1]) * c * m.cos(m.radians( (pos1[0,0]+pos2[0,0])/ 2))/360
-	dy = (pos2[0,0]-pos1[0,0]) * c /360	
-	return np.matrix([dx, dy])
+	dy = (pos2[1,0]-pos1[1,0]) * c * m.cos(m.radians( (pos1[0,0]+pos2[0,0])/ 2))/360
+	dx = (pos2[0,0]-pos1[0,0]) * c /360
+	dz = pos2[2,0]-pos1[2,0]
+	return np.matrix([[dx], [dy],[dz]])
 
 def windHeadingToInertial(windEstimate):
-	vx = windEstimate.speed * m.cos(m.radians(90-windEstimate.dir))
-	vy = windEstimate.speed * m.sin(m.radians(90-windEstimate.dir))
+	vx = windEstimate.speed * m.cos(m.radians(windEstimate.dir))
+	vy = windEstimate.speed * m.sin(m.radians(windEstimate.dir))
 	vz = windEstimate.speed_z
 	return {'vx':vx,'vy':vy,'vz':vz}
 
@@ -621,10 +668,11 @@ def propagateVehicleState(state, dt): #assumes heading rate and fwdAccel are con
 	psi = state.heading
 #	print "propagating vehicle state"
 	
-	vx = state.velocity[1]
-	vy = state.velocity[0]
+	vx = state.velocity[0]
+	vy = state.velocity[1]
+	vz = state.velocity[2]
 
-	s = m.sqrt(vx**2+vy**2)
+	s = m.sqrt(vx**2+vy**2+vz**2)
 	sf = s+sDot*dt
 	psif = state.heading.value+psiDot*dt
 	
@@ -644,18 +692,55 @@ def propagateVehicleState(state, dt): #assumes heading rate and fwdAccel are con
 	dz = state.velocity[2]*dt
 
 	#write output back to state
-	state.velocity[0] = sf * m.sin(psif)#yes; this is the Y direction velocity 
-	state.velocity[1] = sf *m.cos(psif) #yes; the X velocity
+	state.velocity[0] = sf * m.cos(psif)#yes; this is the Y direction velocity
+	state.velocity[1] = sf *m.sin(psif) #yes; the X velocity
 	state.heading.value = wrapToPi(psif)
 
-	qGPS = np.matrix([state.position.lat, state.position.lon])
+	qGPS = np.matrix([[state.position.lat],[ state.position.lon],[-state.position.alt]])
 	dqGPS = getRelPos(qGPS,qGPS + 1e-6) / 1e-6
-	state.position.lat = state.position.lat + dy/dqGPS[0,1]
-	state.position.lon = state.position.lon + dx/dqGPS[0,0]
-	state.position.alt = state.position.alt + dz
+	state.position.lat = np.asscalar(state.position.lat + dx/dqGPS[0])
+	state.position.lon = np.asscalar(state.position.lon + dy/dqGPS[1])
+	state.position.alt = (state.position.alt + dz)
 	
 #	print "T1: " + str(state.timestamp)	
 	state.timestamp = state.timestamp + timedelta(seconds = dt)
 #	print "T2: " + str(state.timestamp)		
 	state.propagated = 1
-	
+
+def eul2rotm(psi,theta,phi):
+	R = np.matrix([[m.cos(theta) * m.cos(psi),  m.sin(phi)* m.sin(theta)*m.cos(psi) - m.cos(phi)*m.sin(psi), m.cos(phi)*m.sin(theta)*m.cos(phi) + m.sin(phi)*m.sin(psi)],
+				  [m.cos(theta)*m.sin(psi), m.sin(phi)*m.sin(theta)*m.sin(psi) + m.cos(phi)*m.cos(psi), m.cos(phi)*m.sin(theta)*m.sin(psi) - m.sin(phi)*m.cos(psi)],
+				  [-m.sin(theta), m.sin(phi)*m.cos(theta), m.cos(phi)*m.cos(theta)]])
+	return R
+def computeQ(psi, theta, phi):
+	Q = np.matrix([[1, m.sin(phi)*m.tan(theta), m.cos(phi)*m.tan(theta)],
+				   [0, m.cos(phi), -m.sin(phi)],
+				   [0,m.sin(phi)/m.cos(theta),m.cos(phi)/m.cos(theta)]])
+	return np.linalg.inv(Q)
+def ERatesToW(psi,theta,phi,psiDot,thetaDot,phiDot):
+	Q = computeQ(psi,theta,phi)
+	Phi = np.matrix([[phiDot],[thetaDot],[psiDot]])
+	return Q * Phi
+def WToERates(psi,theta,phi,omega):
+	Q = computeQ(psi,theta,phi)
+	Phi = np.linalg.inv(Q)*omega
+	return Q * Phi
+def EAccelToAlpha(heading,pitch,roll):
+	psi = heading.value
+	theta = pitch.value
+	phi = roll.value
+	psiDot = heading.rate
+	thetaDot = pitch.rate
+	phiDot = roll.rate
+
+	QDot = np.matrix([[0,0,-m.cos(theta)*thetaDot],
+					  [0,-m.sin(phi)*phiDot, m.cos(phi)*m.cos(theta)*phiDot - m.sin(phi)*m.sin(theta)*thetaDot],
+					  [0, -m.cos(phi)*phiDot, -m.sin(phi)*m.cos(theta)*phiDot - m.cos(phi)*m.sin(theta)*thetaDot]])
+	PhiDot = np.matrix([[phiDot],[thetaDot],[psiDot]])
+	return ERatesToW(psi,theta,phi,heading.accel,pitch.accel,roll.accel) + QDot*PhiDot
+def skew(omega):
+	Omega = np.matrix([[0,-omega[2],omega[1]],
+					   [omega[2],0,-omega[0]],
+					   [-omega[1],omega[0],0]])
+	return Omega
+

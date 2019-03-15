@@ -2,7 +2,7 @@ from recordtype import recordtype
 import numpy as np
 from collections import OrderedDict
 
-zeroVect = np.matrix([[0],[0]])
+zeroVect = np.matrix([[0],[0],[0]])
 
 
 KPID = recordtype('KPID', ['kp','ki','kd'])
@@ -13,18 +13,18 @@ Timeout = recordtype('Timeout' , ['GCSTimeoutTime', ('peerTimeoutTime',{}), 'loc
 
 Parameter = recordtype('Parameter',['receivedTime','desiredPosition','gains', 'Ts', 'GCSTimeout', 'peerTimeout', 'leaderID', 'expectedMAVs', 'rollGain', 'config', 'rollOffset', 'pitchGain', 'pitchOffset', 'throttleGain', 'throttleMin',('txStateType','basic')], default = None)
 
-Command = recordtype('Command',['speedD','speedDDot','asTarget','thetaD','thetaDDot','rollCMD',
-	'pitchCMD','throttleCMD','timestamp','desiredAlt'], default = None)
+Command = recordtype('Command',['sdi','sdiDot','asTarget',('omega',zeroVect),'psiD','psiDDot','thetaD','thetaDDot','rollCMD',
+	'pitchCMD','throttleCMD','timestamp'], default = None)
 
 CourseAngle = recordtype('CourseAngle',['value','rate','accel'],default=0.0)	
 
-ControlState = recordtype('ControlState',[('plTerm',zeroVect),('kplTerm',zeroVect),('kpjTerm',{}),'qldd'
-	,('phiDotTerm',zeroVect), ('uiTarget',zeroVect),'accHeadingError',('rollTerms',PIDTerms()),'accSpeedError'
-	,('throttleTerms',PIDTerms()),'accAltError',('pitchTerms',PIDTerms())
-	,'backstepSpeed','backstepSpeedError','backstepSpeedRate','backstepPosError']
+ControlState = recordtype('ControlState',[('pgTerm',zeroVect),('rotFFTerm',zeroVect),('kplTerm',zeroVect),('kpjTerm',zeroVect),('pdi',zeroVect)
+	,('bdi',zeroVect),('bdiDot',zeroVect),'accHeadingError',('rollTerms',PIDTerms()),'accSpeedError','phiNew'
+	,('throttleTerms',PIDTerms()),'accPitchError',('pitchTerms',PIDTerms())
+	,'backstepSpeed','backstepSpeedError','backstepSpeedRate',('angleRateTarget',zeroVect)]
 	, default = 0.0)
 
-Message = recordtype('Message','type,sendTime,content', default = None) #content shall contain the timestamp of the most recent parameter set.
+Message = recordtype('Message','type,sendTime,content', default = None)
 
 rtTypes = (ControlState,CourseAngle,Message,Command,Parameter,Timeout,PIDTerms,KPID)
 
@@ -34,9 +34,10 @@ class BasicVehicleState(object):
 		self.timestamp = None
 		self.position = None
 		self.velocity = None
-		self.fwdAccel = 0.0
+		self.fwdAccel = None
 		self.heading = CourseAngle()
 		self.pitch = CourseAngle()
+		self.roll = CourseAngle()
 		self.isPropagated = False
 		self.counter = 0
 		self.isFlocking = False		
@@ -60,11 +61,14 @@ class BasicVehicleState(object):
 		headers+=['latSpd','lonSpd','altSpd']
 		values+=self.velocity
 
-		headers+=['heading','headingRate','headingAccel']
+		headers+=['cHeading','cHeadingRate','cHeadingAccel']
 		values+=[self.heading.value,self.heading.rate,self.heading.accel]
 	
-		headers+=['pitch','pitchRate','pitchAccel']
+		headers+=['cPitch','cPitchRate','cPitchAccel']
 		values += [self.pitch.value,self.pitch.rate,self.pitch.accel]
+
+		headers += ['cRoll', 'cRollRate', 'cRollAccel']
+		values += [self.roll.value,self.roll.rate,self.roll.accel]
 
 		headers += ['fwdAccel']
 		values += [self.fwdAccel]

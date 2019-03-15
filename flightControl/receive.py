@@ -43,7 +43,7 @@ class Receiver(multiprocessing.Process):
 				pass
 			else:
 				mp=mp[0]
-				mp = zlib.decompress(mp)
+				#mp = zlib.decompress(mp)
 				try:
 					msg=cPickle.loads(mp)
 					msg.sendTime = datetime.now() #Can't account for latency without synced system clocks
