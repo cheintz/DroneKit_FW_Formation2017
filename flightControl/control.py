@@ -396,12 +396,13 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			headingInput= normInput
 			self.pm.p("Heading Control Mode")
 		
-		THIS.command.speedD = ((self.parameters.gains['vMax']-self.parameters.gains['vMin']) * speedInput  
+		THIS.command.sdi = ((self.parameters.gains['vMax']-self.parameters.gains['vMin']) * speedInput  
 			+ self.parameters.gains['vMin'] )
-		THIS.command.asTarget = THIS.command.speedD 
-		THIS.command.desiredAlt = 0.5*(THIS.parameters.desiredPosition[THIS.ID-2,2]) * (1.0 + altInput) #half alt to full alt
-		THIS.command.thetaD = wrapToPi(-2*m.qiDot * (headingInput-0.5)+m.qiDot/2) #North is Middle of range
-		THIS.command.speedDDot = 0
+		THIS.command.asTarget = THIS.command.sdi 
+		THIS.command.thetaD =0 +self.parameters.gains['pitchLimit'] #half alt to full alt
+		THIS.command.psiD = 0 #wrapToPi(-2*m.qiDot * (headingInput-0.5)+m.qiDot/2) #North is Middle of range
+		THIS.command.psiDDot=0
+		THIS.command.sdiDot = 0
 		THIS.command.thetaDDot = 0
 
 
