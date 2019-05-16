@@ -15,7 +15,7 @@ def getParams():
 		, 'maxEHeading':5,'maxEPitch':50,'maxESpeed':300, 'aSpeed':0.4,'gamma':1,'lambda':10000,'kSpdToThrottle':0,'nomSpeed':18.5
 		,'kThrottleFF': 1,'kRollFF':1,'eta':0.001}
 	defaultParams.config = {'printEvery':10,'ignoreSelfPackets':False,'propagateStates':True , 'geofenceAbort':False
-		,'mode':'MiddleLoopSimultaneous',
+		,'mode':'Formation',
 		'acceptableEngageMode': (VehicleMode('FBWA'),VehicleMode('AUTO'),VehicleMode('RTL'),VehicleMode('CIRCLE') ) }
 	defaultParams.GCSTimeout = 5 #secondsr
 	defaultParams.peerTimeout = 4 #seconds
@@ -27,7 +27,7 @@ def getParams():
 	defaultParams.pitchOffset = 1500
 	defaultParams.throttleMin = 1000
 	defaultParams.throttleGain = (2000-1000)/100
-	defaultParams.Ts = 1.0/200.0
+	defaultParams.Ts = 1.0/20.0
 	defaultParams.txStateType = 'basic'
 
 	return defaultParams

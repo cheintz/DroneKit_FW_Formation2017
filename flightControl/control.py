@@ -457,6 +457,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.pm.p( 'Time: = ' + str(THIS.time))
 	#Compute from leader
 		zetai = qil - Rg* di
+		zetaiDot = (qiDot-pg-RgDot*di)
 		self.pm.p("qil Inertial: " + str(qil))
 		self.pm.p("qil Leader: " + str(Rg.transpose()*qil))
 		#pdi = qiDot - (pg + psiGDot * gamma * di) #in plane relative velocity (inertial)
@@ -464,9 +465,13 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		CS.pgTerm = pg
 		CS.rotFFTerm = RgDot*di
-		CS.kplTerm = -kl * zetai
+		CS.kplTerm = -kl * sigma(zetai)*(zetai)
+		self.pm.p("SigmaG: " + str(sigma(zetai)))
+		self.pm.p("SigmaGX: " + str( np.linalg.norm(sigma(zetai)*zetai)    ))
+		self.pm.p("pdiG: " + str(CS.kplTerm) )
+		self.pm.p("FFNorm: " + str(np.linalg.norm(CS. pgTerm+CS.rotFFTerm)) )
 
-		pdiDot = pgDot+RgDDot*di  - kl*(qiDot-pg-RgDot*di)
+		pdiDot = pgDot+RgDDot*di  - kl*( np.asscalar(sigmaDot(zetai).transpose()*zetaiDot)*zetai + sigma(zetai)*zetaiDot )
 		CS.kpjTerm = np.matrix([[0],[0],[0]])
 
 	#compute from peers
@@ -480,8 +485,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				pj = np.matrix([[JPLANE.velocity[0]],[JPLANE.velocity[1]],[-JPLANE.velocity[2]]])
 				dij = (di-qdjl )
 				zetaij = qij-Rg*dij
-				CS.kpjTerm = CS.kpjTerm -ka* zetaij
-				pdiDot = pdiDot + ka * (qiDot - pj - RgDot * dij)
+				zetaijDot = qiDot - pj - RgDot * dij
+				CS.kpjTerm = CS.kpjTerm -ka* sigma(zetaij)*zetaij
+				pdiDot = pdiDot + ka * ( np.asscalar(sigmaDot(zetaij).transpose()*zetaijDot) * zetaij + sigma(zetai)*zetaijDot )
 
 
 		pdi=CS.pgTerm+CS.rotFFTerm+CS.kplTerm+CS.kpjTerm
@@ -513,6 +519,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		asTarget = CS.backstepSpeed + CS.backstepSpeedRate + CS.backstepSpeedRate
 		THIS.command.asTarget = saturate(asTarget, vMin, vMax)
 		self.pm.p("Commanded omega_z:" + str(omega[2,0]))
+
+
+		
 	#compute implementable controls
 
 		#compute a good roll so that we don't need any rollspeed
@@ -544,6 +553,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS.command.thetaDDot = CS.angleRateTarget[1,0]
 		THIS.command.psiDDot = CS.angleRateTarget[2,0]
 		THIS.command.thetaD = m.asin(-pdi[2,0]/sdi)
+
+#		THIS.command.psiDDot=saturate(THIS.command.psiDDot,-.2,.2)
+		THIS.command.psiDDot=THIS.command.psiDDot/3
 
 		#if not THIS.command.thetaD:
 		#	THIS.command.thetaD = 0
@@ -744,4 +756,13 @@ def skew(omega):
 					   [omega[2],0,-omega[0]],
 					   [-omega[1],omega[0],0]])
 	return Omega
+
+
+def sigma(x):
+	#return 1.0
+	return 22.0/m.sqrt(1+x.transpose()*x)
+
+def sigmaDot(x):
+	#return np.matrix(np.zeros((3,1)))
+	return 22.0*x/(1+x.transpose()*x)**(3/2)
 
