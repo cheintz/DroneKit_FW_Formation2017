@@ -463,15 +463,20 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		#pdi = qiDot - (pg + psiGDot * gamma * di) #in plane relative velocity (inertial)
 		#pdiDot = 0
 
-		CS.pgTerm = pg
-		CS.rotFFTerm = RgDot*di
+		CS.pgTerm = F(zetai)*pg
+		CS.rotFFTerm = F(zetai)*RgDot*di
 		CS.kplTerm = -kl * sigma(zetai)*(zetai)
 		self.pm.p("SigmaG: " + str(sigma(zetai)))
 		self.pm.p("SigmaGX: " + str( np.linalg.norm(sigma(zetai)*zetai)    ))
 		self.pm.p("pdiG: " + str(CS.kplTerm) )
 		self.pm.p("FFNorm: " + str(np.linalg.norm(CS. pgTerm+CS.rotFFTerm)) )
+		self.pm.p("F FF:" + str(F(zetai)) )
 
-		pdiDot = pgDot+RgDDot*di  - kl*( np.asscalar(sigmaDot(zetai).transpose()*zetaiDot)*zetai + sigma(zetai)*zetaiDot )
+		#pdiDot = pgDot+RgDDot*di  - kl*( np.asscalar(sigmaDot(zetai).transpose()*zetaiDot)*zetai + sigma(zetai)*zetaiDot )
+		pdiDot = (np.asscalar(f(zetai).transpose()*zetaiDot) *( pg+RgDot*di ) + F(zetai)*( pgDot+RgDDot*di      )
+			-kl*( np.asscalar(sigmaDot(zetai).transpose()*zetaiDot)*zetai + sigma(zetai)*zetaiDot ))
+		self.pm.p("pdiDotSigmaDot: " + str( np.asscalar(sigmaDot(zetai).transpose()*zetaiDot)*zetai ) )
+		self.pm.p("pdiDotOther: " + str( sigma(zetai)*zetaiDot ))
 		CS.kpjTerm = np.matrix([[0],[0],[0]])
 
 	#compute from peers
@@ -508,10 +513,16 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.bdiDot = bdiDot
 		siTilde = groundspd - sdi
 	# Compute controls
-		sdt = sdi #saturate(sdi, vMin, vMax)
+		sdt = saturate(sdi, vMin, vMax)
 		Omega = (GAINS['eta']*sdt*(Ri.transpose()*pdi*e1.transpose()-e1*pdi.transpose()*Ri)+
-			1.0/sdt**2.0*Ri.transpose()*(pdiDot*pdi.transpose()-pdi*pdiDot.transpose())*Ri)
+			1.0/sdi**2.0*Ri.transpose()*(pdiDot*pdi.transpose()-pdi*pdiDot.transpose())*Ri)
 		omega=np.matrix([[Omega[2,1] ], [-Omega[2,0] ], [Omega[1,0] ]])
+		OmegaFF =  1.0 / sdt ** 2.0 * Ri.transpose() * (pdiDot * pdi.transpose() - pdi * pdiDot.transpose()) * Ri
+		OmegaFB =  (GAINS['eta']*sdi*(Ri.transpose()*pdi*e1.transpose()-e1*pdi.transpose()*Ri) )
+		self.pm.p("OmegaFFZ : " + str(OmegaFF[1, 0]))
+		self.pm.p("OmegaFBZ : " + str(OmegaFB[1, 0]))
+		self.pm.p("OmegaNet : " + str(OmegaFF[1, 0]+OmegaFB[1, 0]))
+
 		THIS.command.omega=omega
 		CS.backstepSpeed = THIS.command.sdi + (airspd-groundspd)
 		CS.backstepSpeedError =  1.0/GAINS['aSpeed']* -GAINS['gamma'] * siTilde
@@ -540,12 +551,12 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		#	print ex
 
 
-		self.pm.p("Fake Roll: " + str(CS.phiNew))
+	#	self.pm.p("Fake Roll: " + str(CS.phiNew))
 		test = omega[0, 0] + m.sin(CS.phiNew) * m.tan(THIS.pitch.value) * omega[1, 0] + m.cos(CS.phiNew) * m.tan(
 			THIS.pitch.value) * omega[2, 0]
 		CS.angleRateTarget = np.linalg.inv(computeQ(THIS.heading.value,THIS.pitch.value,CS.phiNew)) * THIS.command.omega
 		CS.angleRateTarget = THIS.command.omega
-		self.pm.p("Commanded roll rate: "+str(CS.angleRateTarget[0, 0]))
+	#	self.pm.p("Commanded roll rate: "+str(CS.angleRateTarget[0, 0]))
 	#	self.pm.p( "omega: "+  str(omega))
 #		self.pm.p( "eulrSpeedsFlipped: " + str(np.flipud(CS.angleRateTarget)))
 
@@ -554,8 +565,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS.command.psiDDot = CS.angleRateTarget[2,0]
 		THIS.command.thetaD = m.asin(-pdi[2,0]/sdi)
 
-#		THIS.command.psiDDot=saturate(THIS.command.psiDDot,-.2,.2)
-		THIS.command.psiDDot=THIS.command.psiDDot/3
+		#THIS.command.psiDDot=saturate(THIS.command.psiDDot,-.2,.2)
+	#	THIS.command.psiDDot=THIS.command.psiDDot/3
 
 		#if not THIS.command.thetaD:
 		#	THIS.command.thetaD = 0
@@ -760,9 +771,19 @@ def skew(omega):
 
 def sigma(x):
 	#return 1.0
-	return 22.0/m.sqrt(1+x.transpose()*x)
+	return 50.0/m.sqrt(50**2+x.transpose()*x)
+	#return 5.0/m.sqrt(5**2+x.transpose()*x)
 
 def sigmaDot(x):
 	#return np.matrix(np.zeros((3,1)))
-	return 22.0*x/(1+x.transpose()*x)**(3/2)
+	return -50*x/np.asscalar(50**2+x.transpose()*x)**(3.0/2.0)
+
+def F(x):
+	return 1.0
+	#return 50/m.sqrt(50**2+x.transpose()*x)
+	#Used for the scaling feed-forward
+def f(x):
+	return np.matrix(np.zeros((3, 1)))
+	#return -50*x/np.asscalar(50**2+x.transpose()*x)**(3.0/2.0)
+	#Used for the scaling feed-forward
 
