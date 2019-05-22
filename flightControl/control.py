@@ -466,17 +466,17 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.pgTerm = F(zetai)*pg
 		CS.rotFFTerm = F(zetai)*RgDot*di
 		CS.kplTerm = -kl * sigma(zetai)*(zetai)
-		self.pm.p("SigmaG: " + str(sigma(zetai)))
+		#self.pm.p("SigmaG: " + str(sigma(zetai)))
 		self.pm.p("SigmaGX: " + str( np.linalg.norm(sigma(zetai)*zetai)    ))
-		self.pm.p("pdiG: " + str(CS.kplTerm) )
-		self.pm.p("FFNorm: " + str(np.linalg.norm(CS. pgTerm+CS.rotFFTerm)) )
-		self.pm.p("F FF:" + str(F(zetai)) )
+		#self.pm.p("pdiG: " + str(CS.kplTerm) )
+		#self.pm.p("FFNorm: " + str(np.linalg.norm(CS. pgTerm+CS.rotFFTerm)) )
+		#self.pm.p("F FF:" + str(F(zetai)) )
 
 		#pdiDot = pgDot+RgDDot*di  - kl*( np.asscalar(sigmaDot(zetai).transpose()*zetaiDot)*zetai + sigma(zetai)*zetaiDot )
 		pdiDot = (np.asscalar(f(zetai).transpose()*zetaiDot) *( pg+RgDot*di ) + F(zetai)*( pgDot+RgDDot*di      )
 			-kl*( np.asscalar(sigmaDot(zetai).transpose()*zetaiDot)*zetai + sigma(zetai)*zetaiDot ))
-		self.pm.p("pdiDotSigmaDot: " + str( np.asscalar(sigmaDot(zetai).transpose()*zetaiDot)*zetai ) )
-		self.pm.p("pdiDotOther: " + str( sigma(zetai)*zetaiDot ))
+		#self.pm.p("pdiDotSigmaDot: " + str( np.asscalar(sigmaDot(zetai).transpose()*zetaiDot)*zetai ) )
+		#self.pm.p("pdiDotOther: " + str( sigma(zetai)*zetaiDot ))
 		CS.kpjTerm = np.matrix([[0],[0],[0]])
 
 	#compute from peers
@@ -770,13 +770,12 @@ def skew(omega):
 
 
 def sigma(x):
-	#return 1.0
-	return 50.0/m.sqrt(50**2+x.transpose()*x)
-	#return 5.0/m.sqrt(5**2+x.transpose()*x)
+	return 1.0
+	return 14/m.sqrt(14**2+x.transpose()*x)
 
 def sigmaDot(x):
-	#return np.matrix(np.zeros((3,1)))
-	return -50*x/np.asscalar(50**2+x.transpose()*x)**(3.0/2.0)
+	return np.matrix(np.zeros((3,1)))
+	return -14*x/np.asscalar(14**2+x.transpose()*x)**(3.0/2.0)
 
 def F(x):
 	return 1.0
