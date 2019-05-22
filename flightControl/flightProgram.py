@@ -6,7 +6,6 @@ import Queue
 import multiprocessing	
 import transmit, control, receive, log
 import vehicleState
-import defaultConfig
 
 import numpy as np
 import argparse 
@@ -18,10 +17,26 @@ AdHocIP = os.environ['ADHOCIP']
 peerReadPort = int(os.environ['PORT'])
 myAddr = (AdHocIP, peerReadPort)
 logPath = os.environ["LOGPATH"]
+
+try:
+	sitlFlag = os.environ["SITL"]
+	sitlFlag=True
+except:
+	sitlFlag = False
+
+
+if(sitlFlag):
+	broadcastIP= "10.0.2.255"
+	import defaultConfig_SITL as defaultConfig
+else:
+	broadcastIP= os.environ["BROADCASTIP"]
+	import defaultConfig
+
 broadcastIP= "10.0.2.255"
+
 transmitAddress = (broadcastIP,peerReadPort)
 
-defaultParams = defaultConfig.getParams()
+
 
 
 
@@ -54,6 +69,7 @@ if not connection_string:
     sitl = dronekit_sitl.start_default()
     connection_string = sitl.connection_string()
 
+defaultParams = defaultConfig.getParams()
 
 # Connect to the Vehicle. 
 #   Set `wait_ready=True` to ensure default attributes are populated before `connect()` returns.
@@ -68,7 +84,7 @@ transmitThread = transmit.Transmitter(transmitQueue,AdHocIP,peerReadPort,transmi
 fileSuffix =   '_v' + str(int(vehicle.parameters['SYSID_THISMAV']))
 logThread = log.Logger(loggingQueue,logPath,defaultParams.expectedMAVs,startTime,fileSuffix)
 
-controlThread = control.Controller(loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams,startTime)
+controlThread = control.Controller(loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams,startTime,sitlFlag)
 
 print "default params" + str(defaultParams)
 

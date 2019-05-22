@@ -13,7 +13,14 @@ import numpy as np
 import copy
 from pid import PIDController
 from curtsies import Input
-import defaultConfig
+
+
+try:
+	sitlFlag = os.environ["SITL"]
+	import defaultConfig_SITL as defaultConfig
+except:
+	import defaultConfig
+
 
 acceptableControlMode = VehicleMode("FBWA")
 
@@ -23,9 +30,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 					#There is little to no performance problem, because the "main" process doesn't do much, and 
 					#so the GIL isn't an issue for speed
 	
-	def __init__(self,loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams,startTime):
+	def __init__(self,loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams,startTime,sitl):
 		threading.Thread.__init__(self)
 		self.isRunning=True
+		self.sitl = sitl
 		self.loggingQueue = loggingQueue
 		self.transmitQueue = transmitQueue
 		self.receiveQueue = receiveQueue
@@ -37,12 +45,14 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicleState.ID = int(self.vehicle.parameters['SYSID_THISMAV'])
 		self.vehicleState.startTime = datetime.now()
 		self.vehicleState.counter = 0
-		self.trimThrottle= self.vehicle.parameters['TRIM_THROTTLE'] 
-		self.rollToThrottle = self.vehicle.parameters['TECS_RLL2THR'] 
+		#self.trimThrottle= self.vehicle.parameters['TRIM_THROTTLE'] 
+		#self.rollToThrottle = self.vehicle.parameters['TECS_RLL2THR'] 
 		self.stoprequest = threading.Event()
 		self.lastGCSContact = -1
 		self.startTime=startTime
+		
 		self.updateInternalObjects()
+
 
 		
 	def stop(self):
@@ -107,7 +117,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				print "Reverting to original parameters"
 				self.releaseControl()
 				self.commenceRTL()
-				raise
+				if self.sitl:
+					raise ex
 	
 							#TODO: find a way to clear timeouts, if necessary
 		self.stop()
@@ -134,6 +145,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.vehicleState.timeout.peerLastRX[ID]=msg.sendTime	
 			
 	def scaleAndWriteCommands(self):
+		sdfdsffsf
 		params = self.parameters
 		xPWM = self.vehicleState.command.rollCMD * self.parameters.rollGain+self.parameters.rollOffset
 		yPWM = self.vehicleState.command.pitchCMD*self.parameters.pitchGain + self.parameters.pitchOffset
@@ -611,7 +623,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		kspeed = gains['kSpeed']
 		rollAngle = THIS.attitude.roll
 		eSpeed = THIS.airspeed - cmd.asTarget
-		throttleFFTerm = (self.trimThrottle + gains['kThrottleFF']*self.vehicle.parameters['TECS_RLL2THR']*(1.0/m.pow(m.cos(rollAngle),2)-1) +
+		vp = self.vehicle.parameters
+
+		throttleFFTerm = (vp['TRIM_THROTTLE']  + gains['kThrottleFF']*vp['TECS_RLL2THR']*(1.0/m.pow(m.cos(rollAngle),2)-1) +
 			self.parameters.gains['kSpdToThrottle']  *(cmd.asTarget - self.parameters.gains['nomSpeed'])   )#TODO: use FF gain
 
 		(cmd.throttleCMD , CS.throttleTerms) = self.throttleController.update(eSpeed,
@@ -640,12 +654,32 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 	def updateInternalObjects(self):#This unfortunately also resets integrator states,
 					#but this should never be called when the control is running anyway...
 		gains = self.parameters.gains
+		params = self.parameters
+		vp = self.vehicle.parameters
+	#ROLL
+		params.rollGain = (vp['RC1_MAX'] - vp['RC1_MIN']) / 2 / (vp['LIM_ROLL_CD']/100 /(180/m.pi))  #update to include out of perfect trim
+		print "Roll Gain: " + str(params.rollGain)
+		if(vp['RC1_REVERSED'] == 1):
+			params.rollGain = - params.rollGain
+		params.rollOffset = vp['RC1_TRIM']
+	#PITCH
+		pg1 = -(vp['RC2_MAX']-vp['RC2_TRIM']) / (vp['LIM_PITCH_MIN']/100/(180/m.pi))
+		pg2 = (vp['RC2_TRIM']-vp['RC2_MIN']) / (vp['LIM_PITCH_MAX']/100/(180/m.pi))
+		params.pitchGain = min(pg1,pg2)
+		if(vp['RC2_REVERSED']== 1):
+			params.pitchGain = - params.pitchGain
+		params.pitchOffset = vp['RC2_TRIM']
+	#THROTTLE
+		params.throttleMin=vp['RC3_TRIM']
+		params.throttleGain = (vp['RC3_MAX'] - vp['RC3_TRIM']) / 100.0
+
+		
 		self.pm = PrintManager(self.parameters.config['printEvery'])
-		self.rollController = PIDController(gains['kHeading'], -gains['rollLimit'],gains['rollLimit']
+		self.rollController = PIDController(gains['kHeading'], -vp['LIM_ROLL_CD']/100.0,vp['LIM_ROLL_CD']/100.0
 			,-gains['maxEHeading'],gains['maxEHeading'])
 		self.throttleController = PIDController(gains['kSpeed'],0,100
 			,-gains['maxESpeed'],gains['maxESpeed'])
-		self.pitchController = PIDController(gains['kPitch'], -gains['pitchLimit'],gains['pitchLimit']
+		self.pitchController = PIDController(gains['kPitch'], vp['LIM_PITCH_MIN'],vp['LIM_PITCH_MAX']
 			,-gains['maxEPitch'],gains['maxEPitch'])
 
 def wrapToPi(value):
@@ -770,12 +804,12 @@ def skew(omega):
 
 
 def sigma(x):
-	return 1.0
-	return 14/m.sqrt(14**2+x.transpose()*x)
+	#return 1.0
+	return 500/m.sqrt(500**2+x.transpose()*x)
 
 def sigmaDot(x):
-	return np.matrix(np.zeros((3,1)))
-	return -14*x/np.asscalar(14**2+x.transpose()*x)**(3.0/2.0)
+	#return np.matrix(np.zeros((3,1)))
+	return -500*x/np.asscalar(500**2+x.transpose()*x)**(3.0/2.0)
 
 def F(x):
 	return 1.0

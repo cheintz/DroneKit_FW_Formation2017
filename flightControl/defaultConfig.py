@@ -21,14 +21,16 @@ def getParams():
 	defaultParams.peerTimeout = 4 #seconds
 	defaultParams.leaderID = 1   #MAV ID of leader
 	defaultParams.expectedMAVs = 2 #One, plus the leaders
+	defaultParams.Ts = 1.0/10.0
+	defaultParams.txStateType = 'basic'
+
+#These are no longer used
 	defaultParams.rollGain= 500/(50/(180/m.pi)) #PWM per radian
 	defaultParams.rollOffset=1500
 	defaultParams.pitchGain = -500/(20/(180/m.pi)) #PWM per radian
 	defaultParams.pitchOffset = 1500
 	defaultParams.throttleMin = 1000
 	defaultParams.throttleGain = (2000-1000)/100
-	defaultParams.Ts = 1.0/10.0
-	defaultParams.txStateType = 'basic'
 
 	return defaultParams
 
