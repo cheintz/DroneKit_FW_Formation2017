@@ -50,9 +50,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.stoprequest = threading.Event()
 		self.lastGCSContact = -1
 		self.startTime=startTime
-		
 		self.updateInternalObjects()
-
 
 		
 	def stop(self):
@@ -117,8 +115,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				print "Reverting to original parameters"
 				self.releaseControl()
 				self.commenceRTL()
+				raise 
 				if self.sitl:
-					raise ex
+					raise
 	
 							#TODO: find a way to clear timeouts, if necessary
 		self.stop()
@@ -267,8 +266,14 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.pm.p("heading rate: " + str(self.vehicleState.heading.rate))
 			self.vehicleState.pitch.value = m.asin(velocityVector[2]/ max(np.linalg.norm(velocityVector[0:2],2),abs(velocityVector[2]))   ) # These velocites seem to be N, E, U, not NED
 		else:
-			self.vehicleState.heading.value = self.vehicleState.attitude.yaw
-			self.vehicleState.pitch.value = self.vehicleState.attitude.pitch
+			try:
+				self.vehicleState.heading.value = self.vehicleState.attitude.yaw
+				self.vehicleState.pitch.value = self.vehicleState.attitude.pitch
+			except:
+				self.pm.p('Using zero attitude for ground start')
+				self.vehicleState.heading.value = 0
+				self.vehicleState.pitch.value = 0
+
 
 
 	#copy other states over
@@ -658,7 +663,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		vp = self.vehicle.parameters
 	#ROLL
 		params.rollGain = (vp['RC1_MAX'] - vp['RC1_MIN']) / 2 / (vp['LIM_ROLL_CD']/100 /(180/m.pi))  #update to include out of perfect trim
-		print "Roll Gain: " + str(params.rollGain)
 		if(vp['RC1_REVERSED'] == 1):
 			params.rollGain = - params.rollGain
 		params.rollOffset = vp['RC1_TRIM']
