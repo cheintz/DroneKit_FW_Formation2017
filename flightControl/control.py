@@ -104,6 +104,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 							self.releaseControl()
 							print "Released Control"
 				timeToWait = max(self.parameters.Ts - (datetime.now() -loopStartTime).total_seconds(), 1E-6)
+				self.vehicleState.timeToWait = timeToWait
 				self.pm.p('Waiting: ' + str(timeToWait))
 				self.pm.increment()
 				time.sleep(timeToWait) #variable pause
@@ -144,7 +145,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.vehicleState.timeout.peerLastRX[ID]=msg.sendTime	
 			
 	def scaleAndWriteCommands(self):
-		sdfdsffsf
 		params = self.parameters
 		xPWM = self.vehicleState.command.rollCMD * self.parameters.rollGain+self.parameters.rollOffset
 		yPWM = self.vehicleState.command.pitchCMD*self.parameters.pitchGain + self.parameters.pitchOffset
@@ -469,7 +469,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		RgDot = Rg*OmegaG;
 		RgDDot =Rg*OmegaG*OmegaG+Rg*OmegaGDot;
-		pgDot = LEADER.fwdAccel * Rg*e1 + (Rg * OmegaG) * e1 * sg #assumes zero leader acceleration
+		pgDot = LEADER.fwdAccel * Rg*e1 + (Rg * OmegaG) * e1 * sg 
+		CS.pgDot = pgDot
 
 		self.pm.p( 'Time: = ' + str(THIS.time))
 	#Compute from leader
@@ -607,8 +608,12 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		psi = THIS.heading.value
 		ePsi = wrapToPi(psi-THIS.command.psiD)
 		calcTurnRate = THIS.heading.rate
-		rollFFTerm = THIS.parameters.gains['kRollFF']*m.atan(cmd.psiDDot * THIS.groundspeed / 9.81
-			* m.cos(THIS.attitude.pitch))
+
+		arg = cmd.psiDDot * THIS.groundspeed / 9.81 * m.cos(THIS.attitude.pitch)
+		rollFFTerm = THIS.parameters.gains['kRollFF']*m.atan(arg) 
+		#rollFFTerm = rollFFTerm + (THIS.parameters.gains['kRollInversion'] * self.vehicle.parameters['RLL2SRV_TCONST'] * cmd.psiDDDot * 
+		#	1/m.sqrt(arg**2+1)  )
+
 		(cmd.rollCMD , CS.rollTerms) = self.rollController.update(ePsi,
 			(calcTurnRate-cmd.psiDDot),self.thisTS,rollFFTerm)
 		CS.accHeadingError=self.rollController.integrator

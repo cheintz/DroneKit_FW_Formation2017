@@ -13,7 +13,7 @@ Timeout = recordtype('Timeout' , ['GCSTimeoutTime', ('peerTimeoutTime',{}), 'loc
 
 Parameter = recordtype('Parameter',['receivedTime','desiredPosition','gains', 'Ts', 'GCSTimeout', 'peerTimeout', 'leaderID', 'expectedMAVs', 'rollGain', 'config', 'rollOffset', 'pitchGain', 'pitchOffset', 'throttleGain', 'throttleMin',('txStateType','basic')], default = None)
 
-Command = recordtype('Command',['sdi','sdiDot','asTarget',('omega',zeroVect),'psiD','psiDDot','thetaD','thetaDDot','rollCMD',
+Command = recordtype('Command',['sdi','sdiDot','asTarget',('omega',zeroVect),'psiD','psiDDot','thetaD','rollCMD','thetaDDot',
 	'pitchCMD','throttleCMD','timestamp'], default = None)
 
 CourseAngle = recordtype('CourseAngle',['value','rate','accel'],default=0.0)	
@@ -21,7 +21,7 @@ CourseAngle = recordtype('CourseAngle',['value','rate','accel'],default=0.0)
 ControlState = recordtype('ControlState',[('pgTerm',zeroVect),('rotFFTerm',zeroVect),('kplTerm',zeroVect),('kpjTerm',zeroVect),('pdi',zeroVect)
 	,('bdi',zeroVect),('bdiDot',zeroVect),'accHeadingError',('rollTerms',PIDTerms()),'accSpeedError','phiNew'
 	,('throttleTerms',PIDTerms()),'accPitchError',('pitchTerms',PIDTerms())
-	,'backstepSpeed','backstepSpeedError','backstepSpeedRate',('angleRateTarget',zeroVect)]
+	,'backstepSpeed','backstepSpeedError','backstepSpeedRate',('angleRateTarget',zeroVect),('pgDot',zeroVect)]
 	, default = 0.0)
 
 Message = recordtype('Message','type,sendTime,content', default = None)
@@ -40,7 +40,8 @@ class BasicVehicleState(object):
 		self.roll = CourseAngle()
 		self.isPropagated = False
 		self.counter = 0
-		self.isFlocking = False		
+		self.isFlocking = False	
+		self.timeToWait = 0	
 		if other is not None:
 			for k in self.__dict__.keys():
 				self.__dict__[k] = other.__dict__[k] #This is terrible
@@ -54,6 +55,9 @@ class BasicVehicleState(object):
 		values.append(self.counter)
 		headers.append('timestamp')
 		values.append(self.timestamp)
+
+		headers.append('timeToWait')
+		values.append(self.timeToWait)
 
 		headers+= ['lat','lon','alt','posTime']
 		values+= [self.position.lat,self.position.lon,self.position.alt,self.position.time]
