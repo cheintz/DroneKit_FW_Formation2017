@@ -51,6 +51,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.lastGCSContact = -1
 		self.startTime=startTime
 		self.updateInternalObjects()
+		self.lastFF = None
+		self.lastFFFilt = None
+		self.lastPsiDDot = None
+		self.lastPsiDDotFilt = None
 
 		
 	def stop(self):
@@ -153,7 +157,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		yPWM = saturate(yPWM,1000,2000)
 		zPWM = saturate(zPWM,params.throttleMin,params.throttleMin+100*self.parameters.throttleGain)
 		self.vehicle.channels.overrides = {'1': xPWM, '2': yPWM,'3': zPWM}
-		#self.vehicle.channels.overrides = {'1': xPWM, '2': yPWM}
+		#self.vehicle.channels.overrides = {'1': xPWM}
 
 	def releaseControl(self):
 		self.vehicle.channels.overrides = {}
@@ -465,10 +469,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		Rg = eul2rotm(psiG,thetaG,phiG)
 		OmegaG = skew(ERatesToW(psiG,thetaG,phiG,LEADER.heading.rate,LEADER.pitch.rate,LEADER.roll.rate))
-		OmegaGDot = skew(EAccelToAlpha(LEADER.heading,LEADER.pitch,LEADER.roll))
+		OmegaGDot = 1*skew(EAccelToAlpha(LEADER.heading,LEADER.pitch,LEADER.roll))
 
 		RgDot = Rg*OmegaG;
-		RgDDot =Rg*OmegaG*OmegaG+Rg*OmegaGDot;
+		RgDDot =Rg*OmegaG*OmegaG+ 0*Rg*OmegaGDot;
 		pgDot = LEADER.fwdAccel * Rg*e1 + (Rg * OmegaG) * e1 * sg 
 		CS.pgDot = pgDot
 
@@ -483,18 +487,40 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		CS.pgTerm = F(zetai)*pg
 		CS.rotFFTerm = F(zetai)*RgDot*di
-		CS.kplTerm = -kl * sigma(zetai)*(zetai)
-		#self.pm.p("SigmaG: " + str(sigma(zetai)))
-		self.pm.p("SigmaGX: " + str( np.linalg.norm(sigma(zetai)*zetai)    ))
-		#self.pm.p("pdiG: " + str(CS.kplTerm) )
-		#self.pm.p("FFNorm: " + str(np.linalg.norm(CS. pgTerm+CS.rotFFTerm)) )
-		#self.pm.p("F FF:" + str(F(zetai)) )
 
-		#pdiDot = pgDot+RgDDot*di  - kl*( np.asscalar(sigmaDot(zetai).transpose()*zetaiDot)*zetai + sigma(zetai)*zetaiDot )
-		pdiDot = (np.asscalar(f(zetai).transpose()*zetaiDot) *( pg+RgDot*di ) + F(zetai)*( pgDot+RgDDot*di      )
+
+
+
+
+#########################Feed-forward Lead filter
+
+		FF = CS.pgTerm + CS.rotFFTerm 
+
+		a = 2
+		b = 1.819
+		c = 1
+		d = .8187
+
+
+		if self.lastFF is None:
+			self.lastFF = FF
+		if self.lastFFFilt is None:
+			self.lastFFFilt = FF
+		FFFilt = (a*FF - b* self.lastFF) +d*self.lastFFFilt
+		#FFFilt = FF
+
+		self.lastFFFilt = FFFilt
+		self.lastFF = FF
+		#CS.pgTerm = FFFilt   #enable this to actually do the lead
+		
+		CS.kplTerm = -kl * sigma(zetai)*(zetai) - 0* kl * sigma(zetai)*zetaiDot
+
+		pdiDot = pgDot+RgDDot*di  - kl*( np.asscalar(sigmaDot(zetai).transpose()*zetaiDot)*zetai + sigma(zetai)*zetaiDot )
+
+		temp = (np.asscalar(f(zetai).transpose()*zetaiDot) *( pg+RgDot*di ) + F(zetai)*( pgDot+RgDDot*di      )
 			-kl*( np.asscalar(sigmaDot(zetai).transpose()*zetaiDot)*zetai + sigma(zetai)*zetaiDot ))
-		#self.pm.p("pdiDotSigmaDot: " + str( np.asscalar(sigmaDot(zetai).transpose()*zetaiDot)*zetai ) )
-		#self.pm.p("pdiDotOther: " + str( sigma(zetai)*zetaiDot ))
+		self.pm.p("PdiDotError: " + str(pdiDot-temp))
+
 		CS.kpjTerm = np.matrix([[0],[0],[0]])
 
 	#compute from peers
@@ -523,10 +549,13 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		Ri = eul2rotm(THIS.heading.value,THIS.pitch.value,THIS.roll.value)
 		sdi = np.linalg.norm(pdi,2)
 		bdi = pdi / sdi
+
+	
 		THIS.command.sdi=sdi
 		CS.bdi = bdi
 		sdiDot = (pdi.transpose() / sdi) * pdiDot
 		bdiDot = 1.0 / sdi * (np.identity(3) - 1.0 / sdi**2 * (pdi * pdi.transpose()) )*pdiDot
+
 		THIS.command.sdiDot=sdiDot
 		CS.bdiDot = bdiDot
 		siTilde = groundspd - sdi
@@ -537,15 +566,16 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		omega=np.matrix([[Omega[2,1] ], [-Omega[2,0] ], [Omega[1,0] ]])
 		OmegaFF =  1.0 / sdt ** 2.0 * Ri.transpose() * (pdiDot * pdi.transpose() - pdi * pdiDot.transpose()) * Ri
 		OmegaFB =  (GAINS['eta']*sdi*(Ri.transpose()*pdi*e1.transpose()-e1*pdi.transpose()*Ri) )
-		self.pm.p("OmegaFFZ : " + str(OmegaFF[1, 0]))
-		self.pm.p("OmegaFBZ : " + str(OmegaFB[1, 0]))
-		self.pm.p("OmegaNet : " + str(OmegaFF[1, 0]+OmegaFB[1, 0]))
+		#self.pm.p("OmegaFFZ : " + str(OmegaFF[1, 0]))
+	#	self.pm.p("OmegaFBZ : " + str(OmegaFB[1, 0]))
+		#self.pm.p("OmegaNet : " + str(OmegaFF[1, 0]+OmegaFB[1, 0]))
 
 		THIS.command.omega=omega
 		CS.backstepSpeed = THIS.command.sdi + (airspd-groundspd)
 		CS.backstepSpeedError =  1.0/GAINS['aSpeed']* -GAINS['gamma'] * siTilde
 		CS.backstepSpeedRate = 1.0 / GAINS['aSpeed'] * THIS.command.sdiDot
 		asTarget = CS.backstepSpeed + CS.backstepSpeedRate + CS.backstepSpeedRate
+		#asTarget = sdi
 		THIS.command.asTarget = saturate(asTarget, vMin, vMax)
 		self.pm.p("Commanded omega_z:" + str(omega[2,0]))
 
@@ -583,6 +613,29 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS.command.psiDDot = CS.angleRateTarget[2,0]
 		THIS.command.thetaD = m.asin(-pdi[2,0]/sdi)
 
+############		Omega Feed-forward lead 
+
+		'''	#Lead filter for psiDDot
+		a = 2
+		b = 1.819
+		c = 1
+		d = .8187
+
+
+		if self.lastPsiDDot is None:
+			self.lastPsiDDot = THIS.command.psiDDot
+		if self.lastPsiDDotFilt is None:
+			self.lastPsiDDotFilt = THIS.command.psiDDot
+		psiDDotFilt = (a*THIS.command.psiDDot - b* self.lastPsiDDot) +d*self.lastPsiDDotFilt
+		
+		self.lastPsiDDot = THIS.command.psiDDot
+		self.lastPsiDDotFilt = psiDDotFilt
+
+		THIS.command.psiDDot = psiDDotFilt '''
+
+
+
+
 		#THIS.command.psiDDot=saturate(THIS.command.psiDDot,-.2,.2)
 	#	THIS.command.psiDDot=THIS.command.psiDDot/3
 
@@ -591,7 +644,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		#THIS.command.thetaD = THIS.command.thetaD + self.thisTS*THIS.command.thetaDDot
 	#	THIS.command.thetaD=saturate(THIS.command.thetaD,-GAINS['pitchLimit'],GAINS['pitchLimit'])
 		#self.pm.p("Desired Pitch: " + str(THIS.command.thetaD))
-
 		THIS.command.psiD = m.atan2(pdi[1,0],pdi[0,0])
 		#THIS.command.psiDDot = np.asscalar( 1.0/(1+pdi[1]**2/pdi[0]**2) * (pdi[0]*pdiDot[1]-pdi[1]*pdiDot[0])/pdi[0]**2 ) #old
 
