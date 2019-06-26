@@ -397,7 +397,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.PilotMiddleLoopRefs()
 		self.rollControl()
 		self.throttleControl()
-		self.pitchControl()
+		if(self.parameters.config['dimensions'] == 3):
+			self.pitchControl()
+		else:
+			self.altitudeControl()
 
 	def PilotMiddleLoopRefs(self):
 		#Let Channel 7 determine if this is a speed, altitude, or heading test:
@@ -429,7 +432,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	def computeFormationControl(self):
 		thisCommand  = Command()
-		LEADER = self.stateVehicles[(self.parameters.leaderID)]
+		LEADER = copy.deepcopy(self.stateVehicles[(self.parameters.leaderID)])
 		THIS = self.vehicleState
 		CS = THIS.controlState
 		GAINS = THIS.parameters.gains
@@ -447,7 +450,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		pg = np.matrix([[LEADER.velocity[0]],[LEADER.velocity[1]],[-LEADER.velocity[2]]] )
 		sg =np.linalg.norm(pg,2)
 
-		qil = getRelPos(ql_gps,qi_gps)
+
 
 		qd = THIS.parameters.desiredPosition # qd1 ; qd2 ; qd3 ...
 		di=qd[ID-2,np.matrix([0,1,2])]
@@ -466,6 +469,16 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		psiG = LEADER.heading.value
 		thetaG = LEADER.pitch.value
 		phiG = LEADER.roll.value #This should be zero for all time
+
+		if (THIS.parameters.config['dimensions'] == 2):
+			ql_gps[2] = 0
+			pg[2] = 0
+			thetaG = 0
+			LEADER.pitch.rate = 0
+			LEADER.pitch.value = 0
+
+		qil = getRelPos(ql_gps, qi_gps)
+
 
 		Rg = eul2rotm(psiG,thetaG,phiG)
 		OmegaG = skew(ERatesToW(psiG,thetaG,phiG,LEADER.heading.rate,LEADER.pitch.rate,LEADER.roll.rate))
@@ -488,10 +501,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.pgTerm = F(zetai)*pg
 		CS.rotFFTerm = F(zetai)*RgDot*di
 
-
-
-
-
 #########################Feed-forward Lead filter
 
 		FF = CS.pgTerm + CS.rotFFTerm 
@@ -501,13 +510,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		c = 1
 		d = .8187
 
-
 		if self.lastFF is None:
 			self.lastFF = FF
 		if self.lastFFFilt is None:
 			self.lastFFFilt = FF
 		FFFilt = (a*FF - b* self.lastFF) +d*self.lastFFFilt
-		#FFFilt = FF
 
 		self.lastFFFilt = FFFilt
 		self.lastFF = FF
@@ -519,7 +526,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		temp = (np.asscalar(f(zetai).transpose()*zetaiDot) *( pg+RgDot*di ) + F(zetai)*( pgDot+RgDDot*di      )
 			-kl*( np.asscalar(sigmaDot(zetai).transpose()*zetaiDot)*zetai + sigma(zetai)*zetaiDot ))
-		self.pm.p("PdiDotError: " + str(pdiDot-temp))
 
 		CS.kpjTerm = np.matrix([[0],[0],[0]])
 
@@ -633,9 +639,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		THIS.command.psiDDot = psiDDotFilt '''
 
-
-
-
 		#THIS.command.psiDDot=saturate(THIS.command.psiDDot,-.2,.2)
 	#	THIS.command.psiDDot=THIS.command.psiDDot/3
 
@@ -699,13 +702,12 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.pm.p( 'kSpeed: ' + str(kspeed))
 		self.pm.p('ESpeed: ' + str(CS.accSpeedError))
 
-	#altitude control
+	#pitch control
 	def pitchControl(self):
 		THIS = self.vehicleState
 		cmd = THIS.command
 		CS = THIS.controlState
-
-		eTheta = (self.vehicleState.pitch.value- cmd.thetaD)  # no feedback for now
+		eTheta = (self.vehicleState.pitch.value- cmd.thetaD)
 
 		(cmd.pitchCMD , CS.pitchTerms) = self.pitchController.update(eTheta,
 			THIS.pitch.rate - cmd.thetaDDot ,self.thisTS,cmd.thetaD)
@@ -713,11 +715,28 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		cmd.timestamp = datetime.now()
 		self.pm.p('Pitch Error: ' + str(eTheta))
 		self.pm.p('cmd Pitch Rate: ' + str(cmd.thetaDDot))
+
+	#altitude control (2D Case)
+	def altitudeControl(self):
+		THIS = self.vehicleState
+		cmd = THIS.command
+		CS = THIS.controlState
+
+		altError = -np.asscalar(-THIS.position.alt -THIS.parameters.desiredPosition[self.vehicleState.ID-2,np.matrix([2])])
+		(cmd.pitchCMD, CS.pitchTerms) = self.altitudeController.update(altError,
+			THIS.velocity[2], self.thisTS, 0)
+		CS.accAltError = self.altitudeController.integrator
+		cmd.timestamp = datetime.now()
+		self.pm.p('Alt Error: ' + str(altError))
+		self.pm.p('Acc Alt Error: ' + str(CS.accAltError))
+
 	def updateInternalObjects(self):#This unfortunately also resets integrator states,
 					#but this should never be called when the control is running anyway...
 		gains = self.parameters.gains
 		params = self.parameters
 		vp = self.vehicle.parameters
+
+	####### RC Input Calibration#####
 	#ROLL
 		params.rollGain = (vp['RC1_MAX'] - vp['RC1_MIN']) / 2 / (vp['LIM_ROLL_CD']/100 /(180/m.pi))  #update to include out of perfect trim
 		if(vp['RC1_REVERSED'] == 1):
@@ -742,6 +761,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			,-gains['maxESpeed'],gains['maxESpeed'])
 		self.pitchController = PIDController(gains['kPitch'], vp['LIM_PITCH_MIN'],vp['LIM_PITCH_MAX']
 			,-gains['maxEPitch'],gains['maxEPitch'])
+		self.altitudeController =  PIDController(gains['kAlt'], vp['LIM_PITCH_MIN'],vp['LIM_PITCH_MAX']
+			,-gains['maxEAlt'],gains['maxEAlt'])
 
 def wrapToPi(value):
 	return wrapTo2Pi(value+m.pi)-m.pi

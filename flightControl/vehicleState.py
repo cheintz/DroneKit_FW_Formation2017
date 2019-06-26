@@ -20,7 +20,7 @@ CourseAngle = recordtype('CourseAngle',['value','rate','accel'],default=0.0)
 
 ControlState = recordtype('ControlState',[('pgTerm',zeroVect),('rotFFTerm',zeroVect),('kplTerm',zeroVect),('kpjTerm',zeroVect),('pdi',zeroVect)
 	,('bdi',zeroVect),('bdiDot',zeroVect),'accHeadingError',('rollTerms',PIDTerms()),'accSpeedError','phiNew'
-	,('throttleTerms',PIDTerms()),'accPitchError',('pitchTerms',PIDTerms())
+	,('throttleTerms',PIDTerms()),'accPitchError',('pitchTerms',PIDTerms()),'accAltError'
 	,'backstepSpeed','backstepSpeedError','backstepSpeedRate',('angleRateTarget',zeroVect),('pgDot',zeroVect)]
 	, default = 0.0)
 
