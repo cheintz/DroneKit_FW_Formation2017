@@ -14,7 +14,7 @@ Timeout = recordtype('Timeout' , ['GCSTimeoutTime', ('peerTimeoutTime',{}), 'loc
 Parameter = recordtype('Parameter',['receivedTime','desiredPosition','gains', 'Ts', 'GCSTimeout', 'peerTimeout', 'leaderID', 'expectedMAVs', 'rollGain', 'config', 'rollOffset', 'pitchGain', 'pitchOffset', 'throttleGain', 'throttleMin',('txStateType','basic')], default = None)
 
 Command = recordtype('Command',['sdi','sdiDot','asTarget',('omega',zeroVect),'psiD','psiDDot','thetaD','rollCMD','thetaDDot',
-	'pitchCMD','throttleCMD','timestamp'], default = None)
+	'pitchCMD','throttleCMD','timestamp',('qd',zeroVect)], default = None)
 
 CourseAngle = recordtype('CourseAngle',['value','rate','accel'],default=0.0)	
 
@@ -42,6 +42,7 @@ class BasicVehicleState(object):
 		self.counter = 0
 		self.isFlocking = False	
 		self.timeToWait = 0	
+		self.qdIndex = 0
 		if other is not None:
 			for k in self.__dict__.keys():
 				self.__dict__[k] = other.__dict__[k] #This is terrible
@@ -96,7 +97,7 @@ class FullVehicleState(BasicVehicleState):
 		self.startTime = None
 		self.attitude = None
 		self.imuAccel = None
-		self.chanels = None
+		self.channels = None
 		self.mode = None
 		self.command = Command()
 		self.controlState = ControlState()
@@ -163,7 +164,7 @@ class FullVehicleState(BasicVehicleState):
 		except:
 			values.append('None')
 		
-		for i in range(1,8):
+		for i in range(1,9):
 			headers.append("ch"+str(i))
 			values.append(self.channels[str(i)])
 

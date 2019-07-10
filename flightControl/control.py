@@ -163,6 +163,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicle.channels.overrides = {}
 		self.vehicleState.controlState = ControlState()
 		self.vehicleState.isFlocking = False
+		self.rollController.reset()
+		self.throttleController.reset()
+		self.pitchController.reset()
+		self.altitudeController.reset()
 
 	def checkAbort(self): #only call if flocking!!
 		if(self.checkTimeouts()): #If we had a timeout
@@ -268,16 +272,19 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		if self.vehicleState.groundspeed>3:
 			self.vehicleState.heading.value = m.atan2(velocityVector[1],velocityVector[0])
 			self.pm.p("heading rate: " + str(self.vehicleState.heading.rate))
-			self.vehicleState.pitch.value = m.asin(velocityVector[2]/ max(np.linalg.norm(velocityVector[0:2],2),abs(velocityVector[2]))   ) # These velocites seem to be N, E, U, not NED
+			self.vehicleState.pitch.value = m.asin(-velocityVector[2]/ max(np.linalg.norm(velocityVector[0:2],2),abs(velocityVector[2]))   ) 
 		else:
 			try:
 				self.vehicleState.heading.value = self.vehicleState.attitude.yaw
 				self.vehicleState.pitch.value = self.vehicleState.attitude.pitch
+				self.pm.p('Low speed: using attitude pitch for control')
 			except:
 				self.pm.p('Using zero attitude for ground start')
 				self.vehicleState.heading.value = 0
 				self.vehicleState.pitch.value = 0
 
+		#self.pm.p( "Pitch: " + str(self.vehicleState.pitch.value))
+		#self.pm.p( "Vz: " + str(self.vehicleState.velocity[2]) )
 
 
 	#copy other states over
@@ -337,6 +344,12 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			propagateVehicleState(self.vehicleState,(datetime.now() -self.vehicleState.position.time).total_seconds()) 				#propagate positions forward. Note that they will not propagated repeatedly; 
 			#will just propagate repeatedly from the last message received from the Pixhawk. 
 			#That should be okay for "this" agent.
+		if(self.vehicle.channels['8'] < 1200):
+			self.vehicleState.qdIndex = 0
+		elif(self.vehicle.channels['8'] < 1700):
+			self.vehicleState.qdIndex = 1
+		else:
+			self.vehicleState.qdIndex = 2
 		
 	def pushStateToTxQueue(self):
 		msg=Message()
@@ -399,8 +412,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.throttleControl()
 		if(self.parameters.config['dimensions'] == 3):
 			self.pitchControl()
+			self.pm.p("Pitch Control")
 		else:
-			self.altitudeControl()
+			self.altitudeControl()				
+			self.pm.p("Using Altitude Control")
 
 	def PilotMiddleLoopRefs(self):
 		#Let Channel 7 determine if this is a speed, altitude, or heading test:
@@ -450,11 +465,21 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		pg = np.matrix([[LEADER.velocity[0]],[LEADER.velocity[1]],[-LEADER.velocity[2]]] )
 		sg =np.linalg.norm(pg,2)
 
-
-
-		qd = THIS.parameters.desiredPosition # qd1 ; qd2 ; qd3 ...
+		if(THIS.parameters.desiredPosition.ndim==3): #if multiple desired positions
+			try:
+				qd = THIS.parameters.desiredPosition[self.vehicleState.qdIndex] # qd1 ; qd2 ; qd3 ...
+			except IndexError as ex:
+				qd = THIS.parameters.desiredPosition[0]
+				print ex
+			qd = np.asmatrix(qd)
+		else: #only 1 desired position
+			qd = THIS.parameters.desiredPosition
 		di=qd[ID-2,np.matrix([0,1,2])]
+
+		self.pm.p('Qd: ' + str(di))
+
 		di.shape=(3,1)
+		self.vehicleState.command.qd = di
 
 		kl = GAINS['kl']
 		ka = GAINS['ka']
@@ -476,6 +501,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			thetaG = 0
 			LEADER.pitch.rate = 0
 			LEADER.pitch.value = 0
+			self.pm.p("Formation 2D")
 
 		qil = getRelPos(ql_gps, qi_gps)
 
@@ -721,6 +747,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS = self.vehicleState
 		cmd = THIS.command
 		CS = THIS.controlState
+		desiredAlt = cmd.qd[2]; #Negative = above ground because NED coordinate system
 
 		altError = -np.asscalar(-THIS.position.alt -THIS.parameters.desiredPosition[self.vehicleState.ID-2,np.matrix([2])])
 		(cmd.pitchCMD, CS.pitchTerms) = self.altitudeController.update(altError,
