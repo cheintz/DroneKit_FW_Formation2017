@@ -298,6 +298,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicleState.mode = self.vehicle.mode
 		self.vehicleState.parameters = self.parameters
 		self.vehicleState.servoOut = self.vehicle.servoOut
+		self.vehicleState.batteryV = self.vehicle.battery.voltage
+		self.vehicleState.batteryI = self.vehicle.battery.current
 
 	#Heading Rates
 		#Filter startup handling
@@ -344,7 +346,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			propagateVehicleState(self.vehicleState,(datetime.now() -self.vehicleState.position.time).total_seconds()) 				#propagate positions forward. Note that they will not propagated repeatedly; 
 			#will just propagate repeatedly from the last message received from the Pixhawk. 
 			#That should be okay for "this" agent.
-		if(self.vehicle.channels['8'] < 1200):
+		if(True or self.vehicle.channels['8'] < 1200):
 			self.vehicleState.qdIndex = 0
 		elif(self.vehicle.channels['8'] < 1700):
 			self.vehicleState.qdIndex = 1
@@ -519,6 +521,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 	#Compute from leader
 		zetai = qil - Rg* di
 		zetaiDot = (qiDot-pg-RgDot*di)
+
+		if (THIS.parameters.config['dimensions'] == 2):
+			zetai[2] = 0
+			zetaiDot[2]=0
+
 		self.pm.p("qil Inertial: " + str(qil))
 		self.pm.p("qil Leader: " + str(Rg.transpose()*qil))
 		#pdi = qiDot - (pg + psiGDot * gamma * di) #in plane relative velocity (inertial)
@@ -567,17 +574,30 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				dij = (di-qdjl )
 				zetaij = qij-Rg*dij
 				zetaijDot = qiDot - pj - RgDot * dij
+
+				if (THIS.parameters.config['dimensions'] == 2):
+					zetaij[2] = 0
+					zetaijDot[2] = 0
+
 				CS.kpjTerm = CS.kpjTerm -ka* sigma(zetaij)*zetaij
 				pdiDot = pdiDot + ka * ( np.asscalar(sigmaDot(zetaij).transpose()*zetaijDot) * zetaij + sigma(zetai)*zetaijDot )
 
 
 		pdi=CS.pgTerm+CS.rotFFTerm+CS.kplTerm+CS.kpjTerm
+		if (THIS.parameters.config['dimensions'] == 2 and not pdi[2] == 0):
+			print "Warning, pdi not 2D. pdi[2]: " + str(pdi[2])
+
 		CS.pdi=pdi
 
 		groundspd = THIS.groundspeed
 		airspd = THIS.airspeed
 
 	#Compute intermediates
+		myPitch = THIS.pitch.value
+		if (THIS.parameters.config['dimensions'] == 2 and not pdi[2] == 0):
+			myPitch = 0
+
+
 		Ri = eul2rotm(THIS.heading.value,THIS.pitch.value,THIS.roll.value)
 		sdi = np.linalg.norm(pdi,2)
 		bdi = pdi / sdi
@@ -725,7 +745,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		cmd.timestamp = datetime.now()
 		self.pm.p('eAirSpeed: ' + str(eSpeed))
 		self.pm.p('ASTarget: ' + str(cmd.asTarget))
-		self.pm.p( 'kSpeed: ' + str(kspeed))
+		#self.pm.p( 'kSpeed: ' + str(kspeed))
 		self.pm.p('ESpeed: ' + str(CS.accSpeedError))
 
 	#pitch control
@@ -747,11 +767,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS = self.vehicleState
 		cmd = THIS.command
 		CS = THIS.controlState
-		desiredAlt = cmd.qd[2]; #Negative = above ground because NED coordinate system
-
-		altError = -np.asscalar(-THIS.position.alt -THIS.parameters.desiredPosition[self.vehicleState.ID-2,np.matrix([2])])
+		desiredAlt =  -np.asscalar(cmd.qd[2]); #Negative = above ground because NED coordinate system
+		altError = THIS.position.alt - desiredAlt
 		(cmd.pitchCMD, CS.pitchTerms) = self.altitudeController.update(altError,
-			THIS.velocity[2], self.thisTS, 0)
+																	   THIS.velocity[2], self.thisTS, 0)
 		CS.accAltError = self.altitudeController.integrator
 		cmd.timestamp = datetime.now()
 		self.pm.p('Alt Error: ' + str(altError))
@@ -769,6 +788,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		if(vp['RC1_REVERSED'] == 1):
 			params.rollGain = - params.rollGain
 		params.rollOffset = vp['RC1_TRIM']
+		print "Roll offset: " +str(params.rollOffset)
 	#PITCH
 		pg1 = -(vp['RC2_MAX']-vp['RC2_TRIM']) / (vp['LIM_PITCH_MIN']/100/(180/m.pi))
 		pg2 = (vp['RC2_TRIM']-vp['RC2_MIN']) / (vp['LIM_PITCH_MAX']/100/(180/m.pi))
@@ -782,11 +802,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		
 		self.pm = PrintManager(self.parameters.config['printEvery'])
-		self.rollController = PIDController(gains['kHeading'], -vp['LIM_ROLL_CD']/100.0,vp['LIM_ROLL_CD']/100.0
+		self.rollController = PIDController(gains['kHeading'], -vp['LIM_ROLL_CD']/100.0 /(180/m.pi),vp['LIM_ROLL_CD']/100.0 /(180/m.pi)
 			,-gains['maxEHeading'],gains['maxEHeading'])
 		self.throttleController = PIDController(gains['kSpeed'],0,100
 			,-gains['maxESpeed'],gains['maxESpeed'])
-		self.pitchController = PIDController(gains['kPitch'], vp['LIM_PITCH_MIN'],vp['LIM_PITCH_MAX']
+		self.pitchController = PIDController(gains['kPitch'], vp['LIM_PITCH_MIN']/100.0/(180/m.pi),vp['LIM_PITCH_MAX']/100.0/(180/m.pi)
 			,-gains['maxEPitch'],gains['maxEPitch'])
 		self.altitudeController =  PIDController(gains['kAlt'], vp['LIM_PITCH_MIN'],vp['LIM_PITCH_MAX']
 			,-gains['maxEAlt'],gains['maxEAlt'])
@@ -842,7 +862,7 @@ def propagateVehicleState(state, dt): #assumes heading rate and fwdAccel are con
 	s = m.sqrt(vx**2+vy**2+vz**2)
 	sf = s+sDot*dt
 	psif = state.heading.value+psiDot*dt
-	
+	state.heading.rate += dt * state.heading.accel
 #	dx = psiDot*(sf)*m.sin(psif)+sDot*m.cos(psif)-psiDot*s*m.sin(psi)-sDot*m.cos(psi)
 #	dy = -psiDot*sf*m.cos(psif)+sDot*(m.sin(psif)-m.sin(psi))+psiDot*s*m.cos(psiDot)
 
@@ -859,15 +879,15 @@ def propagateVehicleState(state, dt): #assumes heading rate and fwdAccel are con
 	dz = state.velocity[2]*dt
 
 	#write output back to state
-	state.velocity[0] = sf * m.cos(psif)#yes; this is the Y direction velocity
-	state.velocity[1] = sf *m.sin(psif) #yes; the X velocity
+	state.velocity[0] = sf * m.cos(psif)
+	state.velocity[1] = sf *m.sin(psif)
 	state.heading.value = wrapToPi(psif)
 
 	qGPS = np.matrix([[state.position.lat],[ state.position.lon],[-state.position.alt]])
 	dqGPS = getRelPos(qGPS,qGPS + 1e-6) / 1e-6
 	state.position.lat = np.asscalar(state.position.lat + dx/dqGPS[0])
 	state.position.lon = np.asscalar(state.position.lon + dy/dqGPS[1])
-	state.position.alt = (state.position.alt + dz)
+	state.position.alt = (state.position.alt - dz)
 	
 #	print "T1: " + str(state.timestamp)	
 	state.timestamp = state.timestamp + timedelta(seconds = dt)

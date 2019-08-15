@@ -76,7 +76,8 @@ class BasicVehicleState(object):
 		values += [self.roll.value,self.roll.rate,self.roll.accel]
 
 		headers += ['fwdAccel']
-		values += [self.fwdAccel]
+		values += [self.fwdAccel]	
+
 		out = OrderedDict(zip(headers,values))
 		return out
 
@@ -104,7 +105,9 @@ class FullVehicleState(BasicVehicleState):
 		self.RCLatch = True
 		self.airspeed = 0.0
 		self.groundspeed = 0.0
-		self.windEstimate = {'vx':None,'vy':None,'vz':None}
+		self.wind_estimate = {'vx':None,'vy':None,'vz':None}
+		self.batteryV = None
+		self.batteryI = None
 		self.timeout= Timeout()
 	def getCSVLists(self):
 		base = super(FullVehicleState,self).getCSVLists()
@@ -125,6 +128,9 @@ class FullVehicleState(BasicVehicleState):
 		
 		headers +=['IMU_ax', 'IMU_ay', 'IMU_az']
 		values+= [ self.imuAccel.x , self.imuAccel.y, self.imuAccel.z]
+		
+		headers += ['batV','batI']
+		values += [self.batteryV,self.batteryI]
 		
 		(h,v) = recordTypeToLists(self.controlState)
 		headers += h
