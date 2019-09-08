@@ -1,6 +1,7 @@
 from recordtype import recordtype
 import numpy as np
 from collections import OrderedDict
+from datetime import datetime
 
 zeroVect = np.matrix([[0],[0],[0]])
 
@@ -43,7 +44,9 @@ class BasicVehicleState(object):
 		self.isFlocking = False	
 		self.timeToWait = 0	
 		self.qdIndex = 0
+		self.time=datetime.now()
 		if other is not None:
+			#print "Calling basic copy constructor"
 			for k in self.__dict__.keys():
 				self.__dict__[k] = other.__dict__[k] #This is terrible
 	def getCSVLists(self):
@@ -81,20 +84,44 @@ class BasicVehicleState(object):
 		out = OrderedDict(zip(headers,values))
 		return out
 
-		#d = self.__dict__
-		#for k in d.keys():
+		# d = self.__dict__
+		# for k in d.keys():
 		#	v = d[k]
 		#	if(isinstance(v,np.matrix)):
 		#		(k2,v2) = ecToCSV(v,k)
 		#	elif '_asdict' in dir(v): #If it's a recordtype
 		#		for
-		return 
-				
+		#return
+
+
+
+	def fromCSVList(self,lin):
+		out= BasicVehicleState()
+		din = out.getCSVLists()
+		din = OrderedDict(zip(din.keys(),lin  ))
+		out.ID =din['ID']
+		out.counter = din['Counter']
+		out.timestamp = din['timestamp']
+		out.timeToWait = din['timeToWait']
+
+		out.position.lat = din['lat']
+		out.position.lon = din['lon']
+		out.position.alt = din['alt']
+		out.position.time =din['posTime']
+		out.velocity = [ din['latSpd'],din['lonSpd'] ,din['altSpd']  ]
+		out.heading = CourseAngle(din['cHeading'],din['cHeadingRate'], din['cHeadingAccel'] )
+		out.roll = CourseAngle(din['cRoll'],din['cRollRate'],din['cRollAccel'])
+		out.pitch = CourseAngle(din['cPitch'], din['cPitchRate'], din['cPitchAccel'])
+		self.fwdAccel= din['fwdAccel']
+		return out
+
+
+
 	
 		
 class FullVehicleState(BasicVehicleState):
-	def __init__(self):
-		super(FullVehicleState, self).__init__()
+	def __init__(self, other = None):
+		super(FullVehicleState, self).__init__(other)
 		self.startTime = None
 		self.attitude = None
 		self.imuAccel = None
@@ -108,7 +135,14 @@ class FullVehicleState(BasicVehicleState):
 		self.wind_estimate = {'vx':None,'vy':None,'vz':None}
 		self.batteryV = None
 		self.batteryI = None
+		self.servoOut = None
 		self.timeout= Timeout()
+		self.parameters=Parameter()
+		self.navOutput={'navRoll':None,'navPitch':None,'navBearing':None}
+		if other is not None:
+			#print "Calling Full copy constructor"
+			for k in self.__dict__.keys():
+				self.__dict__[k] = other.__dict__[k]  # This is terrible
 	def getCSVLists(self):
 		base = super(FullVehicleState,self).getCSVLists()
 		headers = base.keys()
@@ -119,9 +153,9 @@ class FullVehicleState(BasicVehicleState):
 		headers.append('groundspeed')
 		values.append(self.groundspeed)
 		
-		headers+= ['roll','pitch','yaw','rollspeed','pitchspeed','yawspeed']
+		headers+= ['roll','pitch','yaw','rollspeed','pitchspeed','yawspeed','attTime']
 		values+= [self.attitude.roll, self.attitude.pitch,self.attitude.yaw,
-			self.attitude.rollspeed,self.attitude.pitchspeed,self.attitude.yawspeed]
+			self.attitude.rollspeed,self.attitude.pitchspeed,self.attitude.yawspeed, self.attitude.time]
 
 		headers +=['wind_vx','wind_vy','wind_vz']
 		values += [self.wind_estimate['vx'],self.wind_estimate['vy'],self.wind_estimate['vz']]
@@ -131,6 +165,9 @@ class FullVehicleState(BasicVehicleState):
 		
 		headers += ['batV','batI']
 		values += [self.batteryV,self.batteryI]
+
+		headers += ['navRoll','navPitch','navBearing']
+		values += [self.navOutput['navRoll'], self.navOutput['navPitch'], self.navOutput['navBearing'] ]
 		
 		(h,v) = recordTypeToLists(self.controlState)
 		headers += h

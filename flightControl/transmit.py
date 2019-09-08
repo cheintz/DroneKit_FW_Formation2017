@@ -28,26 +28,31 @@ class Transmitter(multiprocessing.Process):
 	def run(self):
 		signal.signal(signal.SIGINT, signal.SIG_IGN)
 		while( not self.stoprequest.is_set()):
-			while( not self.stoprequest.is_set()):
-#				print "Have a message to transmit"
-			#	if(self.transmitQueue.qsize()>5):
-				#	print "TX Queue" + str(self.transmitQueue.qsize())
-				try:
-					msg = self.transmitQueue.get(True, 0.5)
-					self.sendMessage(msg)
+			if(self.transmitQueue.qsize()>1):
+				print "TX Queue size: " + str(self.transmitQueue.qsize())
+			try:
+				msg = self.transmitQueue.get(True, 0.5)
+				self.sendMessage(msg)
 #					print "sending message"
-				#	self.transmitQueue.task_done() #May or may not be helpful
-				except Queue.Empty:
-					time.sleep(0.00001)
-					break #no more messages.
+			#	self.transmitQueue.task_done() #May or may not be helpful
+			except Queue.Empty:
+				time.sleep(0.001)
+				break #no more messages.
+
 		print "Transmit Stopped"
 					
 	def sendMessage(self, msg):
+		#print msg
 		mp = cPickle.dumps(msg,cPickle.HIGHEST_PROTOCOL)
-		#mp = zlib.compress(mp)
-		#print "packetLength: " + str(len(mp))
+#		mp = cPickle.dumps(msg,1)
+#		print len(str(msg.content.__dict__))
+#		print len(mp)
+		mp = zlib.compress(mp)
+		#print len(mp)
 
-#		print "Length zlib: "+str(len(zlib.compress(mp)))	
+	#	print "packetLength: " + str(len(mp))
+
+	#	print "Length zlib: "+str(len(zlib.compress(mp)))	
 #		print "Encoded is" + mp
 		self.s.sendto(mp,self.sendAddress);
 		#print "Send complete"

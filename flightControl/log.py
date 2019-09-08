@@ -90,7 +90,7 @@ class Logger(multiprocessing.Process):
 		thisList =thisState.getCSVLists().keys()
 		self.numItemsPerSelf = len(thisList)
 		if(thisState.parameters.txStateType == 'basic'):
-			temp = BasicVehicleState(copy.deepcopy(thisState))
+			temp = BasicVehicleState(copy.deepcopy(thisState)) #not sure why this deepcopy
 			otherList = temp.getCSVLists()
 			self.numItemsPerOther = len(otherList)
 		else:

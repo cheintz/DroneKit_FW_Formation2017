@@ -43,7 +43,7 @@ class Receiver(multiprocessing.Process):
 				pass
 			else:
 				mp=mp[0]
-				#mp = zlib.decompress(mp)
+				mp = zlib.decompress(mp)
 				try:
 					msg=cPickle.loads(mp)
 					msg.sendTime = datetime.now() #Can't account for latency without synced system clocks
@@ -51,13 +51,13 @@ class Receiver(multiprocessing.Process):
 					pass
 				except ValueError:
 					print "received invalid packet"
-				if(self.receiveQueue.qsize()>5):
+				if(self.receiveQueue.qsize()>2):
 					print "Receive Queue Size" + str(self.receiveQueue.qsize())
 		except socket.error, e:
 			if not e.args[0] == 'timed out':
 				raise e
 			else:
-				print "timeout"
+				print e
 		
 		
 		

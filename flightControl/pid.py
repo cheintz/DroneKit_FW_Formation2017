@@ -21,7 +21,8 @@ class PIDController:
 		[self.integrator,satFlag] =antiWindup(output,self._lowerOutSat,self._upperOutSat,self.integrator,e*Ts)
 		self.integrator = saturate(self.integrator,self._lowerIntSat,self._upperIntSat)
 		if(satFlag):
-			print "KPID: " + str(self.gains)
+	#		print "KPID: " + str(self.gains)
+			pass
 		return [output, terms]
 		
 	def reset(self):
@@ -34,13 +35,13 @@ def antiWindup(value, lowLimit,highLimit, accumulator, toAdd):
 		if(toAdd>0):
 			accumulator =accumulator+toAdd
 		else:
-			print "Antiwindup high HL" + str(highLimit)
+	#		print "Antiwindup high HL" + str(highLimit)
 			satFlag = True
 	elif(value<=lowLimit):
 		if(toAdd < 0):
 			accumulator =accumulator+toAdd		
 		else:
-			print "antiwindup low LL " + str(lowLimit)
+	#		print "antiwindup low LL " + str(lowLimit)
 			satFlag = True
 	else:
 		accumulator =accumulator+toAdd
