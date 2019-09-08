@@ -367,7 +367,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		msg.sendTime = datetime.now()
 		if self.parameters.txStateType == 'basic':
 #			temp = BasicVehicleState(self.vehicleState) # This is a deep-ish copy
-			temp = BasicVehicleState(copy.deepcopy(self.vehicleState))
+			temp = BasicVehicleState(cPickle.loads(cPickle.dumps(self.vehicleState)))
+#			temp = BasicVehicleState(copy.deepcopy(self.vehicleState))
 			msg.content = temp #only basic vehicle state
 		else: #Full state
 			msg.content = copy.deepcopy(self.vehicleState)
@@ -379,11 +380,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		msg.type = "UAV_LOG"
 		msg.sendTime=time.time()
 		msg.content = {}
-#		msg.content['thisState']=cPickle.loads(cPickle.dumps(self.vehicleState))
-		msg.content['thisState']=copy.deepcopy(self.vehicleState)
+		msg.content['thisState']=cPickle.loads(cPickle.dumps(self.vehicleState))
+#		msg.content['thisState']=copy.deepcopy(self.vehicleState)
 	#	msg.content['thisState'] = FullVehicleState(self.vehicleState)
-#		msg.content['stateVehicles']=cPickle.loads(cPickle.dumps(self.stateVehicles))
-		msg.content['stateVehicles']=copy.deepcopy(self.stateVehicles)
+		msg.content['stateVehicles']=cPickle.loads(cPickle.dumps(self.stateVehicles))
+#		msg.content['stateVehicles']=copy.deepcopy(self.stateVehicles)
 		#msg.content['stateVehicles']=FullVehicleState(self.stateVehicles)
 
 		#print "Begin test"
