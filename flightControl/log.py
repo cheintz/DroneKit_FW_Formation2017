@@ -4,7 +4,7 @@ import socket
 import Queue
 import logging
 import multiprocessing
-import jsonpickle
+#import jsonpickle
 import cPickle
 import os
 import time

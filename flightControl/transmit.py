@@ -4,7 +4,6 @@ import socket
 import logging
 import multiprocessing
 import Queue
-import jsonpickle
 import cPickle
 import zlib
 import time
@@ -37,10 +36,11 @@ class Transmitter(multiprocessing.Process):
 			#	self.transmitQueue.task_done() #May or may not be helpful
 			except Queue.Empty:
 				time.sleep(0.001)
-				break #no more messages.
+				print "Tx queue empty"
+				continue #no more messages.
 
 		print "Transmit Stopped"
-					
+
 	def sendMessage(self, msg):
 		#print msg
 		mp = cPickle.dumps(msg,cPickle.HIGHEST_PROTOCOL)
@@ -49,7 +49,6 @@ class Transmitter(multiprocessing.Process):
 #		print len(mp)
 		mp = zlib.compress(mp)
 		#print len(mp)
-
 	#	print "packetLength: " + str(len(mp))
 
 	#	print "Length zlib: "+str(len(zlib.compress(mp)))	

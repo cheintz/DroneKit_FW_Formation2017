@@ -32,7 +32,7 @@ else:
 	broadcastIP= os.environ["BROADCASTIP"]
 	import defaultConfig
 
-#broadcastIP= "10.0.2.255"
+broadcastIP= "10.0.2.255"
 
 transmitAddress = (broadcastIP,peerReadPort)
 

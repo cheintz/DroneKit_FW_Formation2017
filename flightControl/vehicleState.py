@@ -12,7 +12,7 @@ PIDTerms = recordtype('PIDTerms',['p','i','d','ff'],default = 0.0)
 
 Timeout = recordtype('Timeout' , ['GCSTimeoutTime', ('peerTimeoutTime',{}), 'localTimeoutTime', 'GCSLastRx', ('peerLastRX',{})], default = None)
 
-Parameter = recordtype('Parameter',['receivedTime','desiredPosition','gains', 'Ts', 'GCSTimeout', 'peerTimeout', 'leaderID', 'expectedMAVs', 'rollGain', 'config', 'rollOffset', 'pitchGain', 'pitchOffset', 'throttleGain', 'throttleMin',('txStateType','basic')], default = None)
+Parameter = recordtype('Parameter',['receivedTime','desiredPosition','gains', 'Ts', 'GCSTimeout', 'peerTimeout', 'leaderID', 'expectedMAVs', 'rollGain', 'config', 'rollOffset', 'pitchGain', 'pitchOffset', 'throttleGain', 'throttleMin',('txStateType','basic'),'communication'], default = None)
 
 Command = recordtype('Command',['sdi','sdiDot','asTarget',('omega',zeroVect),'psiD','psiDDot','thetaD','rollCMD','thetaDDot',
 	'pitchCMD','throttleCMD','timestamp',('qd',zeroVect)], default = None)

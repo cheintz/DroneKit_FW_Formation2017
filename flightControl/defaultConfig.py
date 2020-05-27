@@ -16,13 +16,21 @@ def getParams():
 		,'kSpeed':KPID(5,0.8,3),'rollLimit':50/(180/m.pi),'kPitch':KPID(1, 0.2,.2),'kAlt':KPID(.026, .0017,.0105),'pitchLimit':20/(180/m.pi)
 		, 'maxEHeading':50,'maxEPitch':50,'maxESpeed':300, 'aSpeed':0.4,'gammaS':1,'kSpdToThrottle':5,'nomSpeed':18.5
 		,'kThrottleFF': 0,'kRollFF':1,'gammaB':0.0003,'maxEAlt':50}
-	defaultParams.config = {'printEvery':10,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
+	defaultParams.config = {'printEvery':10,'ignoreSelfPackets':False,'propagateStates':True , 'geofenceAbort':False
 		,'mode':'Formation','acceptableEngageMode': (VehicleMode('FBWA'),),'dimensions':3 }
 	defaultParams.GCSTimeout = 5 #secondsr
-	defaultParams.peerTimeout = 4 #seconds
+	defaultParams.peerTimeout = 0.7 #seconds
 	defaultParams.leaderID = 1   #MAV ID of leader
 	defaultParams.expectedMAVs = 3 #One, plus the leaders
-	defaultParams.Ts = 1.0/10.0
+	temp=np.zeros([5,5])
+	temp[1][2]=temp[2][1]=1
+	temp[3][2]=temp[2][3]=1
+	temp[3][4]=temp[4][3]=1
+	temp[1][4]=temp[4][1]=1
+	temp[1][0]=1
+
+	defaultParams.communication=temp
+	defaultParams.Ts = 1.0/20.0
 	defaultParams.txStateType = 'basic'
 
 #These are no longer used

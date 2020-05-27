@@ -4,7 +4,7 @@ import socket
 import Queue
 import logging
 import multiprocessing
-import jsonpickle
+#import jsonpickle
 import cPickle
 import zlib
 import signal
@@ -51,7 +51,7 @@ class Receiver(multiprocessing.Process):
 					pass
 				except ValueError:
 					print "received invalid packet"
-				if(self.receiveQueue.qsize()>2):
+				if(self.receiveQueue.qsize()>8):
 					print "Receive Queue Size" + str(self.receiveQueue.qsize())
 		except socket.error, e:
 			if not e.args[0] == 'timed out':

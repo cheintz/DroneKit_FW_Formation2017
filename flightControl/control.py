@@ -590,7 +590,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 #		self.lastFFFilt = FFFilt
 #		self.lastFF = FF 
 		#CS.pgTerm = FFFilt   #enable this to actually do the lead 
-		
+		kl = kl * self.parameters.communication[ID-1][0]
+		self.pm.p('Leader rel gain: ' + str(self.parameters.communication[ID-1][0]))
 		CS.kplTerm = -kl * sigma(zetai)*(zetai) - 1* kl * sigma(zetai)*zetaiDot
 
 		pdiDot = pgDot+RgDDot*di  - kl*( np.asscalar(sigmaDot(zetai).transpose()*zetaiDot)*zetai + sigma(zetai)*zetaiDot )
@@ -601,8 +602,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.kpjTerm = np.matrix([[0],[0],[0]])
 
 	#compute from peers
-		for j in range(1,n+1):
-			if(ID != j and j !=THIS.parameters.leaderID):
+		for j in range(1,n+1): #This loops over mav IDs, not indices in any arrays
+			if(ID != j and j !=THIS.parameters.leaderID and self.parameters.communication[ID-1][j-1]>0):
+				self.pm.p( "Processing with mav ID: "+ str(j ))
 				JPLANE = self.stateVehicles[(j)]
 				qj_gps = np.matrix([[JPLANE.position.lat], [JPLANE.position.lon],[-JPLANE.position.alt]])
 				qij = getRelPos(qj_gps,qi_gps)
