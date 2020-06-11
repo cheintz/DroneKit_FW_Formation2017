@@ -63,6 +63,9 @@ class BasicVehicleState(object):
 		headers.append('timeToWait')
 		values.append(self.timeToWait)
 
+		headers.append('isFlocking')
+		values.append(self.isFlocking*1) #times one to from True to 1
+
 		headers+= ['lat','lon','alt','posTime']
 		values+= [self.position.lat,self.position.lon,self.position.alt,self.position.time]
 
@@ -95,7 +98,7 @@ class BasicVehicleState(object):
 
 
 
-	def fromCSVList(self,lin):
+	def fromCSVList(self,lin): #Probably intended to be used for different data transmission format
 		out= BasicVehicleState()
 		din = out.getCSVLists()
 		din = OrderedDict(zip(din.keys(),lin  ))
@@ -103,6 +106,7 @@ class BasicVehicleState(object):
 		out.counter = din['Counter']
 		out.timestamp = din['timestamp']
 		out.timeToWait = din['timeToWait']
+		out.isFlocking=din['isflocking']
 
 		out.position.lat = din['lat']
 		out.position.lon = din['lon']

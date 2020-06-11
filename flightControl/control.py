@@ -305,7 +305,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicleState.batteryV = self.vehicle.battery.voltage
 		self.vehicleState.batteryI = self.vehicle.battery.current
 		nco = self.vehicle.nav_controller_output
-		self.vehicleState.navOut = {'navRoll', nco.nav_roll,'navPitch',nco.nav_pitch,'navBearing',nco.nav_bearing}
+		self.vehicleState.navOutput = {'navRoll': nco.nav_roll,'navPitch':nco.nav_pitch,'navBearing':nco.nav_bearing}
 
 	#Heading Rates
 		#Filter startup handling
@@ -664,7 +664,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 	#	phpsd = 0.0
 
 		CS.backstepSpeed = THIS.command.sdi + (airspd-groundspd)
-		CS.backstepSpeedError =  1.0/GAINS['aSpeed']* -GAINS['gammaS'] * siTilde * hi
+		CS.backstepSpeedError =  1.0/GAINS['aSpeed']* -GAINS['gammaS'] * siTilde * h
 		CS.backstepSpeedRate = 1.0 / GAINS['aSpeed'] * THIS.command.sdiDot
 
 		asTarget = ((-bigF - GAINS['gammaS'] * eta)/ (bigG * littleg) + (sdiDot - littlef) / littleg 
