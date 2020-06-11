@@ -14,6 +14,7 @@ from servovehicle import ServoVehicle
  
 #get enviromental variables
 AdHocIP = os.environ['ADHOCIP']
+AdHocIP = "192.168.0.108" #override if the environmental variable is wrong
 peerReadPort = int(os.environ['PORT'])
 myAddr = (AdHocIP, peerReadPort)
 logPath = os.environ["LOGPATH"]
@@ -32,7 +33,12 @@ else:
 	broadcastIP= os.environ["BROADCASTIP"]
 	import defaultConfig
 
-broadcastIP= "10.0.2.255"
+
+#use nothing for the hardware in the planes
+
+#broadcastIP= "10.0.2.255" #for virual machine
+broadcastIP= "192.168.0.255"  #this is for the physical machine
+
 
 transmitAddress = (broadcastIP,peerReadPort)
 

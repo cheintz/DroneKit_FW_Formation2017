@@ -504,9 +504,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				print ex
 			qd = np.asmatrix(qd)
 		else: #only 1 desired position
-			qd = THIS.parameters.desiredPosition
+			qd = np.asmatrix(THIS.parameters.desiredPosition)
 		di=qd[ID-2,np.matrix([0,1,2])]
-
 		self.pm.p('Qd: ' + str(di))
 
 		di.shape=(3,1)
@@ -538,16 +537,13 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		qil = getRelPos(ql_gps, qi_gps)
 
-
 		Rg = eul2rotm(psiG,thetaG,phiG)
 		OmegaG = skew(ERatesToW(psiG,thetaG,phiG,LEADER.heading.rate,thetaGDot,LEADER.roll.rate))
 		OmegaGDot = 1*skew(EAccelToAlpha(LEADER.heading,CourseAngle(thetaG,thetaGDot,0),LEADER.roll))
-#		self.pm.p("OmegaGDot: " + str(OmegaGDot))
 
 		RgDot = Rg*OmegaG;
 		RgDDot =Rg*OmegaG*OmegaG+ 0*Rg*OmegaGDot;
 		pgDot = LEADER.fwdAccel * Rg*e1 + (Rg * OmegaG) * e1 * sg 
-		#print "Centripedal: " + str(Rg*OmegaG * e1 * sg)
 		CS.pgDot = pgDot
 
 		self.pm.p( 'Time: = ' + str(THIS.time))
@@ -570,26 +566,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.pgTerm = pg
 		CS.rotFFTerm = RgDot*di
 		self.pm.p('F(zetai)' + str( F(zetai)))
-#		print "Without" + str(CS.pgTerm)
 
-#########################Feed-forward Lead filter
-
-#		FF = CS.pgTerm + CS.rotFFTerm 
-
-#		a = 2
-#		b = 1.819
-#		c = 1
-#		d = .8187
-#
-#		if self.lastFF is None:
-#			self.lastFF = FF
-#		if self.lastFFFilt is None:
-#			self.lastFFFilt = FF
-#		FFFilt = (a*FF - b* self.lastFF) +d*self.lastFFFilt
-#
-#		self.lastFFFilt = FFFilt
-#		self.lastFF = FF 
-		#CS.pgTerm = FFFilt   #enable this to actually do the lead 
 		kl = kl * self.parameters.communication[ID-1][0]
 		self.pm.p('Leader rel gain: ' + str(self.parameters.communication[ID-1][0]))
 		CS.kplTerm = -kl * sigma(zetai)*(zetai) - 1* kl * sigma(zetai)*zetaiDot
@@ -661,10 +638,12 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		#self.pm.p("OmegaFFZ : " + str(OmegaFF[1, 0]))
 	#	self.pm.p("OmegaFBZ : " + str(OmegaFB[1, 0]))
 		#self.pm.p("OmegaNet : " + str(OmegaFF[1, 0]+OmegaFB[1, 0]))
+		THIS.command.omega=omega
+
 
 		#Bounded speed control (ACC)
-		sMax = vMax+1
-		sMin = vMin-1
+		sMax = vMax+0.1
+		sMin = vMin-0.1
 		littlef = -GAINS['aSpeed'] * groundspd
 		littleg = GAINS['aSpeed']
 		n = (sMax - sdt) * (-sMin + sdt)
@@ -673,31 +652,44 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		bigF = (sMax +sMin - 2*sdt)*siTilde * sdiDot / d - n*(sMax - 2*sdt - 2*siTilde + sMin) * siTilde * sdiDot / d**2
 		bigG = n/d - n*(sMax - 2*sdt - 2*siTilde + sMin) * siTilde / d**2
 
+		#published way of computing the speed control
+		si=groundspd
+		h=((sMax-sdt)*(sdt-sMin))/((sMax-si)*(si-sMin))
+		phps=(sMax+sMin-2*si)/((sMax-si)*(si-sMin)) * h
+		phpsd=(sMax+sMin-2*sdt) / ((sMax-si)*(si-sMin))
 
-		THIS.command.omega=omega
+		#uncomment to disable the speed BLF
+	#	h=1.0
+	#	phps=0.0
+	#	phpsd = 0.0
+
 		CS.backstepSpeed = THIS.command.sdi + (airspd-groundspd)
-		CS.backstepSpeedError =  1.0/GAINS['aSpeed']* -GAINS['gammaS'] * siTilde
+		CS.backstepSpeedError =  1.0/GAINS['aSpeed']* -GAINS['gammaS'] * siTilde * hi
 		CS.backstepSpeedRate = 1.0 / GAINS['aSpeed'] * THIS.command.sdiDot
+
 		asTarget = ((-bigF - GAINS['gammaS'] * eta)/ (bigG * littleg) + (sdiDot - littlef) / littleg 
 			+ (airspd-groundspd)) #ACC Control
-		self.pm.p("littlef: " + str(littlef))
-		self.pm.p("littleg: " + str(littleg))
-		self.pm.p("EtaSF: " + str(n/d))
-		self.pm.p("BigG: " + str(bigG))
-		self.pm.p("BigF: " + str(bigF))
-		self.pm.p("First Term: " + str((-bigF - GAINS['gammaS'] * eta)/ ((bigG * littleg))) )
-		self.pm.p('secondDterm: '  + str( ( sdiDot - littlef) / littleg  ) )
+		asTargetnew = (-1.0/littleg * (  littlef + 1.0/(h+siTilde*phps)*(GAINS['gammaS']*siTilde*h + (siTilde*phpsd -h) * sdiDot)   )
+			+ (airspd-groundspd))
+
+	#	self.pm.p("asControlError: "+ str(asTarget-asTargetnew))
+		asTarget=asTargetnew
+	#	self.pm.p("littlef: " + str(littlef))
+	#	self.pm.p("littleg: " + str(littleg))
+	#	self.pm.p("EtaSF: " + str(n/d))
+	#	self.pm.p("BigG: " + str(bigG))
+	#	self.pm.p("BigF: " + str(bigF))
+	#	self.pm.p("First Term: " + str((-bigF - GAINS['gammaS'] * eta)/ ((bigG * littleg))) )
+	#	self.pm.p('secondDterm: '  + str( ( sdiDot - littlef) / littleg  ) )
 	#	print "eta: " + str(eta)
 		
-		asTarget = CS.backstepSpeed + CS.backstepSpeedRate + CS.backstepSpeedRate # CDC backstepping
+	#	asTarget = CS.backstepSpeed + CS.backstepSpeedRate + CS.backstepSpeedRate # CDC backstepping
 		#asTarget = sdi #No backstepping
 		self.pm.p('ASTarget: '  + str(asTarget))
 		THIS.command.asTarget = saturate(asTarget, vMin, vMax)
 		self.pm.p("Commanded omega_z:" + str(omega[2,0]))
-
-
 		
-	#compute implementable controls
+	#compute implementable orientation controls
 
 		#compute a good roll so that we don't need any rollspeed
 		CS.phiNew=0
@@ -745,17 +737,14 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		arg = cmd.psiDDot * THIS.groundspeed / 9.81 * m.cos(THIS.attitude.pitch)
 		rollFFTerm = THIS.parameters.gains['kRollFF']*m.atan(arg) 
 		#rollFFTerm = rollFFTerm + (THIS.parameters.gains['kRollInversion'] * self.vehicle.parameters['RLL2SRV_TCONST'] * cmd.psiDDDot * 
-		#	1/m.sqrt(arg**2+1)  )
+		#	1/m.sqrt(arg**2+1)  ) #Attempt to invert the roll/yaw dynamics (that are assumed to be 1 by the agent model)
 
 		(cmd.rollCMD , CS.rollTerms) = self.rollController.update(ePsi,
 			(calcTurnRate-cmd.psiDDot),self.thisTS,rollFFTerm)
 		CS.accHeadingError=self.rollController.integrator
 		cmd.timestamp = datetime.now()
 		self.pm.p("Commanded heading rate (rllctrl): " + str(THIS.command.psiDDot))
-	#	self.pm.p( "ePsi: " + str(ePsi) )
-
-	#speed control
-		#speedD = np.linalg.norm(pdi,2) * m.cos(thgammaB-thetaD) #reduce commanded velocity based on heading error
+	#	self.pm.p( "Heading Error: " + str(ePsi) )
 
 	def throttleControl(self):
 		THIS = self.vehicleState
@@ -813,7 +802,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	####### RC Input Calibration#####
 	#ROLL
-		params.rollGain = (vp['RC1_MAX'] - vp['RC1_MIN']) / 2 / (vp['LIM_ROLL_CD']/100 /(180/m.pi))  #update to include out of perfect trim
+		params.rollGain = (vp['RC1_MAX'] - vp['RC1_MIN']) / 2 / (vp['LIM_ROLL_CD']/100 /(180/m.pi))  #TODO: update to include out of perfect RC input trim
 		if(vp['RC1_REVERSED'] == 1):
 			params.rollGain = - params.rollGain
 		params.rollOffset = vp['RC1_TRIM']
@@ -828,8 +817,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 	#THROTTLE
 		params.throttleMin=vp['RC3_TRIM']
 		params.throttleGain = (vp['RC3_MAX'] - vp['RC3_TRIM']) / 100.0
-
-		
+	
 		self.pm = PrintManager(self.parameters.config['printEvery'])
 		self.rollController = PIDController(gains['kHeading'], -vp['LIM_ROLL_CD']/100.0 /(180/m.pi),vp['LIM_ROLL_CD']/100.0 /(180/m.pi)
 			,-gains['maxEHeading'],gains['maxEHeading'])
