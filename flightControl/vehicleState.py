@@ -8,21 +8,21 @@ zeroVect = np.matrix([[0],[0],[0]])
 
 KPID = recordtype('KPID', ['kp','ki','kd'])
 
-PIDTerms = recordtype('PIDTerms',['p','i','d','ff'],default = 0.0)
+PIDTerms = recordtype('PIDTerms',['p','i','d','ff','unsaturatedOutput'],default = 0.0)
 
 Timeout = recordtype('Timeout' , ['GCSTimeoutTime', ('peerTimeoutTime',{}), 'localTimeoutTime', 'GCSLastRx', ('peerLastRX',{})], default = None)
 
 Parameter = recordtype('Parameter',['receivedTime','desiredPosition','gains', 'Ts', 'GCSTimeout', 'peerTimeout', 'leaderID', 'expectedMAVs', 'rollGain', 'config', 'rollOffset', 'pitchGain', 'pitchOffset', 'throttleGain', 'throttleMin',('txStateType','basic'),'communication'], default = None)
 
-Command = recordtype('Command',['sdi','sdiDot','asTarget',('omega',zeroVect),'psiD','psiDDot','thetaD','rollCMD','thetaDDot',
+Command = recordtype('Command',['sdi','sdt','sdiDot','asTarget',('omega',zeroVect),'psiD','psiDDot','thetaD','rollCMD','thetaDDot',
 	'pitchCMD','throttleCMD','timestamp',('qd',zeroVect)], default = None)
 
 CourseAngle = recordtype('CourseAngle',['value','rate','accel'],default=0.0)	
 
 ControlState = recordtype('ControlState',[('pgTerm',zeroVect),('rotFFTerm',zeroVect),('kplTerm',zeroVect),('kpjTerm',zeroVect),('pdi',zeroVect)
-	,('bdi',zeroVect),('bdiDot',zeroVect),'accHeadingError',('rollTerms',PIDTerms()),'accSpeedError','phiNew'
+	,('bdi',zeroVect),('pdiDot',zeroVect),'accHeadingError',('rollTerms',PIDTerms()),'accSpeedError','phiNew'
 	,('throttleTerms',PIDTerms()),'accPitchError',('pitchTerms',PIDTerms()),'accAltError'
-	,'backstepSpeed','backstepSpeedError','backstepSpeedRate',('angleRateTarget',zeroVect),('pgDot',zeroVect)]
+	,'backstepSpeed','backstepSpeedError','backstepSpeedRate',('angleRateTarget',zeroVect),('pgDot',zeroVect),'h','phps','phpsd','mu']
 	, default = 0.0)
 
 Message = recordtype('Message','type,sendTime,content', default = None)
@@ -156,7 +156,11 @@ class FullVehicleState(BasicVehicleState):
 		values.append(self.airspeed)
 		headers.append('groundspeed')
 		values.append(self.groundspeed)
-		
+
+#		velocityVector= np.matrix([[self.velocity[0] ],[self.velocity[1]],[self.velocity[2] ]])
+#		print 'Speed error log ' +str(self.ID) +': ' + str(np.linalg.norm(velocityVector)  -1.0*self.groundspeed)
+#		print 'Velocity log' + str(velocityVector.transpose())
+		 
 		headers+= ['roll','pitch','yaw','rollspeed','pitchspeed','yawspeed','attTime']
 		values+= [self.attitude.roll, self.attitude.pitch,self.attitude.yaw,
 			self.attitude.rollspeed,self.attitude.pitchspeed,self.attitude.yawspeed, self.attitude.time]
