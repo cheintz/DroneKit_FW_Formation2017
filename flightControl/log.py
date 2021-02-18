@@ -4,7 +4,6 @@ import socket
 import Queue
 import logging
 import multiprocessing
-#import jsonpickle
 import cPickle
 import os
 import time
@@ -22,7 +21,8 @@ class Logger(multiprocessing.Process):
 #		self.file=open(datetime.now().strftime("%y_%m_%d_%H_%M_%S_log.csv"),'w')
 		#self.file=open(os.path.join("/home/pi/logs" ,datetime.now().strftime("log_%Y_%m_%d__%H_%M_%S.csv")),'w')
 		self.startTime=startTime
-		self.file=open(os.path.join(logPath,  self.startTime.strftime("%Y_%m_%d__%H_%M_%S_log") + fileSuffix+ '.csv'),'w' ) 
+		timeObject=time.localtime(startTime)
+		self.file=open(os.path.join(logPath,  time.strftime("%Y_%m_%d__%H_%M_%S_log",timeObject) + fileSuffix+ '.csv'),'w' )
 		self.headerWritten = False
 		self.lastLogged = 0
 		self.numItemsPerSelf=0
@@ -60,10 +60,10 @@ class Logger(multiprocessing.Process):
 			self.writeHeaderString(thisState)
 			self.headerWritten = True
 
-		outString = str(thisState.time) + ','
+		outString = "{:.4f}".format(thisState.timestamp) + ','
 
 		
-		outString+= str((thisState.time - thisState.startTime).total_seconds())+','
+		outString+= str(thisState.timestamp - thisState.startTime)  +','
  #relative time
 		for i in range(1,thisState.parameters.expectedMAVs+1):
 			try:
@@ -73,7 +73,19 @@ class Logger(multiprocessing.Process):
 					stateToWrite =thisState
 				
 				myOrderedDict = stateToWrite.getCSVLists()
-				outString += ','.join(map(str, myOrderedDict.values()))
+				valueStringList = []
+				for k in myOrderedDict.keys():
+					if myOrderedDict[k] is None:
+#						print k + " is None"
+						valueStringList.append(str(None))
+					elif(k == "timestamp" or k == "posTime"):
+						valueStringList.append("{:.4f}".format(myOrderedDict[k]) )
+					else:
+						valueStringList.append( str(myOrderedDict[k]) )
+				oldString =','.join(map(str, myOrderedDict.values())) #old way, don't need more digits on timestamps
+				outString += ','.join(valueStringList)
+#				print "outString: " + outString
+#				print "oldString: " + oldString
 			except KeyError:
 				outString += str(i)+','
 				for j in range(0,self.numItemsPerOther-2): #write blanks to save the space

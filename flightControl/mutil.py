@@ -2,11 +2,19 @@ import sys
 from vehicleState import *
 from datetime import datetime
 from collections import OrderedDict
+import struct
 
 attitudeKeys = ['roll','pitch','yaw','rollspeed','pitchspeed','yawspeed']
 positionKeys = ['lat','lon','alt','time']
 velocityKeys = [0,1,2]
 courseAngleKeys = ['value','rate','accel']
+
+#fake enum for message types
+UAV = 0
+GND = 1
+HBT = 2
+PRM = 3
+LOG=4
 
 def vsToLogPrep(vs):
 #	print vs.ID
@@ -139,6 +147,35 @@ def handleMatrix(mat,basename):
 		outKey.append(basename+'_'+str(j))
 		outValue.append(mat[j,0])
 	return (outKey,outValue)
+
+binFormat = 'd I I I d f ? f f f d f f f f f f f f f f f f f'
+messageStruct = struct.Struct(binFormat)
+
+def msgToBinary(msg):
+	data = [msg.sendTime,msg.msgType] + msg.content.values()
+#	print msg.content.keys()
+#	print msg.content.keys()
+	out = messageStruct.pack(*data)  # * unpacks list arguments
+#	dataCheck = messageStruct.unpack(out)
+#	for idx,x in enumerate(data):
+#		print str(data[idx]) + "\t" + str(dataCheck[idx])
+#	print "\n\n\n"
+
+	return out
+
+def binaryToMessage(msg,input):
+#	print "\n\ninBinaryToMessage"
+#	print "msg: "+ str(msg)
+	data = messageStruct.unpack(input)
+#	print "\n\n"
+
+	msg.sendTime=data[0]
+	msg.msgType=data[1]
+	msg.content= OrderedDict(zip(msg.content.keys(),data[2:]))
+	return msg
+#	print "msgParsed: " + str(msg)
+
+
 
 			
 	

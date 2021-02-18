@@ -1,13 +1,15 @@
 import collections
 from vehicleState import *
+import message
 import socket
 import logging
 import multiprocessing
 import Queue
-import cPickle
+#import cPickle
 import zlib
 import time
 import signal
+from mutil import *
 
 class Transmitter(multiprocessing.Process):
 
@@ -16,6 +18,7 @@ class Transmitter(multiprocessing.Process):
 		self.s = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 		self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		myAddr = (AdHocIP,port)
+		print "Port: " + str(port)
 		self.s.bind(myAddr)
 		self.s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 		self.transmitQueue=transmitQueue
@@ -42,20 +45,26 @@ class Transmitter(multiprocessing.Process):
 		print "Transmit Stopped"
 
 	def sendMessage(self, msg):
-		#print msg
-		mp = cPickle.dumps(msg,cPickle.HIGHEST_PROTOCOL)
-#		mp = cPickle.dumps(msg,1)
-#		print len(str(msg.content.__dict__))
-#		print len(mp)
-		mp = zlib.compress(mp)
-		#print len(mp)
-	#	print "packetLength: " + str(len(mp))
+#		t0 = time.time()
+		smsg = msgToBinary(msg)
+#		print "Time to binary" + str(time.time()-t0)
 
-	#	print "Length zlib: "+str(len(zlib.compress(mp)))	
-#		print "Encoded is" + mp
-		self.s.sendto(mp,self.sendAddress);
-		#print "Send complete"
-		
-		
-		
+#		t0 =time.time()
+		testMsg=Message()
+		testMsg.content = BasicVehicleState.getCSVLists(BasicVehicleState())
+		testMsg = binaryToMessage(testMsg,smsg)
+#		print "\n\n"
+#		print "Origional Message: " + str(msg)
+#		print type(msg.content['isFlocking'])
+#		print "\n"
 
+#		print "New message: " + str(testMsg)
+#		print "\n\n"
+
+#		print "Time from binary: " + str(time.time()-t0)
+
+#		for x in msg.content.keys():
+#			print x + "\t\t" + str(msg.content[x]-testMsg.content[x])
+
+#		print "\n\n"
+		self.s.sendto(smsg,self.sendAddress);

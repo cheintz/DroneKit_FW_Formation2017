@@ -1,7 +1,9 @@
 from recordtype import recordtype
 import numpy as np
 from collections import OrderedDict
-from datetime import datetime
+import time
+import message
+import dronekit
 
 zeroVect = np.matrix([[0],[0],[0]])
 
@@ -25,17 +27,17 @@ ControlState = recordtype('ControlState',[('pgTerm',zeroVect),('rotFFTerm',zeroV
 	,'backstepSpeed','backstepSpeedError','backstepSpeedRate',('angleRateTarget',zeroVect),('pgDot',zeroVect),'h','phps','phpsd','mu']
 	, default = 0.0)
 
-Message = recordtype('Message','type,sendTime,content', default = None)
+Message = recordtype('Message','msgType,sendTime,content', default = None)
 
-rtTypes = (ControlState,CourseAngle,Message,Command,Parameter,Timeout,PIDTerms,KPID)
+rtTypes = (ControlState,CourseAngle,Command,Parameter,Timeout,PIDTerms,KPID)
 
 class BasicVehicleState(object):
 	def __init__(self,other=None):
 		self.ID = None
-		self.timestamp = None
-		self.position = None
-		self.velocity = None
-		self.fwdAccel = None
+		self.timestamp = None #time.time()
+		self.position = dronekit.LocationGlobalRelative(0,0,0)
+		self.velocity = [0,0,0]
+		self.fwdAccel = 0
 		self.heading = CourseAngle()
 		self.pitch = CourseAngle()
 		self.roll = CourseAngle()
@@ -44,7 +46,6 @@ class BasicVehicleState(object):
 		self.isFlocking = False	
 		self.timeToWait = 0	
 		self.qdIndex = 0
-		self.time=datetime.now()
 		if other is not None:
 			#print "Calling basic copy constructor"
 			for k in self.__dict__.keys():
@@ -101,26 +102,27 @@ class BasicVehicleState(object):
 	def fromCSVList(self,lin): #Probably intended to be used for different data transmission format
 		out= BasicVehicleState()
 		din = out.getCSVLists()
+#		print "lin" + str(lin)
 		din = OrderedDict(zip(din.keys(),lin  ))
 		out.ID =din['ID']
 		out.counter = din['Counter']
 		out.timestamp = din['timestamp']
 		out.timeToWait = din['timeToWait']
-		out.isFlocking=din['isflocking']
+		out.isFlocking=din['isFlocking']
 
 		out.position.lat = din['lat']
 		out.position.lon = din['lon']
 		out.position.alt = din['alt']
 		out.position.time =din['posTime']
+#		print "din: "+ str(din)
+#		print "din[\'latSpd\']" + str(din['latSpd'])
+#		print "\n\n\n\n"
 		out.velocity = [ din['latSpd'],din['lonSpd'] ,din['altSpd']  ]
 		out.heading = CourseAngle(din['cHeading'],din['cHeadingRate'], din['cHeadingAccel'] )
 		out.roll = CourseAngle(din['cRoll'],din['cRollRate'],din['cRollAccel'])
 		out.pitch = CourseAngle(din['cPitch'], din['cPitchRate'], din['cPitchAccel'])
 		self.fwdAccel= din['fwdAccel']
 		return out
-
-
-
 	
 		
 class FullVehicleState(BasicVehicleState):
@@ -274,16 +276,21 @@ def recordTypeToLists(rt,prefix =''):
 
 class PrintManager(object):
 	def __init__(self,printEvery = 1, debug = False):
-		self.counter = 0
+		self._counter = 0
 		self.debug = debug
-		self.printEvery = printEvery
+		self._printEvery = printEvery
 	def p(self,toPrint):
-		if self.debug or self.counter % self.printEvery ==0:
+		if self.debug or self._counter % self._printEvery ==0:
 			print toPrint
-		if self.counter % self.printEvery == 0:
-			self.counter = 0
+		if self._counter % self._printEvery == 0:
+			self._counter = 0
+	def pMsg(self,txt,content):
+		if self.debug or self._counter % self._printEvery == 0: #duplicated logic to reduce calls to str()
+			print txt + str(content)
+		if self._counter % self._printEvery == 0:
+			self._counter = 0
 	def increment(self):
-		self.counter +=1
+		self._counter +=1
 	
 
 

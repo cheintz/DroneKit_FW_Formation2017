@@ -57,7 +57,7 @@ loggingQueue= multiprocessing.Queue()
 transmitQueue = multiprocessing.Queue()
 receiveQueue = multiprocessing.Queue()
 
-startTime=datetime.now()
+startTime=time.time()
 
 
 

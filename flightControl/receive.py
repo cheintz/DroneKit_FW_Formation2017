@@ -4,11 +4,13 @@ import socket
 import Queue
 import logging
 import multiprocessing
-#import jsonpickle
-import cPickle
+
+#import cPickle
 import zlib
 import signal
-from datetime import datetime
+import time
+from mutil import *
+
 
 class Receiver(multiprocessing.Process):
 	def __init__(self,receiveQueue,AdHocIP, port,ignoreSelfPackets):
@@ -43,10 +45,14 @@ class Receiver(multiprocessing.Process):
 				pass
 			else:
 				mp=mp[0]
-				mp = zlib.decompress(mp)
+				msg=Message()
+				msg.content = BasicVehicleState().getCSVLists()
+				msg.msgType = UAV
+				msg.sendTime = time.time() #Can't account for latency without synced system clocks
+#				print "msgBeforeFromBinary: " + str(msg)
+				msg =binaryToMessage(msg,mp)
+#				print "received packet"
 				try:
-					msg=cPickle.loads(mp)
-					msg.sendTime = datetime.now() #Can't account for latency without synced system clocks
 					self.receiveQueue.put(msg)
 					pass
 				except ValueError:

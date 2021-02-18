@@ -8,11 +8,11 @@ import threading
 import recordtype
 import cPickle
 import math as m
-from datetime import datetime, timedelta
 import numpy as np
 import copy
 from pid import PIDController
 from curtsies import Input
+from mutil import *
 
 
 
@@ -44,7 +44,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.backupParams=copy.deepcopy(defaultParams)
 		self.vehicleState = FullVehicleState()
 		self.vehicleState.ID = int(self.vehicle.parameters['SYSID_THISMAV'])
-		self.vehicleState.startTime = datetime.now()
+		self.vehicleState.startTime = time.time()
 		self.vehicleState.counter = 0
 		#self.trimThrottle= self.vehicle.parameters['TRIM_THROTTLE'] 
 		#self.rollToThrottle = self.vehicle.parameters['TECS_RLL2THR'] 
@@ -56,6 +56,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.lastFFFilt = None
 		self.lastPsiDDot = None
 		self.lastPsiDDotFilt = None
+		self.thisTS = None
 
 		
 	def stop(self):
@@ -64,7 +65,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 	def run(self):
 		#signal.signal(signal.SIGINT, signal.SIG_IGN) #not needed because this is a thread in the same process as flightProgram.py
 		while(not self.stoprequest.is_set()):#not self.kill_received):
-			loopStartTime=datetime.now()
+			loopStartTime=time.time()
 			while(not self.stoprequest.is_set()): #process all received messages (will still die if stop request sent)
 				try:	
 					msg = self.receiveQueue.get(False)
@@ -74,18 +75,22 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 			try: #big try block to make sure everything works right
 				self.getVehicleState() #Get update from the Pixhawk
-				self.pm.p("RelTime: " + str((datetime.now() - self.startTime).total_seconds()))
-				self.pm.p("counter: " + str(self.vehicleState.counter))
+				self.pm.pMsg("RelTime: ", time.time() - self.startTime )
+				self.pm.pMsg("counter: ", self.vehicleState.counter)
 
 				if(not self.vehicleState.isFlocking): #Should we engage flocking
 					self.checkEngageFlocking()
 				if(self.vehicleState.isFlocking and self.vehicleState.ID != self.parameters.leaderID): #):# and self.parameters.leaderID != self.vehicleState.ID):
+					if( self.vehicleState.ID == self.parameters.leaderID):
+						self.pm.p("Won't engage, I am the leader")
 					if(not self.checkAbort()):
 						self.computeControl() #writes the control values to self.vehicleState
 						self.scaleAndWriteCommands()
 	#			print "pushing to queue" + str(time.time())
+#				t0 = time.time()
 				self.pushStateToTxQueue() #sends the state to the UDP sending threading
 				self.pushStateToLoggingQueue()
+#				print "Time to push to queues: " + str(time.time()-t0)
 				self.pm.p('\n\n')
 				
 	#			self.vehicleState.RCLatch = False
@@ -108,7 +113,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 							print "Reverting to original parameters"
 							self.releaseControl()
 							print "Released Control"
-				timeToWait = self.parameters.Ts - (datetime.now() -loopStartTime).total_seconds()
+				timeToWait = self.parameters.Ts - (time.time() -loopStartTime)
 				self.vehicleState.timeToWait = timeToWait
 				self.pm.p('Waiting: ' + str(timeToWait))
 				self.pm.increment()
@@ -135,15 +140,23 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		print "Control Stopped"
 			
 	def updateGlobalStateWithData(self,msg):
-		if (msg.type == "UAV"):
+		#print "Message before error: "+ str(msg)
+		if (msg.msgType == UAV):
+#			print "parsing UAV message"
 			self.parseUAVMessage(msg)
 		else: #From GCS
 			self.parseGCSMessage(msg)
 		
 	def parseUAVMessage(self,msg): 
-		if(msg.content.ID>0 and msg.content.ID != self.vehicleState.ID):
-			ID=int(msg.content.ID)
-			self.stateVehicles[ID] = msg.content
+		if(msg.content['ID']>0 and msg.content['ID'] != self.vehicleState.ID):
+#			print "received message from another!"
+			ID=int(msg.content['ID'])
+			out = BasicVehicleState()
+			temp = BasicVehicleState.fromCSVList(out,msg.content.values())
+
+#			print "Message: " +str(msg.content)
+#			print "msg.content.values(): " + str(msg.content.values())
+			self.stateVehicles[ID] = temp
 			self.stateVehicles[ID].timestamp = msg.sendTime #update vehicleState with sent time 
 			#self.vehicleState.timeout.peerLastRX[ID]=msg.sendTime
 			self.vehicleState.timeout.peerLastRX[ID]=msg.sendTime	
@@ -157,7 +170,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		yPWM,ignored = saturate(yPWM,1000,2000)
 		zPWM,ignored = saturate(zPWM,params.throttleMin,params.throttleMin+100*self.parameters.throttleGain)
 		self.vehicle.channels.overrides = {'1': xPWM, '2': yPWM,'3': zPWM}
-		#self.vehicle.channels.overrides = {'1': xPWM}
+#		self.vehicle.channels.overrides = {'3': zPWM}
 
 	def releaseControl(self):
 		self.vehicle.channels.overrides = {}
@@ -170,7 +183,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	def checkAbort(self): #only call if flocking!!
 		if(self.checkTimeouts()): #If we had a timeout
-			self.pm.p("Abort - Timeout" + str(datetime.now()))
+			self.pm.p("Abort - Timeout" + str(time.time()))
 			self.vehicleState.abortReason = "Timeout"
 			self.vehicleState.isFlocking = False
 			self.vehicleState.RCLatch = True
@@ -179,7 +192,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.vehicleState.command = Command()			
 			return True
 		if (not (self.vehicle.mode == acceptableControlMode)): #if switched out of acceptable modes
-			self.pm.p( "Abort - control mode" + str(datetime.now()))
+			self.pm.p( "Abort - control mode" + str(time.time()))
 			self.pm.p( "Flight Mode: " + str(self.vehicle.mode))
 			self.vehicleState.RCLatch = True			
 			self.vehicleState.isFlocking = False
@@ -245,20 +258,24 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		return True
 			
 	def getVehicleState(self):		#Should probably check for timeout, etc.
-		self.vehicleState.timeout.peerLastRX[self.vehicleState.ID]=datetime.now()
-		self.vehicleState.timeout.localTimeoutTime=lastPX4RxTime =datetime.now()
+		self.vehicleState.timeout.peerLastRX[self.vehicleState.ID]=time.time()
+		self.vehicleState.timeout.localTimeoutTime=time.time()
 
 		if self.vehicleState.timestamp is None: #startup calculation of Ts
-			self.vehicleState.timestamp = datetime.now() 
+			print "first loop"
+			self.vehicleState.timestamp = time.time()
 			Ts = self.parameters.Ts
+			isFirstLoop = True
 		else:
-			Ts = (datetime.now() - self.vehicleState.time).total_seconds()
+			Ts = time.time() - self.vehicleState.timestamp
+			isFirstLoop=False
 
 		#Record sample time
 		self.vehicleState.counter+=1
 		self.vehicleState.isPropagated = False
-		self.vehicleState.time = datetime.now()
+		self.vehicleState.timestamp = time.time()
 		self.thisTS = Ts
+		self.pm.pMsg("thisTs: " , Ts)
 
 		#Cache old values for filters
 		lastHeading = self.vehicleState.heading.value
@@ -280,7 +297,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				self.vehicleState.pitch.value = self.vehicleState.attitude.pitch
 				self.pm.p('Low speed: using attitude pitch and yaw for control')
 			except:
-				self.pm.p('Using zero attitude for ground start')
+				self.pm.p('Exception: using zero attitude for ground start')
 				self.vehicleState.heading.value = 0
 				self.vehicleState.pitch.value = 0
 
@@ -306,10 +323,14 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicleState.navOutput = {'navRoll': nco.nav_roll,'navPitch':nco.nav_pitch,'navBearing':nco.nav_bearing}
 
 		ATT=self.vehicleState.attitude
-		s = self.vehicleState.groundspeed;
-		if self.vehicleState.fwdAccel is None:	
+		s = self.vehicleState.groundspeed
+#		print "groundspeed: " + str(self.vehicleState.groundspeed)
+#		print "fwdAccel: " + str(self.vehicleState.fwdAccel)
+		if isFirstLoop:
+			print "initializing fwdAccel"
 			lastSpeed=self.vehicleState.groundspeed
 			self.vehicleState.fwdAccel = 0
+
 
 	#"Attitude" Rates
 	#Filtered differentiation startup handling
@@ -366,15 +387,18 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	#FwdAcceleration
 	#Filter startup handling
-		aSpd = self.parameters.gains['aFilterSpd']	
+		aSpd = self.parameters.gains['aFilterSpd']
+#		print "groundspeed2: " + str(self.vehicleState.groundspeed )
+#		print "lastSpd: " + str(lastSpeed)
 		deltaSpd = self.vehicleState.groundspeed - lastSpeed
+#		print "deltaSpd: " + str(deltaSpd)
 		lastFwdAccel = self.vehicleState.fwdAccel
 		self.vehicleState.fwdAccel =  (1- aSpd) * lastFwdAccel +aSpd/Ts *(deltaSpd)
 
 		if (self.parameters.config['propagateStates']):
 			propagateVehicleState(self.vehicleState,
-				  (datetime.now() -self.vehicleState.position.time).total_seconds(),
-								  (datetime.now() - self.vehicleState.attitude.time).total_seconds()) 				#propagate positions forward. Note that they will not propagated repeatedly;
+				  time.time() -self.vehicleState.position.time,
+								  time.time() - self.vehicleState.attitude.time) 				#propagate positions forward. Note that they will not propagated repeatedly;
 			#will just propagate repeatedly from the last message received from the Pixhawk. 
 			#That should be okay for "this" agent.
 		if(True or self.vehicle.channels['8'] < 1200):
@@ -389,29 +413,28 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		
 	def pushStateToTxQueue(self):
 		msg=Message()
-		msg.type = "UAV"
-		msg.sendTime = datetime.now()
-		if self.parameters.txStateType == 'basic':
-#			temp = BasicVehicleState(self.vehicleState) # This is a deep-ish copy
-			temp = BasicVehicleState(cPickle.loads(cPickle.dumps(self.vehicleState)))
-#			temp = BasicVehicleState(copy.deepcopy(self.vehicleState))
-			msg.content = temp #only basic vehicle state
-		else: #Full state
-			msg.content = copy.deepcopy(self.vehicleState)
+		msg.msgType = UAV
+		msg.sendTime = time.time()
+		if self.parameters.txStateType == 'basic':  #note: deep copy takes a very long time, un and de picling with cPickle is faster, binary seems to be fastest.
+			t0 = time.time()
+			msg.content =BasicVehicleState.getCSVLists(self.vehicleState)  #explicit call to BasicVehicleState to avoid calling the method for FullVehicleState
+#			print "time To CSV Lists: " + str(time.time()-t0)
+#		t0 = time.time()
 		self.transmitQueue.put(msg)
+#		print "time to put in queue: " + str(time.time() - t0)
 		return msg
 	def pushStateToLoggingQueue(self):
 		self.lastLogged = self.vehicleState.counter
 		msg=Message()
-		msg.type = "UAV_LOG"
+		msg.msgType = LOG
 		msg.sendTime=time.time()
 		msg.content = {}
 		msg.content['thisState']=cPickle.loads(cPickle.dumps(self.vehicleState))
-#		msg.content['thisState']=copy.deepcopy(self.vehicleState)
-	#	msg.content['thisState'] = FullVehicleState(self.vehicleState)
+
+
 		msg.content['stateVehicles']=cPickle.loads(cPickle.dumps(self.stateVehicles))
-#		msg.content['stateVehicles']=copy.deepcopy(self.stateVehicles)
-		#msg.content['stateVehicles']=FullVehicleState(self.stateVehicles)
+
+
 
 		#print "Begin test"
 		#newState=FullVehicleState(copy.deepcopy(self.vehicleState))
@@ -437,7 +460,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.releaseControl()
 	def checkTimeouts(self):
 		didTimeOut = False
-		if(datetime.now() - timedelta(seconds = self.lastGCSContact)<datetime.now()- timedelta(seconds=self.parameters.GCSTimeout) ):
+		if(time.time() -  self.lastGCSContact<time.time()- self.parameters.GCSTimeout ):
 			self.pm.p( "GCS Timeout - Overridden")
 		#if(True):
 			self.vehicleState.timeout.GCSTimeoutTime = time.time()
@@ -445,8 +468,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		if(self.parameters.config['mode'] == 'Formation'): #only care about timeouts for formation flight
 			for IDS in self.stateVehicles.keys():
 				ID=int(IDS)	
-				if(self.vehicleState.timeout.peerLastRX[ID]<datetime.now()-timedelta(seconds = self.parameters.peerTimeout)):
-					self.vehicleState.timeout.peerTimeoutTime[ID]=datetime.now()
+				if(self.vehicleState.timeout.peerLastRX[ID]<time.time()- self.parameters.peerTimeout):
+					self.vehicleState.timeout.peerTimeoutTime[ID]=time.time()
 					self.pm.p( "Timeout - ID: " + str(ID))
 #					print "LastRX: " + str(self.vehicleState.timeout.peerLastRX[ID]) + "\t" + 
 					didTimeOut = True
@@ -454,16 +477,17 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 	def parseGCSMessage(self, msg):
 #		self.vehicleState.packets.lastGCS = time.time() #Should implement checking that this isn't far from the present time
 		self.vehicleState.packetStats.GCSPackets += 1
-		if(msg.type == "Parameters"):
+		if(msg.msgType == PRM):
 			self.parameters = msg.content
 #			self.vehicleState.timeout.GCSLastRx = msg.sentTime()
-			self.vehicleState.timeout.GCSLastRx = datetime.now()
+			self.vehicleState.timeout.GCSLastRx = time.time()
 
-		if(msg.type == 'HEARTBEAT'):
-			self.vehicleState.timeout.GCSLastRx = datetime.now()
+		if(msg.msgType == HBT):
+			self.vehicleState.timeout.GCSLastRx = time.time()
 #			self.vehicleState.timeout.GCSLastRx = msg.sendTime()
 
 	def computeControl(self):
+		t0 = time.time()
 		if (self.parameters.config['mode'] == 'Formation'):
 			self.computeFormationControl()
 		elif (self.parameters.config['mode'] == 'MiddleLoop' ):
@@ -476,24 +500,24 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else:
 			self.altitudeControl()				
 			self.pm.p("Using Altitude Control")
-
+#		print "Time for control: " + str(time.time()-t0)
 	def PilotMiddleLoopRefs(self):
 		#Let Channel 7 determine if this is a speed, altitude, or heading test:
 		normInput = (self.vehicle.channels['8'] - 1000.0) / 1000.0
 		self.pm.p("Norm Input: " + str(normInput))
 		THIS = self.vehicleState
 		speedInput = 0.5
-#		if ((datetime.now() - self.startTime).total_seconds()) < 30:
+#		if ((time.time() - self.startTime)) < 30:
 #			speedInput = 0.7
 #		else:	
 #			speedInput= 0.2
-#		self.pm.p("time " + str(datetime.now() - self.startTime).total_seconds())  )
-		
+		#		self.pm.p("time " + str(datetime.now() - self.startTime).total_seconds())  )
+
 		altInput = 1
-		headingInput = 1.0/6 + .5 #default to parallel to LMAC
-		if (self.vehicle.channels['7']< 1200): #Speed Control Mode
+		headingInput = 1.0 / 6 + .5  # default to parallel to LMAC
+		if (self.vehicle.channels['7'] < 1200):  # Speed Control Mode
 			speedInput = normInput
-			self.pm.p("Speed Control Mode")			
+			self.pm.p("Speed Control Mode")
 		elif (self.vehicle.channels['7']< 1700): #Middle: altitude
 			altInput = normInput
 			self.pm.p("Alt Control Mode")
@@ -521,7 +545,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		if (self.parameters.config['propagateStates']):
 			for i in range(1,n+1):
 				if(ID != i):
-					dt = (datetime.now() - self.stateVehicles[i].timestamp).total_seconds()
+					dt = time.time() - self.stateVehicles[i].timestamp
 		#			print "propagating received message from:" + str(i)
 					propagateVehicleState(self.stateVehicles[i],dt,dt) #will propagate from when we received. Other agent propagates forward from its Pixhawk position update time. The actual communication latency is not included in this.
 
@@ -589,7 +613,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.pgDot = pgDot
 
 	#	self.pm.p("rgDDot: " + str(RgDDot))
-		self.pm.p( 'Time: = ' + str(THIS.time))
+		self.pm.p( 'Time: = ' + str(THIS.timestamp))
 	#Compute from leader
 		zetai = qil - Rg* di
 		zetaiDot = (qiDot-pg-RgDot*di)
@@ -814,8 +838,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		(cmd.rollCMD , CS.rollTerms) = self.rollController.update(ePsi,
 			(calcTurnRate-cmd.psiDDot),self.thisTS,rollFFTerm)
 		CS.accHeadingError=self.rollController.integrator
-		#cmd.rollCMD = 50.0*m.pi/180.0 * m.sin(2.0*m.pi/5.0 * (datetime.now() - self.startTime).total_seconds()  ) 
-		cmd.timestamp = datetime.now()
+		#cmd.rollCMD = 50.0*m.pi/180.0 * m.sin(2.0*m.pi/5.0 * (time.time() - self.startTime)  )
+		cmd.timestamp = time.time()
 		self.pm.p("Commanded heading rate (rllctrl): " + str(THIS.command.psiDDot))
 		self.pm.p( "Heading Error: " + str(ePsi) )
 		self.pm.p( "Heading integral: " + str(CS.accHeadingError) )
@@ -853,7 +877,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		(cmd.throttleCMD , CS.throttleTerms) = self.throttleController.update(eSpeed,
 			(THIS.fwdAccel - 1.0*cmd.sdiDot),self.thisTS,throttleFFTerm)
 		CS.accSpeedError=self.throttleController.integrator
-		cmd.timestamp = datetime.now()
+		cmd.timestamp = time.time()
 		self.pm.p('eAirSpeed: ' + str(eSpeed))
 		self.pm.p('ASTarget: ' + str(asTarget))
 		self.pm.p('ESpeed: ' + str(CS.accSpeedError))
@@ -864,10 +888,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		cmd = THIS.command
 		CS = THIS.controlState
 		eTheta = (self.vehicleState.pitch.value- cmd.thetaD)
-
+		self.pm.pMsg("pitch dt", self.thisTS)
 		(cmd.pitchCMD , CS.pitchTerms) = self.pitchController.update(eTheta, THIS.pitch.rate - cmd.thetaDDot ,self.thisTS,cmd.thetaD)
 		CS.accPitchError  = self.pitchController.integrator
-		cmd.timestamp = datetime.now()
+		cmd.timestamp = time.time()
 		self.pm.p('Pitch Error: ' + str(eTheta))
 		self.pm.p('cmd Pitch Rate: ' + str(cmd.thetaDDot))
 
@@ -880,7 +904,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		altError = THIS.position.alt - desiredAlt
 		(cmd.pitchCMD, CS.pitchTerms) = self.altitudeController.update(altError, THIS.velocity[2], self.thisTS, 0)
 		CS.accAltError = self.altitudeController.integrator
-		cmd.timestamp = datetime.now()
+		cmd.timestamp = time.time()
 		self.pm.p('Alt Error: ' + str(altError))
 		self.pm.p('Acc Alt Error: ' + str(CS.accAltError))
 
@@ -990,7 +1014,7 @@ def propagateVehicleState(state, dtPos, dtAtt): #assumes heading rate and fwdAcc
 	state.position.alt = (state.position.alt - dz)
 	
 #	print "T1: " + str(state.timestamp)	
-	state.timestamp = state.timestamp + timedelta(seconds = dtPos)
+	state.timestamp = state.timestamp + dtPos
 #	print "T2: " + str(state.timestamp)		
 	state.isPropagated = 1
 

@@ -17,12 +17,12 @@ def getParams():
 		,'kSpeed':KPID(1.0,0.1,0.0),'rollLimit':50/(180/m.pi),'kPitch':KPID(1, 0.2,.2),'kAlt':KPID(.026, .0017,.0105),'pitchLimit':20/(180/m.pi)
 		, 'maxEHeading':50,'maxEPitch':50,'maxESpeed':300, 'aSpeed':0.64,'gammaS':3,'kSpdToThrottle':4.5,'nomSpeed':20
 		,'kThrottleFF': 0,'kRollFF':1,'gammaB':0.001,'maxEAlt':50,'epsD':0.1}
-	defaultParams.config = {'printEvery':10,'ignoreSelfPackets':False,'propagateStates':True , 'geofenceAbort':False
+	defaultParams.config = {'printEvery':10,'ignoreSelfPackets':False,'propagateStates':False , 'geofenceAbort':False
 		,'mode':'Formation','acceptableEngageMode': (VehicleMode('FBWA'),),'dimensions':3 }
 	defaultParams.GCSTimeout = 5 #secondsr
 	defaultParams.peerTimeout = 0.7 #seconds
 	defaultParams.leaderID = 1   #MAV ID of leader
-	defaultParams.expectedMAVs = 4 #2 MAVs would be 1 agent, plus the leader
+	defaultParams.expectedMAVs = 2 #2 MAVs would be 1 agent, plus the leader
 	temp=np.zeros([5,5])
 #cycle
 #	temp[1][2]=temp[2][1]=1 #note: this indexed by mavid-1, where the first follower has mavid 2 and index 1
@@ -51,7 +51,7 @@ def getParams():
 
 
 	defaultParams.communication=temp
-	defaultParams.Ts = 1.0/10.0
+	defaultParams.Ts = 1.0/50.0
 	defaultParams.txStateType = 'basic'
 
 #These are no longer used
