@@ -2,7 +2,6 @@ from recordtype import recordtype
 import numpy as np
 from collections import OrderedDict
 import time
-import message
 import dronekit
 
 zeroVect = np.matrix([[0],[0],[0]])
@@ -153,6 +152,8 @@ class FullVehicleState(BasicVehicleState):
 		base = super(FullVehicleState,self).getCSVLists()
 		headers = base.keys()
 		values = base.values()
+		headers.append('posCounter')
+		values.append(self.position.counter)
 
 		headers.append('airspeed')
 		values.append(self.airspeed)
