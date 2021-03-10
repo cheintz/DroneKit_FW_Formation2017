@@ -1,56 +1,40 @@
+import os
+
+os.environ["OMP_NUM_THREADS"]="1" #Limit numpy to one thread
+#See: https://stackoverflow.com/questions/30791550/limit-number-of-threads-in-numpy top answer
+#Must be before numpy is imported (including in other imports)
+
 from dronekit import connect, VehicleMode
 import time
 import socket
-import os
+
 import Queue
-import multiprocessing	
+import multiprocessing
 import transmit, control, receive, log
 import vehicleState
 
 import numpy as np
-import argparse 
+import argparse
 from datetime import datetime
 from servovehicle import ServoVehicle
- 
+
 #get enviromental variables
 AdHocIP = os.environ['ADHOCIP']
-AdHocIP = "192.168.0.108" #override if the environmental variable is wrong
+AdHocIP = "192.168.0.109" #override if the environmental variable is wrong
 peerReadPort = int(os.environ['PORT'])
 myAddr = (AdHocIP, peerReadPort)
 logPath = os.environ["LOGPATH"]
 
-try:
-	sitlFlag = os.environ["SITL"]
-	sitlFlag=True
-except:
-	sitlFlag = False
 
+broadcastIP= os.environ["BROADCASTIP"]
+import defaultConfig
 
-if(sitlFlag):
-	broadcastIP= "10.0.2.255"
-	import defaultConfig_SITL as defaultConfig
-else:
-	broadcastIP= os.environ["BROADCASTIP"]
-	import defaultConfig
-
-
-#use nothing for the hardware in the planes
 
 #broadcastIP= "10.0.2.255" #for virual machine
-broadcastIP= "192.168.0.255"  #this is for the physical machine
-
+#broadcastIP= "192.168.0.255"  #this is for the physical machine
 
 transmitAddress = (broadcastIP,peerReadPort)
 
-
-
-
-
-#set up socket for UDP broadcast
-#s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-#s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-#s.bind(myAddr)
-#s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
 #create message queues
 loggingQueue= multiprocessing.Queue()
@@ -90,7 +74,7 @@ transmitThread = transmit.Transmitter(transmitQueue,AdHocIP,peerReadPort,transmi
 fileSuffix =   '_v' + str(int(vehicle.parameters['SYSID_THISMAV']))
 logThread = log.Logger(loggingQueue,logPath,defaultParams.expectedMAVs,startTime,fileSuffix)
 
-controlThread = control.Controller(loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams,startTime,sitlFlag)
+controlThread = control.Controller(loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams,startTime)
 
 print "default params" + str(defaultParams)
 
@@ -100,14 +84,15 @@ threads.append(receiveThread)
 threads.append(transmitThread)
 threads.append(logThread)
 
+print "FlightProg : " + str(os.getpid())
 receiveThread.start()
-print "Started Receive"
+print "Started Receive: " + str(receiveThread.pid)
 
 transmitThread.start()
-print"Started Transmit"
+print"Started Transmit: " + str(transmitThread.pid)
 
 logThread.start()
-print "Started Logging"
+print "Started Logging: " + str(logThread.pid)
 
 controlThread.start()
 print "Started Control"

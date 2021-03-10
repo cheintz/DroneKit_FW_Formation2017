@@ -1,3 +1,5 @@
+__requires__ ='numpy==1.15.4'
+
 from dronekit import connect, VehicleMode, Vehicle
 import time
 import logging
@@ -30,8 +32,8 @@ logging.basicConfig(level=logging.WARNING)
 class Controller(threading.Thread): 	#Note: This is a thread, not a process,  because the DroneKit vehicle doesn't play nice with processes.
 					#There is little to no performance problem, because the "main" process doesn't do much, and 
 					#so the GIL isn't an issue for speed
-	
-	def __init__(self,loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams,startTime,sitl):
+
+	def __init__(self,loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams,startTime,sitl=False):
 		threading.Thread.__init__(self)
 		self.isRunning=True
 		self.sitl = sitl
@@ -58,16 +60,26 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.lastPsiDDotFilt = None
 		self.thisTS = None
 
+
+
 		
 	def stop(self):
 		self.stoprequest.set()
 		print "Stop Flag Set - Control"
 	def run(self):
+
+#		print "Sleeping in control run pre loop"
+#		time.sleep(100)
+#		while(not self.stoprequest.is_set()):#not self.kill_received):
+#			print "sleeping 20ms"
+#			time.sleep(.02)
+
 		#signal.signal(signal.SIGINT, signal.SIG_IGN) #not needed because this is a thread in the same process as flightProgram.py
+		print "Control PID: " + str(os.getpid())
 		while(not self.stoprequest.is_set()):#not self.kill_received):
 			loopStartTime=time.time()
 			while(not self.stoprequest.is_set()): #process all received messages (will still die if stop request sent)
-				try:	
+				try:
 					msg = self.receiveQueue.get(False)
 					self.updateGlobalStateWithData(msg)
 				except Queue.Empty:
@@ -113,6 +125,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 							print "Reverting to original parameters"
 							self.releaseControl()
 							print "Released Control"
+
 				timeToWait = self.parameters.Ts - (time.time() -loopStartTime)
 				self.vehicleState.timeToWait = timeToWait
 				self.pm.p('Waiting: ' + str(timeToWait))
@@ -189,37 +202,37 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.vehicleState.RCLatch = True
 			self.releaseControl()
 			self.commenceRTL()
-			self.vehicleState.command = Command()			
+			self.vehicleState.command = Command()
 			return True
 		if (not (self.vehicle.mode == acceptableControlMode)): #if switched out of acceptable modes
 			self.pm.p( "Abort - control mode" + str(time.time()))
 			self.pm.p( "Flight Mode: " + str(self.vehicle.mode))
-			self.vehicleState.RCLatch = True			
+			self.vehicleState.RCLatch = True
 			self.vehicleState.isFlocking = False
 			self.vehicleState.abortReason = "Control Mode" #Elaborate on this to detect RTL due to failsafe
-			self.releaseControl()			
-			self.vehicleState.command = Command()			
+			self.releaseControl()
+			self.vehicleState.command = Command()
 			return True
-		if (self.parameters.config['geofenceAbort'] and ( self.vehicle.channels['7'] < 1700 
+		if (self.parameters.config['geofenceAbort'] and ( self.vehicle.channels['7'] < 1700
 				or self.vehicle.channels['7'] > 2100)):
 			self.pm.p("Abort - Geofence not enabled")
 			self.vehicleState.RCLatch = True
 			self.vehicleState.isFlocking = False
 			self.vehicleState.abortReason = "Geofence"
 			self.releaseControl()
-			self.vehicleState.command = Command()			
+			self.vehicleState.command = Command()
 			self.commenceRTL()
 			return True
 		if (self.vehicle.channels['6'] < 1700 or self.vehicle.channels['6'] > 2100):
 			self.vehicleState.isFlocking = False
-			self.vehicleState.RCLatch = True			
+			self.vehicleState.RCLatch = True
 			self.abortReason = "RC Disable"
 			self.pm.p( "RC Disable" + str(time.time()))
 			self.releaseControl()
-			self.vehicleState.command = Command()			
+			self.vehicleState.command = Command()
 			return True
 		return False
-		
+
 	def checkEngageFlocking(self):
 		#Check Timeouts
 		if(self.checkTimeouts()):
@@ -230,14 +243,14 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		if(self.parameters.config['mode'] == 'Formation' and len(self.stateVehicles) < self.parameters.expectedMAVs-1):
 			self.pm.p( "Won't engage; Not enough MAVs. Expecting " + str(self.parameters.expectedMAVs) + ". Connected to:" + str(self.stateVehicles.keys()))
 			self.vehicleState.RCLatch = True
-			return False	
+			return False
 		if (not (self.vehicle.mode in  self.parameters.config['acceptableEngageMode'])): #if switched
 				# out of acceptable modes
 			self.pm.p( "Won't engage - control mode" )
 			self.pm.p( "In Mode: "  + str(self.vehicle.mode))
-			self.vehicleState.RCLatch = True			
+			self.vehicleState.RCLatch = True
 			return False
-		if  (self.parameters.config['geofenceAbort'] and ( self.vehicle.channels['7'] < 1700 
+		if  (self.parameters.config['geofenceAbort'] and ( self.vehicle.channels['7'] < 1700
 				or self.vehicle.channels['7'] > 2100)):
 			self.pm.p( "Won't engage. Geofence not enabled")
 			self.pm.p( "Ch7: " +str(self.vehicle.channels['7']))
@@ -284,9 +297,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		lastHeadingAccel = self.vehicleState.heading.accel
 		self.vehicleState.velocity = self.vehicle.velocity
 		velocityVector= np.matrix([[self.vehicleState.velocity[0] ],[self.vehicleState.velocity[1]],[self.vehicleState.velocity[2] ]])
-#		print 'speed get: ' + "{:0.5f}".format(np.asscalar(velocityVector[1])) #str(str(velocityVector.transpose())
-
 		self.vehicleState.groundspeed = np.linalg.norm(velocityVector,2)
+
 		if self.vehicleState.groundspeed>3:
 			self.vehicleState.heading.value = m.atan2(velocityVector[1],velocityVector[0])
 			self.pm.p("heading rate: " + str(self.vehicleState.heading.rate))
@@ -406,11 +418,12 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		elif(self.vehicle.channels['8'] < 1700):
 			self.vehicleState.qdIndex = 1
 		else:
-			self.vehicleState.qdIndex = 2
+			self.vehicleState.qdIndex = 2 
 #		print 'Speed error: ' + str(np.linalg.norm(velocityVector/self.vehicleState.groundspeed) - 1 +0*self.vehicleState.groundspeed)
 
-#		print 'speed get: ' + "{:0.5f}".format(np.asscalar(velocityVector[1])) #str(str(velocityVector.transpose())
-		
+#		print 'speed get: ' + "{:0.5f}".format(np.asscalar(velocityVector[1])) #str(str(velocityVector.transpose()) 
+
+
 	def pushStateToTxQueue(self):
 		msg=Message()
 		msg.msgType = UAV
@@ -1034,7 +1047,6 @@ def ERatesToW(psi,theta,phi,psiDot,thetaDDot,phiDot):
 	return Q * Phi
 def WToERates(psi,theta,phi,omega): #accepts, x y z, yields roll, pitch, yaw ratesrc
 	Q = computeQ(psi,theta,phi)
-#	print('Q: ' +str(Q))
 	Phi = np.linalg.inv(Q)*omega
 	return Phi
 def EAccelToAlpha(heading,pitch,roll):

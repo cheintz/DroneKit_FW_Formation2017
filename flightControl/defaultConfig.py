@@ -17,7 +17,7 @@ def getParams():
 		,'kSpeed':KPID(1.0,0.1,0.0),'rollLimit':50/(180/m.pi),'kPitch':KPID(1, 0.2,.2),'kAlt':KPID(.026, .0017,.0105),'pitchLimit':20/(180/m.pi)
 		, 'maxEHeading':50,'maxEPitch':50,'maxESpeed':300, 'aSpeed':0.64,'gammaS':3,'kSpdToThrottle':4.5,'nomSpeed':20
 		,'kThrottleFF': 0,'kRollFF':1,'gammaB':0.001,'maxEAlt':50,'epsD':0.1}
-	defaultParams.config = {'printEvery':10,'ignoreSelfPackets':False,'propagateStates':False , 'geofenceAbort':False
+	defaultParams.config = {'printEvery':50,'ignoreSelfPackets':False,'propagateStates':False , 'geofenceAbort':False
 		,'mode':'Formation','acceptableEngageMode': (VehicleMode('FBWA'),),'dimensions':3 }
 	defaultParams.GCSTimeout = 5 #secondsr
 	defaultParams.peerTimeout = 0.7 #seconds
