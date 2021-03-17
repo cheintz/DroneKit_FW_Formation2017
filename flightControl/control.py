@@ -715,8 +715,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 #		sdi = 10
 		if(didSatSd):
 			sdiDot = 0
-			print "sdi saturated"
+#			self.pm.p("sdi saturated, was " + str(sdi)+ " Now " + str(sdt))
+#		print "old pdiDot: " + str(pdiDot)
 		pdiDot = sdiDot*bdi + sdi*bdiDot #Checked good, will saturate with sdi
+#		print "new pdiDot: " + str(pdiDot)
 
 		THIS.command.sdt = sdt
 		THIS.command.sdiDot=sdiDot
@@ -739,7 +741,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 	#Compute Bounded speed control (pre-ACC)
 
 		si=groundspd
-		si,didSatS = saturate(si,vMin+.001,vMax-.001)
+		si,didSatS = saturate(si,vMin+.1,vMax-.1)
 
 		littlef = -GAINS['aSpeed'] * si
 		littleg = GAINS['aSpeed']
@@ -790,10 +792,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		asTargetnew = (-1.0/littleg * (  littlef + GAINS['gammaS']*siTilde*h/mu + (sdiDot/mu)*(siTilde*phpsd -h)    )
 			 )+ 1*(airspd-groundspd)
 
-
 #		self.pm.p("asControlError: "+ str(CS.backstepSpeed + CS.backstepSpeedError+CS.backstepSpeedRate+(airspd-groundspd-asTargetnew) ))
 		asTarget=asTargetnew
-		self.pm.p('ui: '  + str(asTarget))
+		self.pm.p('asTarget: '  + str(asTarget))
 		THIS.command.asTarget,didSatASTarget = saturate(asTarget, vMin, vMax)
 		THIS.command.asTarget=asTarget #Don't saturate the target airspeed
 		self.pm.p("Commanded omega_z:" + str(omega[2,0]))
@@ -866,22 +867,30 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		kspeed = gains['kSpeed']
 		rollAngle = THIS.attitude.roll
 		#eSpeed = THIS.airspeed - cmd.asTarget
-		eSpeed = THIS.groundspeed - cmd.asTarget
+
 		vp = self.vehicle.parameters
 		asTarget = cmd.asTarget
 		headwind = (THIS.airspeed-THIS.groundspeed)
 
-		if(THIS.groundspeed < gains['vMin']):
-			asTarget = max(gains['vMin'] + headwind, asTarget) #asTarget already includes the headwind
-			print "groundspeed below minimum"
-		if(THIS.groundspeed>gains['vMax']):
-			asTarget = min(gains['vMax'] + headwind, asTarget) #asTarget already includes the headwind
-			print "groundsped above maximum"
+		speedError=False
+		oldASTarget = asTarget
+
+#		if(THIS.groundspeed < gains['vMin']):
+#			asTarget = max(gains['vMin'] + headwind+gains['epsD'], asTarget) #asTarget already includes the headwind
+#			print "groundspeed below minimum"
+#			speedError=True
+#		elif(THIS.groundspeed>gains['vMax']):
+#			asTarget = min(gains['vMax'] + headwind-gains['epsD'], asTarget) #asTarget already includes the headwind
+#			print "groundsped above maximum"
+#			speedError = True
 
 		if(THIS.airspeed < vp['ARSPD_FBW_MIN']): #airspeed below minimum
 			asTarget = max(vp['ARSPD_FBW_MIN'], asTarget)
 			print "airspeed below minimum"
-
+			speedError = True
+		eSpeed = THIS.groundspeed - cmd.asTarget
+		if speedError:
+				print "asTarget: " + str(asTarget) + " was " + str(oldASTarget)
 
 		throttleFFTerm = (vp['TRIM_THROTTLE']  + gains['kThrottleFF']*vp['TECS_RLL2THR']*(1.0/m.pow(m.cos(rollAngle),2)-1) +
 			self.parameters.gains['kSpdToThrottle']  *(asTarget - self.parameters.gains['nomSpeed'])   )
@@ -991,7 +1000,7 @@ def saturate(value, minimum, maximum):
 
 def propagateVehicleState(state, dtPos, dtAtt): #assumes heading rate and fwdAccel are constant
 	psiDot,ignored = saturate(state.heading.rate,-2,2) 
-	sDot = state.fwdAccel #TODO sometimes get math domain error on this
+	sDot = state.fwdAccel
 	psi = state.heading
 #	print "propagating vehicle state"
 	
@@ -1001,9 +1010,11 @@ def propagateVehicleState(state, dtPos, dtAtt): #assumes heading rate and fwdAcc
 
 
 	s = m.sqrt(vx**2+vy**2+vz**2)
-	sf = s+sDot*dtPos
+	sf = s+0*sDot*dtPos #Don't do this to avoid possibly destabilizing the numerical computation of fwdAccel
 	psif = state.heading.value+psiDot*dtPos
-	state.heading.rate += dtAtt * state.heading.accel #Calculated from roll rate, so use dtAtt
+	#state.heading.rate += dtAtt * state.heading.accel #Calculated from roll rate, so use dtAtt
+														#This seems to make the numerical heading accel estimate blow up
+
 
 	dx = vx*dtPos #simplified, assumes straight line flight
 	dy = vy*dtPos
@@ -1068,7 +1079,7 @@ def skew(omega):
 					   [-omega[1],omega[0],0]])
 	return Omega
 
-nu1=50
+nu1=250000
 nu2=1.0
 def sigma(x):
 	#return 1.0

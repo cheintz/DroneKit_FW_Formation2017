@@ -1,6 +1,5 @@
 import collections
 from vehicleState import *
-import message
 import socket
 import logging
 import multiprocessing
