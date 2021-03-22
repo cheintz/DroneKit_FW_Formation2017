@@ -762,9 +762,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 
 		#uncomment to disable the speed BLF
-#		h=1.0
-#		phps=0.0
-#		phpsd = 0.0
+		h=1.0
+		phps=0.0
+		phpsd = 0.0
 
 		mu=h+siTilde*phps
 		if(mu<0):
@@ -1079,7 +1079,7 @@ def skew(omega):
 					   [-omega[1],omega[0],0]])
 	return Omega
 
-nu1=250000
+nu1=500*500
 nu2=1.0
 def sigma(x):
 	#return 1.0

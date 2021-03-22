@@ -48,9 +48,9 @@ class Receiver(multiprocessing.Process):
 				msg=Message()
 				msg.content = BasicVehicleState().getCSVLists()
 				msg.msgType = UAV
-				msg.sendTime = time.time() #Can't account for latency without synced system clocks
 #				print "msgBeforeFromBinary: " + str(msg)
 				msg =binaryToMessage(msg,mp)
+				msg.sendTime = time.time() #Can't account for latency without synced system clocks
 #				print "received packet"
 				try:
 					self.receiveQueue.put(msg)

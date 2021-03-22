@@ -20,7 +20,7 @@ from servovehicle import ServoVehicle
 
 #get enviromental variables
 AdHocIP = os.environ['ADHOCIP']
-AdHocIP = "192.168.0.109" #override if the environmental variable is wrong
+#AdHocIP = "192.168.0.109" #override if the environmental variable is wrong
 peerReadPort = int(os.environ['PORT'])
 myAddr = (AdHocIP, peerReadPort)
 logPath = os.environ["LOGPATH"]
