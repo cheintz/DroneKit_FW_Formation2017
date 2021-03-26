@@ -64,7 +64,7 @@ class Logger(multiprocessing.Process):
 
 		
 		outString+= str(thisState.timestamp - thisState.startTime)  +','
- #relative time
+#relative time
 		for i in range(1,thisState.parameters.expectedMAVs+1):
 			try:
 				if i!=thisState.ID: #if other UAV

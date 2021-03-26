@@ -12,15 +12,15 @@ def getParams():
 		[-5,-5,2],[-0.5,-0.5,-120] ])  #Agent, amount forward, amount right, absolute altitude, meters
 #	defaultParams.desiredPosition = np.array([[[-5,5,2]],[[-5,5,-80]]])
 	print defaultParams.desiredPosition
-	defaultParams.gains = {'kl':105*np.diag([1,1,0.3]) , 'ka': 0.0*np.diag([1,1,1+0*0.3]) ,'alpha1': 0.001,'alpha2':100,'d':0.01
+	defaultParams.gains = {'kl':105*np.diag([1,1,0.3]) , 'ka': 0.0*np.diag([1,1,1+0*0.3])
 		,'vMin': 14,'vMax':35,'kBackstep':0,'aFilterHdg':0.4,'aFilterSpd':.1, 'aFilterThetaDDot': .8,'kHeading':KPID(1,0.1,0.2)
 		,'kSpeed':KPID(1.0,0.1,0.0),'rollLimit':50/(180/m.pi),'kPitch':KPID(1, 0.2,.2),'kAlt':KPID(.026, .0017,.0105),'pitchLimit':20/(180/m.pi)
-		, 'maxEHeading':50,'maxEPitch':50,'maxESpeed':300, 'aSpeed':0.64,'gammaS':1,'kSpdToThrottle':4.5,'nomSpeed':19
+		, 'maxEHeading':50,'maxEPitch':50,'maxESpeed':300, 'aSpeed':0.64,'gammaS':1,'kSpdToThrottle':4.5
 		,'kThrottleFF': 0,'kRollFF':1,'gammaB':0.001,'maxEAlt':50,'epsD':0.2}
-	defaultParams.config = {'printEvery':50,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
+	defaultParams.config = {'printEvery':10,'ignoreSelfPackets':False,'propagateStates':True , 'geofenceAbort':False
 		,'mode':'Formation','acceptableEngageMode': (VehicleMode('FBWA'),),'dimensions':3 }
 	defaultParams.GCSTimeout = 5 #secondsr
-	defaultParams.peerTimeout = 0.7 #seconds
+	defaultParams.peerTimeout = 1 #seconds
 	defaultParams.leaderID = 1   #MAV ID of leader
 	defaultParams.expectedMAVs = 2 #2 MAVs would be 1 agent, plus the leader
 	temp=np.zeros([5,5])
@@ -52,16 +52,8 @@ def getParams():
 
 
 	defaultParams.communication=temp
-	defaultParams.Ts = 1.0/50.0
+	defaultParams.Ts = 1.0/10.0
 	defaultParams.txStateType = 'basic'
-
-#These are no longer used
-#	defaultParams.rollGain= 500/(50/(180/m.pi)) #PWM per radian
-#	defaultParams.rollOffset=1500
-#	defaultParams.pitchGain = -500/(20/(180/m.pi)) #PWM per radian
-#	defaultParams.pitchOffset = 1500
-#	defaultParams.throttleMin = 1000
-#	defaultParams.throttleGain = (2000-1000)/100
 
 	return defaultParams
 
