@@ -6,6 +6,7 @@ os.environ["OMP_NUM_THREADS"]="1" #Limit numpy to one thread
 
 from dronekit import connect, VehicleMode
 import time
+startTime=time.time() #This early helps the filename match the console log.
 import socket
 
 import Queue
@@ -41,7 +42,7 @@ loggingQueue= multiprocessing.Queue()
 transmitQueue = multiprocessing.Queue()
 receiveQueue = multiprocessing.Queue()
 
-startTime=time.time()
+
 
 
 

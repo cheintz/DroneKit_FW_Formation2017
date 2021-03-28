@@ -97,7 +97,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 					if(not self.checkAbort()):
 						self.computeControl() #writes the control values to self.vehicleState
 						self.scaleAndWriteCommands()
-				self.pushStateToTxQueue() #sends the state to the UDP sending threading
+				if(time.time()-self.vehicleState.position.time <= self.parameters.localTimeout): #only transmit if still receiving positions from the flight controller
+					self.pushStateToTxQueue() #sends the state to the UDP sending threading
+
 				self.pushStateToLoggingQueue()
 				self.pm.p('\n\n')
 
@@ -258,9 +260,13 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.pm.p( "OK to engage flocking")
 		return True
 			
-	def getVehicleState(self):		#Should probably check for timeout, etc.
-		self.vehicleState.timeout.peerLastRX[self.vehicleState.ID]=time.time()
-		self.vehicleState.timeout.localTimeoutTime=time.time()
+	def getVehicleState(self):
+		lastPositionTime = self.vehicleState.position.time
+		if(lastPositionTime is None):
+				lastPositionTime = 0
+
+		self.vehicleState.timeout.peerLastRX[self.vehicleState.ID]=lastPositionTime
+		self.vehicleState.timeout.localTimeoutTime=lastPositionTime
 
 		if self.lastLoopTime is None: #startup calculation of Ts
 			print "first loop"
@@ -287,7 +293,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		if self.vehicleState.groundspeed>3:
 			self.vehicleState.heading.value = m.atan2(velocityVector[1],velocityVector[0])
-			self.pm.p("heading rate: " + str(self.vehicleState.heading.rate))
+			self.pm.pMsg("heading rate: ",self.vehicleState.heading.rate)
 			self.vehicleState.pitch.value = m.asin(-velocityVector[2]/ max(np.linalg.norm(velocityVector[0:2],2),abs(velocityVector[2]))   ) 
 		else:
 			try:
@@ -321,7 +327,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		ATT=self.vehicleState.attitude
 		s = self.vehicleState.groundspeed
 
-		self.vehicleState.isPropagated = (self.vehicleState.position.time > self.vehicleState.timestamp) #If this position update is new, we'll need to propagate it but just up until now (less than 1 timestep)
+		self.vehicleState.isPropagated = not (self.vehicleState.position.time > self.vehicleState.timestamp) #If this position update is new, we'll need to propagate it but just up until now (less than 1 timestep)
 
 #		print "groundspeed: " + str(self.vehicleState.groundspeed)
 #		print "fwdAccel: " + str(self.vehicleState.fwdAccel)
@@ -401,7 +407,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else:
 			self.vehicleState.qdIndex = 2
 
-		if(self.parameters.config['propagateStates'] and ~self.vehicleState.isPropagated == False):
+		if(self.parameters.config['propagateStates'] and self.vehicleState.isPropagated == False):
+#			print "initial propagation by " + str(time.time()-self.vehicleState.position.time)
 			propagateVehicleState(self.vehicleState, time.time()-self.vehicleState.position.time)
 
 		self.vehicleState.timestamp = time.time()
@@ -432,6 +439,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	def checkTimeouts(self):
 		didTimeOut = False
+		if(time.time() - self.vehicleState.timeout.localTimeoutTime > self.parameters.localTimeout):
+			didTimeOut=True
+			self.pm.p("Timeout with local Pixhawk, last received " + str(time.time()-self.vehicleState.timeout.localTimeoutTime) + "s ago")
 		if(time.time() -  self.lastGCSContact<time.time()- self.parameters.GCSTimeout ):
 			self.pm.p( "GCS Timeout - Overridden")
 		#if(True):
@@ -442,7 +452,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				ID=int(IDS)	
 				if(self.vehicleState.timeout.peerLastRX[ID]<time.time()- self.parameters.peerTimeout):
 					self.vehicleState.timeout.peerTimeoutTime[ID]=time.time()
-					self.pm.p( "Timeout - ID: " + str(ID))
+					self.pm.p( "Timeout - ID: " + str(ID) + " Last received " + str(time.time() -self.vehicleState.timeout.peerLastRX[ID] ) + "s ago")
 #					print "LastRX: " + str(self.vehicleState.timeout.peerLastRX[ID]) + "\t" + 
 					didTimeOut = True
 		return didTimeOut
@@ -485,13 +495,13 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		speedInput = 0.5
 		pitchInput = 0.5
 		headingInput = 0.5
-		if (self.vehicle.channels['7'] < 1200):  # Speed Control Mode
+		if (self.vehicle.channels['7'] < 1200):
 			speedInput = normInput
 			self.pm.p("Speed Control Mode")
-		elif (self.vehicle.channels['7']< 1700): #Middle: altitude
+		elif (self.vehicle.channels['7']< 1700):
 			pitchInput = normInput
 			self.pm.p("Pitch Control Mode")
-		else: #heading
+		else:
 			headingInput= normInput
 			self.pm.p("Heading Control Mode")
 		
@@ -515,7 +525,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 											# its Pixhawk position update time. The actual communication latency
 											# is not included in this.
 			else: #Else we're propagating our own state (no longer done in getVehicleState)
-				print "propagating my state in stateVehicles"
+				print "Warning: Propagating my state in stateVehicles"
+		#print "propagating this state by " + str(time.time() - self.vehicleState.timestamp)
 		propagateVehicleState(self.vehicleState, time.time() - self.vehicleState.timestamp)
 		self.vehicleState.timestamp=time.time()
 
@@ -549,7 +560,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else: #only 1 desired position
 			qd = np.asmatrix(THIS.parameters.desiredPosition)
 		di=qd[ID-2,np.matrix([0,1,2])]
-		self.pm.p('Qd: ' + str(di))
+		self.pm.pMsg('Qd: ', di)
 
 		di.shape=(3,1)
 		self.vehicleState.command.qd = di
@@ -873,7 +884,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS = THIS.controlState
 		vp = self.vehicle.parameters
 		eTheta = (self.vehicleState.pitch.value- cmd.thetaD)
-		self.pm.pMsg("pitch dt", self.thisTS)
+		self.pm.pMsg("pitch dt ", self.thisTS)
 		(cmd.pitchCMD , CS.pitchTerms) = self.pitchController.update(eTheta, THIS.pitch.rate - cmd.thetaDDot ,self.thisTS,vp['TRIM_PITCH_CD']/100.0/(180/m.pi) + cmd.thetaD)
 		CS.accPitchError  = self.pitchController.integrator
 		cmd.timestamp = time.time()
