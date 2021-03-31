@@ -87,7 +87,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				self.pm.pMsg("counter: ", self.vehicleState.counter)
 
 				if(self.parameters.config['propagateStates']):
-					self.propagateAllStates()
+					self.propagateOtherStates()
 
 				if(not self.vehicleState.isFlocking): #Should we engage flocking?
 					self.checkEngageFlocking()
@@ -261,12 +261,17 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		return True
 			
 	def getVehicleState(self):
-		lastPositionTime = self.vehicleState.position.time
+		lastPositionTime = self.vehicle.location.global_relative_frame.time
 		if(lastPositionTime is None):
 				lastPositionTime = 0
-
 		self.vehicleState.timeout.peerLastRX[self.vehicleState.ID]=lastPositionTime
 		self.vehicleState.timeout.localTimeoutTime=lastPositionTime
+
+		if (lastPositionTime>self.vehicleState.timestamp):  #if new position is available
+			print "got a new position"
+			self.vehicleState.isPropagated = False
+			self.vehicleState.position = self.vehicle.location.global_relative_frame
+			self.vehicleState.velocity = self.vehicle.velocity
 
 		if self.lastLoopTime is None: #startup calculation of Ts
 			print "first loop"
@@ -287,7 +292,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		lastSpeed = self.vehicleState.groundspeed
 		lastHeadingRate = self.vehicleState.heading.rate
 		lastHeadingAccel = self.vehicleState.heading.accel
-		self.vehicleState.velocity = self.vehicle.velocity
+
 		velocityVector= np.matrix([[self.vehicleState.velocity[0] ],[self.vehicleState.velocity[1]],[self.vehicleState.velocity[2] ]])
 		self.vehicleState.groundspeed = np.linalg.norm(velocityVector,2)
 
@@ -305,15 +310,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				self.vehicleState.heading.value = 0
 				self.vehicleState.pitch.value = 0
 
-		#self.pm.p( "Pitch: " + str(self.vehicleState.pitch.value))
-		#self.pm.p( "Vz: " + str(self.vehicleState.velocity[2]) )
-
-
 	#copy other states over
 		self.vehicleState.airspeed=self.vehicle.airspeed
 		self.vehicleState.attitude = self.vehicle.attitude
 		self.vehicleState.channels = dict(zip(self.vehicle.channels.keys(),self.vehicle.channels.values())) #necessary to be able to serialize it
-		self.vehicleState.position = self.vehicle.location.global_relative_frame
 		self.vehicleState.wind_estimate=windHeadingToInertial(self.vehicle.wind_estimate)
 		self.vehicleState.imuAccel = self.vehicle.acceleration
 		self.vehicleState.isArmable = self.vehicle.is_armable
@@ -327,10 +327,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		ATT=self.vehicleState.attitude
 		s = self.vehicleState.groundspeed
 
-		self.vehicleState.isPropagated = not (self.vehicleState.position.time > self.vehicleState.timestamp) #If this position update is new, we'll need to propagate it but just up until now (less than 1 timestep)
 
-#		print "groundspeed: " + str(self.vehicleState.groundspeed)
-#		print "fwdAccel: " + str(self.vehicleState.fwdAccel)
+
 		if isFirstLoop:
 			print "initializing fwdAccel"
 			lastSpeed=self.vehicleState.groundspeed
@@ -377,8 +375,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		aHdg = self.parameters.gains['aFilterHdg']
 		dHeadingRate = self.vehicleState.heading.rate - lastHeadingRate
 		dPitchRate = self.vehicleState.pitch.rate - lastPitchRate
-		self.vehicleState.heading.accel = (1.0-aHdg) * self.vehicleState.heading.accel + aHdg / Ts * dHeadingRate
-		self.vehicleState.pitch.accel = (1.0-aHdg) * self.vehicleState.pitch.accel + aHdg / Ts * dPitchRate
+		#self.vehicleState.heading.accel = (1.0-aHdg) * self.vehicleState.heading.accel + aHdg / Ts * dHeadingRate
+		#self.vehicleState.pitch.accel = (1.0-aHdg) * self.vehicleState.pitch.accel + aHdg / Ts * dPitchRate
 		self.vehicleState.heading.accel =  deadzone(dHeadingRate / Ts,0.15)
 		self.vehicleState.pitch.accel =  deadzone(dPitchRate / Ts,0.7)
 
@@ -407,11 +405,25 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else:
 			self.vehicleState.qdIndex = 2
 
-		if(self.parameters.config['propagateStates'] and self.vehicleState.isPropagated == False):
-#			print "initial propagation by " + str(time.time()-self.vehicleState.position.time)
-			propagateVehicleState(self.vehicleState, time.time()-self.vehicleState.position.time)
+		if(self.parameters.config['propagateStates']):
+			oldPos = self.vehicleState.position
+			oldqGPS = np.matrix([[oldPos.lat], [oldPos.lon], [-oldPos.alt]])
 
-		self.vehicleState.timestamp = time.time()
+			if (self.vehicleState.isPropagated == False):
+#				print "initial propagation by " + str(time.time()-self.vehicleState.position.time)
+				propagateVehicleState(self.vehicleState, time.time()-self.vehicleState.position.time) #also updates vehicleState.timestamp
+			else:
+				dt = time.time() - self.vehicleState.timestamp
+
+				propagateVehicleState(self.vehicleState, dt)
+#				print "propagating my state again by " + str(dt)
+			newPos = self.vehicleState.position
+			newqGPS = np.matrix([[newPos.lat], [newPos.lon],[-newPos.alt]])
+			dq = getRelPos(oldqGPS,newqGPS)
+#			print dq.transpose()
+		else: #still have to set set the timestamp...
+			self.vehicleState.timestamp = time.time()
+
 
 	def pushStateToTxQueue(self):
 		msg=Message()
@@ -479,7 +491,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.pm.p("Invalid mode: " + self.parameters.config['mode']  )
 		self.rollControl()
 		self.throttleControl()
-		if(self.parameters.config['dimensions'] == 3):
+		if(self.parameters.config['dimensions'] == 3 or self.parameters.config['mode'] == 'Formation'):
 			self.pitchControl()
 			self.pm.p("Pitch Control")
 		else:
@@ -515,9 +527,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS.command.sdiDot = 0
 		THIS.command.thetaDDot = 0
 
-	def propagateAllStates(self):
+	def propagateOtherStates(self):
 		for i in self.stateVehicles.keys():
-			if(self.vehicleState.ID != i):
+			if( True): #self.vehicleState.ID != i):
+#				print "propagating state " + str(i)
 #				dt = time.time() - self.stateVehicles[i].timestamp
 				propagateVehicleState(self.stateVehicles[i], time.time()-self.stateVehicles[i].timestamp)
 				self.stateVehicles[i].timestamp=time.time()
@@ -526,9 +539,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 											# is not included in this.
 			else: #Else we're propagating our own state (no longer done in getVehicleState)
 				print "Warning: Propagating my state in stateVehicles"
-		#print "propagating this state by " + str(time.time() - self.vehicleState.timestamp)
-		propagateVehicleState(self.vehicleState, time.time() - self.vehicleState.timestamp)
-		self.vehicleState.timestamp=time.time()
+
 
 
 
@@ -593,8 +604,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 #		OmegaGDot = 1*skew(EAccelToAlpha(LEADER.heading,CourseAngle(thetaG,thetaGDot,0),LEADER.roll))
 		OmegaGDot = 1*skew(EAccelToAlpha(LEADER.heading,LEADER.pitch,LEADER.roll))
 
-		RgDot = Rg*OmegaG;
-		RgDDot =Rg*OmegaG*OmegaG+ 0*Rg*OmegaGDot;
+		RgDot = Rg*OmegaG
+		RgDDot =Rg*OmegaG*OmegaG+ 0*Rg*OmegaGDot
 		pgDot = LEADER.fwdAccel*1 * Rg*e1 + RgDot* e1 * sg *1
 		CS.pgDot = pgDot
 
@@ -983,37 +994,27 @@ def propagateVehicleState(state, dtPos): #assumes heading rate and fwdAccel are 
 	vz = state.velocity[2] #positive = down
 
 
-	s = m.sqrt(vx**2+vy**2+vz**2)
-	sf = s+0*sDot*dtPos #Don't do this to avoid possibly destabilizing the numerical computation of fwdAccel
-	psif = state.heading.value+psiDot*dtPos
-	#state.heading.rate += dtAtt * state.heading.accel #Calculated from roll rate, so use dtAtt
-														#This seems to make the numerical heading accel estimate blow up
-
+#	s = m.sqrt(vx**2+vy**2+vz**2)
+#	sf = s+0*sDot*dtPos #Don't do this to avoid possibly destabilizing the numerical computation of fwdAccel
+#	psif = state.heading.value+psiDot*dtPos*0
 
 	dx = vx*dtPos #simplified, assumes straight line flight
 	dy = vy*dtPos
-	dz = state.velocity[2]*dtPos
-	
-#	print "dx: "+str(dx)
-#	print "dy: "+str(dy)
-#	print "dz: "+str(dz)
-#	print "dt: " + str(dtPos)
+	dz = vz*dtPos
 
 	#write output back to state
-	state.velocity[0] = sf * m.cos(psif)
-	state.velocity[1] = sf *m.sin(psif)
-	state.heading.value = wrapToPi(psif)
-	state.groundspeed = sf
+#	state.velocity[0] = sf * m.cos(psif)
+#	state.velocity[1] = sf *m.sin(psif)
+#	state.heading.value = wrapToPi(psif)
+#	state.groundspeed = sf
 
 	qGPS = np.matrix([[state.position.lat],[ state.position.lon],[-state.position.alt]])
 	dqGPS = getRelPos(qGPS,qGPS + 1e-6) / 1e-6
 	state.position.lat = np.asscalar(state.position.lat + dx/dqGPS[0])
 	state.position.lon = np.asscalar(state.position.lon + dy/dqGPS[1])
 	state.position.alt = (state.position.alt - dz)
-	
-#	print "T1: " + str(state.timestamp)	
+
 	state.timestamp = time.time() #state.timestamp + dtPos
-#	print "T2: " + str(state.timestamp)		
 	state.isPropagated = 1
 
 def eul2rotm(psi,theta,phi):

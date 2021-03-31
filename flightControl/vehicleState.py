@@ -141,6 +141,7 @@ class FullVehicleState(BasicVehicleState):
 		self.batteryV = None
 		self.batteryI = None
 		self.servoOut = None
+		self.abortReson= None
 		self.timeout= Timeout()
 		self.parameters=Parameter()
 		self.navOutput={'navRoll':None,'navPitch':None,'navBearing':None}
@@ -160,10 +161,6 @@ class FullVehicleState(BasicVehicleState):
 		headers.append('groundspeed')
 		values.append(self.groundspeed)
 
-#		velocityVector= np.matrix([[self.velocity[0] ],[self.velocity[1]],[self.velocity[2] ]])
-#		print 'Speed error log ' +str(self.ID) +': ' + str(np.linalg.norm(velocityVector)  -1.0*self.groundspeed)
-#		print 'Velocity log' + str(velocityVector.transpose())
-		 
 		headers+= ['roll','pitch','yaw','rollspeed','pitchspeed','yawspeed','attTime']
 		values+= [self.attitude.roll, self.attitude.pitch,self.attitude.yaw,
 			self.attitude.rollspeed,self.attitude.pitchspeed,self.attitude.yawspeed, self.attitude.time]
