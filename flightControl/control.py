@@ -80,15 +80,16 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 					self.updateGlobalStateWithData(msg)
 				except Queue.Empty:
 					break #no more messages (exit the loop)
-
+			t1=time.time()
 			try: #big try block to make sure everything works right
 				self.getVehicleState() #Get update from the Pixhawk
+				t2 = time.time()
 				self.pm.pMsg("RelTime: ", time.time() - self.startTime )
 				self.pm.pMsg("counter: ", self.vehicleState.counter)
 
 				if(self.parameters.config['propagateStates']):
 					self.propagateOtherStates()
-
+				t3 = time.time()
 				if(not self.vehicleState.isFlocking): #Should we engage flocking?
 					self.checkEngageFlocking()
 				if(self.vehicleState.isFlocking and self.vehicleState.ID != self.parameters.leaderID): #):# and self.parameters.leaderID != self.vehicleState.ID):
@@ -97,6 +98,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 					if(not self.checkAbort()):
 						self.computeControl() #writes the control values to self.vehicleState
 						self.scaleAndWriteCommands()
+				t4 = time.time()
 				if(time.time()-self.vehicleState.position.time <= self.parameters.localTimeout): #only transmit if still receiving positions from the flight controller
 					self.pushStateToTxQueue() #sends the state to the UDP sending threading
 
@@ -105,7 +107,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 				if(not self.vehicleState.isFlocking): #extra precaution to ensure control is given back
 					self.releaseControl()
-
+				t5 = time.time()
 				with Input() as ig: #update config if r key received
 					e=ig.send(1e-8)
 					if(e=='r'):
@@ -122,7 +124,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 							self.releaseControl()
 							print "Released Control"
 						print "Counter: " + str(self.vehicleState.counter)
-
+				t6 = time.time()
 				timeToWait = self.parameters.Ts - (time.time() -loopStartTime)
 				self.vehicleState.timeToWait = timeToWait
 				self.pm.p('Waiting: ' + str(timeToWait))
@@ -131,6 +133,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 					time.sleep(timeToWait) #variable pause
 				else:
 					print "Did not have time to wait!"
+					now=time.time()
+					print "T1: " +str(t1-loopStartTime) + " T2: " +str(t2-t1) + " T3: " +str(t3-t2) + " T4: " +str(t4-t3) +" T5: " +str(t5-t4) + " T6: " +str(t6-t5)
 			except Exception as ex:
 				print "Failed to use new config"
 				self.parameters=self.backupParams
@@ -147,20 +151,28 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		print "Control Stopped"
 			
 	def updateGlobalStateWithData(self,msg):
-		#print "Message before error: "+ str(msg)
 		if (msg.msgType == UAV):
-#			print "parsing UAV message"
 			self.parseUAVMessage(msg)
 		else: #From GCS
 			self.parseGCSMessage(msg)
-		
-	def parseUAVMessage(self,msg): 
+
+	def parseUAVMessage(self,msg):
 		if(msg.content['ID']>0 and msg.content['ID'] != self.vehicleState.ID):
-#			print "received message from another!"
 			ID=int(msg.content['ID'])
+
+
+			#This doesn't work and it's not clear why
+#			if(ID in self.stateVehicles.keys()):
+#				self.stateVehicles[ID].fromCSVList(msg.content.values())
+#			else:
+#				out = BasicVehicleState()
+#				temp = BasicVehicleState.fromCSVList(out, msg.content.values())
+#				self.stateVehicles[ID] = temp
+
 			out = BasicVehicleState()
-			temp = BasicVehicleState.fromCSVList(out,msg.content.values())
+			temp = BasicVehicleState.fromCSVList(out, msg.content.values())
 			self.stateVehicles[ID] = temp
+
 			self.stateVehicles[ID].timestamp = msg.sendTime #update vehicleState with sent time
 			self.vehicleState.timeout.peerLastRX[ID]=msg.sendTime	
 			
@@ -268,7 +280,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicleState.timeout.localTimeoutTime=lastPositionTime
 
 		if (lastPositionTime>self.vehicleState.timestamp):  #if new position is available
-			print "got a new position"
+			#print "got a new position"
 			self.vehicleState.isPropagated = False
 			self.vehicleState.position = self.vehicle.location.global_relative_frame
 			self.vehicleState.velocity = self.vehicle.velocity
@@ -482,13 +494,14 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 #			self.vehicleState.timeout.GCSLastRx = msg.sendTime()
 
 	def computeControl(self):
-		t0 = time.time()
+#		t0 = time.time()
 		if (self.parameters.config['mode'] == 'Formation'):
 			self.computeFormationControl()
 		elif (self.parameters.config['mode'] == 'MiddleLoop' ):
 			self.PilotMiddleLoopRefs()
 		else:
 			self.pm.p("Invalid mode: " + self.parameters.config['mode']  )
+#		t1 = time.time()
 		self.rollControl()
 		self.throttleControl()
 		if(self.parameters.config['dimensions'] == 3 or self.parameters.config['mode'] == 'Formation'):
@@ -497,7 +510,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else:
 			self.altitudeControl()				
 			self.pm.p("Using Altitude Control")
-#		print "Time for control: " + str(time.time()-t0)
+		t2 = time.time()
+# 		print "T1: "+ str(t1-t0) + " t2: " + str(t2-t1)
 	def PilotMiddleLoopRefs(self):
 		#Let Channel 7 determine if this is a speed, altitude, or heading test:
 		vp = self.vehicle.parameters
@@ -529,7 +543,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	def propagateOtherStates(self):
 		for i in self.stateVehicles.keys():
-			if( True): #self.vehicleState.ID != i):
+			if( self.vehicleState.ID != i):
 #				print "propagating state " + str(i)
 #				dt = time.time() - self.stateVehicles[i].timestamp
 				propagateVehicleState(self.stateVehicles[i], time.time()-self.stateVehicles[i].timestamp)
@@ -596,6 +610,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.pm.p("Formation 2D")
 		else:
 			self.pm.p("Formation 3D")
+
+
 
 		qil = getRelPos(ql_gps, qi_gps)
 
@@ -671,10 +687,13 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.pdi=pdi
 		self.pm.p('Formation FFTerm: ' + str(np.linalg.norm(CS.pgTerm+CS.rotFFTerm) ))
 
+
 		groundspd = THIS.groundspeed
 		airspd = THIS.airspeed
 
 	#Compute intermediates
+
+
 		thetaI = THIS.pitch.value
 		thetaIDot = THIS.pitch.rate
 		if (THIS.parameters.config['dimensions'] == 2 and not pdi[2] == 0):
@@ -782,6 +801,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS.command.asTarget,didSatASTarget = saturate(asTarget, vMin, vMax)
 		THIS.command.asTarget=asTarget #Don't saturate the target airspeed
 		self.pm.p("Commanded omega_z:" + str(omega[2,0]))
+
+
 		
 	#compute implementable orientation controls
 
@@ -804,7 +825,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 	#	self.pm.p("Fake Roll: " + str(CS.phiNew))
 	#	test = omega[0, 0] + m.sin(CS.phiNew) * m.tan(THIS.pitch.value) * omega[1, 0] + m.cos(CS.phiNew) * m.tan(
 	#		THIS.pitch.value) * omega[2, 0]
-		CS.angleRateTarget = np.linalg.inv(computeQ(THIS.heading.value,thetaI,CS.phiNew)) * THIS.command.omega
+		CS.angleRateTarget = computeQInv(THIS.heading.value,thetaI,CS.phiNew) * THIS.command.omega
 		CS.angleRateTarget = THIS.command.omega
 	#	self.pm.p("Commanded roll rate: "+str(CS.angleRateTarget[0, 0]))
 	#	self.pm.p( "omega: "+  str(omega))
@@ -878,7 +899,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		throttleFFTerm = (vp['TRIM_THROTTLE']  + gains['kThrottleFF']*vp['TECS_RLL2THR']*(1.0/m.pow(m.cos(rollAngle),2)-1) +
 			self.parameters.gains['kSpdToThrottle']  *(asTarget - vp['TRIM_ARSPD_CM']/100)   )
-
 
 		(cmd.throttleCMD , CS.throttleTerms) = self.throttleController.update(eSpeed,
 			(THIS.fwdAccel - 1.0*cmd.sdiDot),self.thisTS,throttleFFTerm)
@@ -1023,17 +1043,32 @@ def eul2rotm(psi,theta,phi):
 				  [-m.sin(theta), m.sin(phi)*m.cos(theta), m.cos(phi)*m.cos(theta)]])
 	return R
 def computeQ(psi, theta, phi):
+#	QInv = np.matrix([[1, m.sin(phi)*m.tan(theta), m.cos(phi)*m.tan(theta)],
+#				   [0, m.cos(phi), -m.sin(phi)],
+#				   [0,m.sin(phi)/m.cos(theta),m.cos(phi)/m.cos(theta)]])
+
+	Q = np.matrix([[1, 0,  -m.sin(theta)],
+				  [0, m.cos(phi), m.cos(theta)*m.sin(phi)],
+				  [0, -m.sin(phi), m.cos(phi)*m.cos(theta) ]])
+
+	#print Q
+	#print QInv
+ # 	print Q*QInv - np.identity(3)
+	return Q
+
+def computeQInv(psi, theta, phi):
 	QInv = np.matrix([[1, m.sin(phi)*m.tan(theta), m.cos(phi)*m.tan(theta)],
 				   [0, m.cos(phi), -m.sin(phi)],
 				   [0,m.sin(phi)/m.cos(theta),m.cos(phi)/m.cos(theta)]])
-	return np.linalg.inv(QInv)
+	return QInv
+
 def ERatesToW(psi,theta,phi,psiDot,thetaDDot,phiDot):
 	Q = computeQ(psi,theta,phi)
 	Phi = np.matrix([[phiDot],[thetaDDot],[psiDot]])
 	return Q * Phi
 def WToERates(psi,theta,phi,omega): #accepts, x y z, yields roll, pitch, yaw ratesrc
-	Q = computeQ(psi,theta,phi)
-	Phi = np.linalg.inv(Q)*omega
+	QInv = computeQInv(psi,theta,phi)
+	Phi = QInv*omega
 	return Phi
 def EAccelToAlpha(heading,pitch,roll):
 	psi = heading.value
