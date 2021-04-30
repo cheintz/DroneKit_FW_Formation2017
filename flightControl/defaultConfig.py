@@ -18,7 +18,7 @@ def getParams():
 		, 'maxEHeading':50,'maxEPitch':50,'maxESpeed':500, 'aSpeed':0.9,'gammaS':1,'kSpdToThrottle':4.5
 		,'kThrottleFF': 0,'kRollFF':1,'gammaB':0.0003,'maxEAlt':50,'epsD':0.2}
 	defaultParams.config = {'printEvery':50,'ignoreSelfPackets':False,'propagateStates':True , 'geofenceAbort':False
-		,'mode':'Formation','acceptableEngageMode': (VehicleMode('FBWA'),),'dimensions':3 }
+		,'mode':'Formation','acceptableEngageMode': (VehicleMode('FBWA'),),'dimensions':3,'maxPropagateSeconds':5 }
 	defaultParams.GCSTimeout = 5 #seconds
 	defaultParams.peerTimeout = 1 #seconds
 	defaultParams.localTimeout = 1  # seconds

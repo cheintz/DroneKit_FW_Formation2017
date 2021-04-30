@@ -101,7 +101,6 @@ print "Started Control"
 def hasLiveThreads(threads):
 	return True in [t.is_alive() for t  in threads]
 
-
 while hasLiveThreads(threads):
 	try:
 		[t.join(1) for t in threads

@@ -34,7 +34,7 @@ class Transmitter(multiprocessing.Process):
 			try:
 				msg = self.transmitQueue.get(True, 0.5)
 				self.sendMessage(msg)
-#					print "sending message"
+				#print "sending message"
 			#	self.transmitQueue.task_done() #May or may not be helpful
 			except Queue.Empty:
 				time.sleep(0.001)
@@ -44,26 +44,6 @@ class Transmitter(multiprocessing.Process):
 		print "Transmit Stopped"
 
 	def sendMessage(self, msg):
-#		t0 = time.time()
 		smsg = msgToBinary(msg)
-#		print "Time to binary" + str(time.time()-t0)
-
-#		t0 =time.time()
-		testMsg=Message()
-		testMsg.content = BasicVehicleState.getCSVLists(BasicVehicleState())
-		testMsg = binaryToMessage(testMsg,smsg)
-#		print "\n\n"
-#		print "Origional Message: " + str(msg)
-#		print type(msg.content['isFlocking'])
-#		print "\n"
-
-#		print "New message: " + str(testMsg)
-#		print "\n\n"
-
-#		print "Time from binary: " + str(time.time()-t0)
-
-#		for x in msg.content.keys():
-#			print x + "\t\t" + str(msg.content[x]-testMsg.content[x])
-
-#		print "\n\n"
+		#note msg.content is an OrderedDict created by BasicVehicleState.getCSVLists
 		self.s.sendto(smsg,self.sendAddress);

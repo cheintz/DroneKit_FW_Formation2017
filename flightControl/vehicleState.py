@@ -46,7 +46,7 @@ class BasicVehicleState(object):
 		self.timeToWait = 0	
 		self.qdIndex = 0
 		if other is not None:
-			#print "Calling basic copy constructor"
+#			print "Calling basic copy constructor"
 			for k in self.__dict__.keys():
 				self.__dict__[k] = other.__dict__[k] #This is terrible
 	def getCSVLists(self):

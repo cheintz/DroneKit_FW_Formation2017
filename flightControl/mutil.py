@@ -152,15 +152,10 @@ binFormat = 'd I I I d f ? f f f d f f f f f f f f f f f f f'
 messageStruct = struct.Struct(binFormat)
 
 def msgToBinary(msg):
-	data = [msg.sendTime,msg.msgType] + msg.content.values()
+	# note msg.content is an OrderedDict created by BasicVehicleState.getCSVLists
+	data = [msg.sendTime,msg.msgType, ] + msg.content.values()
 #	print msg.content.keys()
-#	print msg.content.keys()
-	out = messageStruct.pack(*data)  # * unpacks list arguments
-#	dataCheck = messageStruct.unpack(out)
-#	for idx,x in enumerate(data):
-#		print str(data[idx]) + "\t" + str(dataCheck[idx])
-#	print "\n\n\n"
-
+	out = messageStruct.pack(*data)  #Note: * causes unpacking of list arguments
 	return out
 
 def binaryToMessage(msg,input):
