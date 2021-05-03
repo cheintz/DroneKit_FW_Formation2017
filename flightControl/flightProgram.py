@@ -25,9 +25,9 @@ AdHocIP = os.environ['ADHOCIP']
 peerReadPort = int(os.environ['PORT'])
 myAddr = (AdHocIP, peerReadPort)
 logPath = os.environ["LOGPATH"]
-
-
 broadcastIP= os.environ["BROADCASTIP"]
+SITLFlag = os.environ["SITL"]
+
 import defaultConfig
 
 
@@ -75,7 +75,7 @@ transmitThread = transmit.Transmitter(transmitQueue,AdHocIP,peerReadPort,transmi
 fileSuffix =   '_v' + str(int(vehicle.parameters['SYSID_THISMAV']))
 logThread = log.Logger(loggingQueue,logPath,defaultParams.expectedMAVs,startTime,fileSuffix)
 
-controlThread = control.Controller(loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams,startTime)
+controlThread = control.Controller(loggingQueue,transmitQueue,receiveQueue,vehicle,defaultParams,startTime,SITLFlag)
 
 print "default params" + str(defaultParams)
 

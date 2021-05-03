@@ -82,7 +82,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			try: #big try block to make sure everything works right
 				self.getVehicleState() #Get update from the Pixhawk
 				t2 = time.time()
-				self.pm.pMsg("RelTime: ", time.time() - self.startTime )
+				self.pm.pMsg("RelTime: ", "{:.4f}".format(time.time() - self.startTime ))
 				self.pm.pMsg("counter: ", self.vehicleState.counter)
 
 				if(self.parameters.config['propagateStates']):
@@ -126,7 +126,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				t6 = time.time()
 				timeToWait = self.parameters.Ts - (time.time() -loopStartTime)
 				self.vehicleState.timeToWait = timeToWait
-				self.pm.p('Waiting: ' + str(timeToWait))
+				self.pm.pMsg('Waiting: ',  "{:.5f}".format(timeToWait))
 				self.pm.increment()
 				if(timeToWait>0):			
 					time.sleep(timeToWait) #variable pause
@@ -272,19 +272,26 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		return True
 			
 	def getVehicleState(self):
+		self.clockOffset = self.vehicle.system_boot_time.bootTimeCC - self.vehicle.system_boot_time.bootTimeFC
 		lastPositionTime = self.vehicle.location.global_relative_frame.time
 		if(lastPositionTime is None):
 				lastPositionTime = 0
+		if (self.sitl):
+			lastPositionTime = lastPositionTime +self.clockOffset #use the companion computer's time instead
+
 		self.vehicleState.timeout.peerLastRX[self.vehicleState.ID]=lastPositionTime
 		self.vehicleState.timeout.localTimeoutTime=lastPositionTime
-		self.pm.p("posTime: " + str(self.vehicleState.timestamp))
-		self.clockOffset = self.vehicle.system_boot_time.bootTimeCC -self.vehicle.system_boot_time.bootTimeFC
+
 		if (lastPositionTime>self.vehicleState.timestamp):  #if new position is available
 			self.pm.p("posTime: " + str(self.vehicleState.timestamp))
 			#print "got a new position"
 			self.vehicleState.isPropagated = False
 			self.vehicleState.position = self.vehicle.location.global_relative_frame
 			self.vehicleState.velocity = self.vehicle.velocity
+		self.vehicleState.attitude = self.vehicle.attitude
+		if (self.sitl):
+			self.vehicleState.position.time = self.vehicleState.position.time + self.clockOffset  # use the companion computer's time instead
+			self.vehicleState.attitude.time = self.vehicleState.attitude.time + self.clockOffset  # use the companion computer's time instead
 
 		if self.lastLoopTime is None: #startup calculation of Ts
 			print "first loop"
@@ -298,7 +305,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicleState.counter+=1
 		self.lastLoopTime = time.time()
 		self.thisTS = Ts
-		self.pm.pMsg("thisTs: " , Ts)
+		self.pm.pMsg("thisTs: " , "{:.5f}".format(Ts))
 
 		#Cache old values for filters
 		lastHeading = self.vehicleState.heading.value
@@ -325,7 +332,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	#copy other states over
 		self.vehicleState.airspeed=self.vehicle.airspeed
-		self.vehicleState.attitude = self.vehicle.attitude
 		self.vehicleState.channels = dict(zip(self.vehicle.channels.keys(),self.vehicle.channels.values())) #necessary to be able to serialize it
 		self.vehicleState.wind_estimate=windHeadingToInertial(self.vehicle.wind_estimate)
 		self.vehicleState.imuAccel = self.vehicle.acceleration
@@ -339,8 +345,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicleState.navOutput = {'navRoll': nco.nav_roll,'navPitch':nco.nav_pitch,'navBearing':nco.nav_bearing}
 		ATT=self.vehicleState.attitude
 		s = self.vehicleState.groundspeed
-
-
 
 		if isFirstLoop:
 			print "initializing fwdAccel"
@@ -397,9 +401,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 	#	if(self.vehicleState.heading.accel is None:
 	#		lastHeadingRate = 0
 	#		print "heading Accel is none"
-		
-		
-		
 
 	#FwdAcceleration
 	#Filter startup handling
@@ -423,18 +424,14 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			oldqGPS = np.matrix([[oldPos.lat], [oldPos.lon], [-oldPos.alt]])
 
 			if (self.vehicleState.isPropagated == False):
-#				print "initial propagation by " + str(time.time()-self.vehicleState.position.time)
-																#Reminder: clock offset is companion - flight controller
 				self.vehicleState.timestamp=self.vehicleState.position.time
 				propagateVehicleState(self.vehicleState, self.fcTime() - self.vehicleState.position.time) #also updates vehicleState.timestamp
 			else:
 				dt = self.fcTime() - self.vehicleState.timestamp
 				propagateVehicleState(self.vehicleState, dt)
-#				print "propagating my state again by " + str(dt)
 			newPos = self.vehicleState.position
 			newqGPS = np.matrix([[newPos.lat], [newPos.lon],[-newPos.alt]])
 			dq = getRelPos(oldqGPS,newqGPS)
-#			print dq.transpose()
 		else: #still have to set set the timestamp...
 			self.vehicleState.timestamp = self.fcTime()
 
@@ -446,7 +443,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		if self.parameters.txStateType == 'basic':  #note: deep copy takes a very long time, un and de pickling with cPickle is faster, binary seems to be fastest.
 			msg.content =BasicVehicleState.getCSVLists(self.vehicleState)  #explicit call to BasicVehicleState to avoid calling the method for FullVehicleState
 		self.transmitQueue.put(msg)
-		return msg
 
 	def pushStateToLoggingQueue(self):
 		self.lastLogged = self.vehicleState.counter
@@ -467,7 +463,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		didTimeOut = False
 		if(self.fcTime() - self.vehicleState.timeout.localTimeoutTime > self.parameters.localTimeout):
 			didTimeOut=True
-			self.pm.p("Timeout with local Pixhawk, last received " + str(self.fcTime()-self.vehicleState.timeout.localTimeoutTime) + "s ago")
+			self.pm.p("Timeout with local Pixhawk, last received " + "{:.4f}".format(self.fcTime()-self.vehicleState.timeout.localTimeoutTime) + "s ago")
 		if(self.fcTime() -  self.lastGCSContact<self.fcTime()- self.parameters.GCSTimeout ):
 			self.pm.p( "GCS Timeout - Overridden")
 		#if(True):
@@ -478,7 +474,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				ID=int(IDS)	
 				if(self.vehicleState.timeout.peerLastRX[ID]<self.fcTime()- self.parameters.peerTimeout):
 					self.vehicleState.timeout.peerTimeoutTime[ID]=self.fcTime()
-					self.pm.p( "Timeout - ID: " + str(ID) + " Last received " + str(self.fcTime() -self.vehicleState.timeout.peerLastRX[ID] ) + "s ago")
+					self.pm.p( "Timeout - ID: " + str(ID) + " Last received " + "{:.4f}".format(self.fcTime() -self.vehicleState.timeout.peerLastRX[ID] ) + "s ago")
 #					print "LastRX: " + str(self.vehicleState.timeout.peerLastRX[ID]) + "\t" + 
 					didTimeOut = True
 		return didTimeOut
@@ -545,17 +541,16 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	def propagateOtherStates(self):
 		for i in self.stateVehicles.keys():
-			if( self.vehicleState.ID != i):
+			if( self.vehicleState.ID != i and (self.fcTime() - self.vehicleState.timeout.peerLastRX[i]) <= self.vehicleState.parameters.config['maxPropagateSeconds']):
 				propagateVehicleState(self.stateVehicles[i], self.fcTime()-self.stateVehicles[i].timestamp)
 #				self.stateVehicles[i].timestamp=self.fcTime()
 			# will propagate from when we received. Other agent propagates forward from
 											# its Pixhawk position update time. The actual communication latency
 											# is not included in this.
-			else: #Else we're propagating our own state (no longer done in getVehicleState)
+			elif (self.vehicleState.ID == i): #Else we're propagating our own state (no longer done in getVehicleState)
 				print "Warning: Propagating local state in stateVehicles"
-
-
-
+			else:
+				self.pm.p("Didn't propagate " + str(i) + " because too old." )
 
 	def computeFormationControl(self):
 		THIS = self.vehicleState
@@ -797,7 +792,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 #		self.pm.p("asControlError: "+ str(CS.backstepSpeed + CS.backstepSpeedError+CS.backstepSpeedRate+(airspd-groundspd-asTargetnew) ))
 		asTarget=asTargetnew
-		self.pm.p('asTarget: '  + str(asTarget))
+		self.pm.p('asTarget: '  + "{:.3f}".format(asTarget))
 		THIS.command.asTarget,didSatASTarget = saturate(asTarget, vMin, vMax)
 		THIS.command.asTarget=asTarget #Don't saturate the target airspeed
 		self.pm.p("Commanded omega_z:" + str(omega[2,0]))
@@ -895,7 +890,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			speedError = True
 		eSpeed = THIS.groundspeed - asTarget
 		if speedError:
-				print "asTarget: " + str(asTarget) + " was " + str(oldASTarget)
+				print "asTarget: " + "{:.3f}".format(asTarget) + " was " + "{:.3f}".format(oldASTarget)
 
 		throttleFFTerm = (vp['TRIM_THROTTLE']  + gains['kThrottleFF']*vp['TECS_RLL2THR']*(1.0/m.pow(m.cos(rollAngle),2)-1) +
 			self.parameters.gains['kSpdToThrottle']  *(asTarget - vp['TRIM_ARSPD_CM']/100)   )
@@ -970,7 +965,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			,-gains['maxEAlt'],gains['maxEAlt'])
 
 	def fcTime(self):
-		return time.time()-self.clockOffset
+		if self.sitl:
+			return time.time()
+		else:
+			return time.time()-self.clockOffset
 
 def wrapToPi(value):
 	return wrapTo2Pi(value+m.pi)-m.pi
