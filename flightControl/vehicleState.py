@@ -20,8 +20,8 @@ Command = recordtype('Command',['sdi','sdt','sdiDot','asTarget',('omega',zeroVec
 
 CourseAngle = recordtype('CourseAngle',['value','rate','accel'],default=0.0)	
 
-ControlState = recordtype('ControlState',[('pgTerm',zeroVect),('rotFFTerm',zeroVect),('kplTerm',zeroVect),('kpjTerm',zeroVect),('pdi',zeroVect)
-	,('bdi',zeroVect),('pdiDot',zeroVect),'accHeadingError',('rollTerms',PIDTerms()),'accSpeedError','phiNew'
+ControlState = recordtype('ControlState',[('pgTerm',zeroVect),('rotFFTerm',zeroVect),('phii',zeroVect),('pdi',zeroVect)
+	,('bdi',zeroVect),('pdiDot',zeroVect),'accHeadingError',('rollTerms',PIDTerms()),'accSpeedError'
 	,('throttleTerms',PIDTerms()),'accPitchError',('pitchTerms',PIDTerms()),'accAltError'
 	,'backstepSpeed','backstepSpeedError','backstepSpeedRate',('angleRateTarget',zeroVect),('pgDot',zeroVect),'h','phps','phpsd','mu']
 	, default = 0.0)

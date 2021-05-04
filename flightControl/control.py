@@ -581,11 +581,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			qd = np.asmatrix(THIS.parameters.desiredPosition)
 		di=qd[ID-2,np.matrix([0,1,2])]
 		self.pm.pMsg('Qd: ', di)
-
 		di.shape=(3,1)
 		self.vehicleState.command.qd = di
 
-		kl = GAINS['kl']
 		ka = GAINS['ka']
 
 		vMin = GAINS['vMin']
@@ -606,13 +604,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else:
 			self.pm.p("Formation 3D")
 
-
-
 		qil = getRelPos(ql_gps, qi_gps)
 
 		Rg = eul2rotm(psiG,thetaG,phiG)
 		OmegaG = skew(ERatesToW(psiG,thetaG,phiG,LEADER.heading.rate,thetaGDot,LEADER.roll.rate))
-#		OmegaGDot = 1*skew(EAccelToAlpha(LEADER.heading,CourseAngle(thetaG,thetaGDot,0),LEADER.roll))
 		OmegaGDot = 1*skew(EAccelToAlpha(LEADER.heading,LEADER.pitch,LEADER.roll))
 
 		RgDot = Rg*OmegaG
@@ -620,7 +615,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		pgDot = LEADER.fwdAccel*1 * Rg*e1 + RgDot* e1 * sg *1
 		CS.pgDot = pgDot
 
-	#	self.pm.p("rgDDot: " + str(RgDDot))
 		self.pm.p( 'Time: = ' + str(THIS.timestamp))
 	#Compute from leader
 		zetai = qil - Rg* di
@@ -632,8 +626,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		self.pm.p("qil Inertial: " + str(qil))
 		self.pm.p("qil Leader: " + str(Rg.transpose()*qil))
-		#pdi = qiDot - (pg + psiGDot * gamma * di) #in plane relative velocity (inertial)
-		#pdiDot = 0
 
 		#CS.pgTerm = F(zetai)*pg
 		#CS.rotFFTerm = F(zetai)*RgDot*di
@@ -642,16 +634,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.rotFFTerm = RgDot*di
 		self.pm.p('F(zetai)' + str( F(zetai)))
 
+		kl = GAINS['kl']
 		kl = kl * self.parameters.communication[ID-1][0]
 		self.pm.p('Leader rel gain: ' + str(self.parameters.communication[ID-1][0]))
-		CS.kplTerm = -kl * sigma(zetai)*(zetai) - 0* kl * sigma(zetai)*zetaiDot
-
-		pdiDot = 1*pgDot+1*RgDDot*di  - kl*( np.asscalar(sigmaDot(zetai).transpose()*zetaiDot)*zetai + sigma(zetai)*zetaiDot )
-
-		temp = (np.asscalar(f(zetai).transpose()*zetaiDot) *( pg+RgDot*di ) + F(zetai)*( pgDot+RgDDot*di      )
-			-kl*( np.asscalar(sigmaDot(zetai).transpose()*zetaiDot)*zetai + sigma(zetai)*zetaiDot ))
-
-		CS.kpjTerm = np.matrix([[0],[0],[0]])
+		phii = -kl * zetai
+		phiiDot = -kl * zetaiDot
 
 	#compute from peers
 		for j in range(1,n+1): #This loops over mav IDs, not indices in any arrays
@@ -670,25 +657,21 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				if (THIS.parameters.config['dimensions'] == 2):
 					zetaij[2] = 0
 					zetaijDot[2] = 0
-
-				CS.kpjTerm = CS.kpjTerm -ka* sigma(zetaij)*zetaij
-				pdiDot = pdiDot +  -ka * ( np.asscalar(sigmaDot(zetaij).transpose()*zetaijDot) * zetaij + sigma(zetai)*zetaijDot )
-
-
-		pdi=CS.pgTerm+CS.rotFFTerm+CS.kplTerm+CS.kpjTerm
+				phii += -ka *zetaij
+				phiiDot += -ka * zetaijDot
+		CS.phii=phii
+		pdi=CS.pgTerm+CS.rotFFTerm+GAINS['ki']*sigma(phii)*phii
+		pdiDot = 1*pgDot+1*RgDDot*di + GAINS['ki'] * np.asscalar(sigmaDot(phii).transpose()*phiiDot)*phii+sigma(phii)*phiiDot
 		if (THIS.parameters.config['dimensions'] == 2 and not pdi[2] == 0):
 			print "Warning, pdi not 2D. pdi[2]: " + str(pdi[2])
 
 		CS.pdi=pdi
 		self.pm.p('Formation FFTerm: ' + str(np.linalg.norm(CS.pgTerm+CS.rotFFTerm) ))
 
-
-		groundspd = THIS.groundspeed
+		si = THIS.groundspeed
 		airspd = THIS.airspeed
 
 	#Compute intermediates
-
-
 		thetaI = THIS.pitch.value
 		thetaIDot = THIS.pitch.rate
 		if (THIS.parameters.config['dimensions'] == 2 and not pdi[2] == 0):
@@ -699,9 +682,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		sMax = vMax-GAINS['epsD']
 		sMin = vMin+GAINS['epsD']
-
 		sdt, didSatSd = saturate(sdi, sMin, sMax)
-
 		bdi = pdi / sdi
 
 		THIS.command.sdi=sdi
@@ -714,45 +695,31 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		if(didSatSd):
 			sdiDot = 0
 #			self.pm.p("sdi saturated, was " + str(sdi)+ " Now " + str(sdt))
-#		print "old pdiDot: " + str(pdiDot)
 		pdiDot = sdiDot*bdi + sdi*bdiDot #Checked good, will saturate with sdi
-#		print "new pdiDot: " + str(pdiDot)
 
-		THIS.command.sdt = sdt
+		THIS.command.sdt = sdt  #saturated desired speed and derivative
 		THIS.command.sdiDot=sdiDot
-#		CS.bdiDot = bdiDot
 		CS.pdiDot = pdiDot
-		
-		siTilde = groundspd - sdt
+
+		si=THIS.groundspeed
+		si,didSatS = saturate(si,vMin+.1,vMax-.1)
+		siTilde = si - sdt
+
 	# Compute angular velocity control
 		Omega = (GAINS['gammaB']*sdt*(Ri.transpose()*pdi*e1.transpose()-e1*pdi.transpose()*Ri)+
 			1.0/sdt**2.0*Ri.transpose()*(pdiDot*pdi.transpose()-pdi*pdiDot.transpose())*Ri)
 		omega=np.matrix([[Omega[2,1] ], [-Omega[2,0] ], [Omega[1,0] ]])
 		OmegaFF =  1.0 / sdt ** 2.0 * Ri.transpose() * (pdiDot * pdi.transpose() - pdi * pdiDot.transpose()) * Ri
 		OmegaFB =  (GAINS['gammaB']*sdt*(Ri.transpose()*pdi*e1.transpose()-e1*pdi.transpose()*Ri) )
-		#self.pm.p("OmegaFFZ : " + str(OmegaFF[1, 0]))
-	#	self.pm.p("OmegaFBZ : " + str(OmegaFB[1, 0]))
-		#self.pm.p("OmegaNet : " + str(OmegaFF[1, 0]+OmegaFB[1, 0]))
+		self.pm.p("OmegaFF_Z : " + str(OmegaFF[1, 0]))
+		self.pm.p("OmegaFB_Z : " + str(OmegaFB[1, 0]))
+#		self.pm.p("OmegaNet : " + str(OmegaFF[1, 0]+OmegaFB[1, 0]))
+#		self.pm.p("OmegaDifference : " + str(OmegaFF[1, 0]+OmegaFB[1, 0] - Omega[1,0]))
 		THIS.command.omega=omega
 
- 
-	#Compute Bounded speed control (pre-ACC)
-
-		si=groundspd
-		si,didSatS = saturate(si,vMin+.1,vMax-.1)
-
+	#ACC-published way of computing the speed control
 		littlef = -GAINS['aSpeed'] * si
 		littleg = GAINS['aSpeed']
-#		n = (sMax - sdt) * (-sMin + sdt)
-#		d = (sMax - groundspd) * (groundspd - sMin)
-#		eta = n* siTilde / d
-#		bigF = (sMax +sMin - 2*sdt)*siTilde * sdiDot / d - n*(sMax - 2*sdt - 2*siTilde + sMin) * siTilde * sdiDot / d**2
-#		bigG = n/d - n*(sMax - 2*sdt - 2*siTilde + sMin) * siTilde / d**2
-#		asTarget = ((-bigF - GAINS['gammaS'] * eta)/ (bigG * littleg) + (sdiDot - littlef) / littleg
-#			+ (airspd-groundspd)) #pre-ACC Control
-
-	#ACC-published way of computing the speed control
-
 		siTilde = si - sdt
 		h=((vMax-sdt)*(sdt-vMin))/((vMax-si)*(si-vMin))
 		phps=-(vMax+vMin-2*si)/((vMax-si)*(si-vMin)) * h
@@ -784,44 +751,22 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.phpsd=phpsd
 		CS.mu=mu
 
-#		print "littleg: " +str(littleg)
-#		print "littlef: " +str(littlef)
 
-		asTargetnew = (-1.0/littleg * (  littlef + GAINS['gammaS']*siTilde*h/mu + (sdiDot/mu)*(siTilde*phpsd -h)    )
-			 )+ 1*(airspd-groundspd)
+		asTarget = (-1.0/littleg * (  littlef + GAINS['gammaS']*siTilde*h/mu + (sdiDot/mu)*(siTilde*phpsd -h)    )
+			 )+ 1*(airspd-THIS.groundspeed)
 
 #		self.pm.p("asControlError: "+ str(CS.backstepSpeed + CS.backstepSpeedError+CS.backstepSpeedRate+(airspd-groundspd-asTargetnew) ))
-		asTarget=asTargetnew
 		self.pm.p('asTarget: '  + "{:.3f}".format(asTarget))
 		THIS.command.asTarget,didSatASTarget = saturate(asTarget, vMin, vMax)
+
+
 		THIS.command.asTarget=asTarget #Don't saturate the target airspeed
 		self.pm.p("Commanded omega_z:" + str(omega[2,0]))
 
-
-		
 	#compute implementable orientation controls
 
-		#compute a good roll so that we don't need any rollspeed
-		CS.phiNew=0
-	#	try:
-	#		CS.phiNew = -2 * m.atan(m.sqrt(
-	#			omega[0, 0] ** 2 + omega[1, 0] ** 2 * m.tan(THIS.pitch.value) ** 2 + omega[2, 0] ** 2 * m.tan(
-	#				THIS.pitch.value) ** 2) /
-	#								(omega[0, 0] - omega[2, 0] * m.tan(THIS.pitch.value)) +
-	#								(omega[1, 0] * m.tan(THIS.pitch.value)) / (
-	#											omega[0, 0] - omega[2, 0] * m.tan(THIS.pitch.value)))*0
-	#	except ValueError as ex:
-	#		CS.phiNew = -2*m.atan(m.sqrt(-omega[0,0]**2+omega[1,0]**2*m.tan(THIS.pitch.value)**2+omega[2,0]**2*m.tan(THIS.pitch.value)**2)/
-	#						  (omega[0,0]-omega[2,0]*m.tan(THIS.pitch.value)) +
-	#						  (omega[1,0]*m.tan(THIS.pitch.value))/(omega[0,0]-omega[2,0]*m.tan(THIS.pitch.value)))*0
-		#	print ex
-
-
-	#	self.pm.p("Fake Roll: " + str(CS.phiNew))
-	#	test = omega[0, 0] + m.sin(CS.phiNew) * m.tan(THIS.pitch.value) * omega[1, 0] + m.cos(CS.phiNew) * m.tan(
-	#		THIS.pitch.value) * omega[2, 0]
-		CS.angleRateTarget = computeQInv(THIS.heading.value,thetaI,CS.phiNew) * THIS.command.omega
-		CS.angleRateTarget = THIS.command.omega
+		CS.angleRateTarget = computeQInv(THIS.heading.value,thetaI,0) * THIS.command.omega  #use 0 for the roll angle
+		CS.angleRateTarget = THIS.command.omega  		#TODO probably get rid of this?
 	#	self.pm.p("Commanded roll rate: "+str(CS.angleRateTarget[0, 0]))
 	#	self.pm.p( "omega: "+  str(omega))
 #		self.pm.p( "eulrSpeedsFlipped: " + str(np.flipud(CS.angleRateTarget)))
