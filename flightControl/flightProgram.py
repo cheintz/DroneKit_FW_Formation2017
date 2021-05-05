@@ -26,7 +26,10 @@ peerReadPort = int(os.environ['PORT'])
 myAddr = (AdHocIP, peerReadPort)
 logPath = os.environ["LOGPATH"]
 broadcastIP= os.environ["BROADCASTIP"]
-SITLFlag = os.environ["SITL"]
+try:
+	SITLFlag = os.environ["SITL"]
+except KeyError:
+	SITLFlag =False
 
 import defaultConfig
 
