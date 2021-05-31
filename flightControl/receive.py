@@ -65,7 +65,7 @@ class Receiver(multiprocessing.Process):
 			if not e.args[0] == 'timed out':
 				raise e
 			else:
-				print e
+				print "RX process timed out: " +str(e)
 		
 		
 		
