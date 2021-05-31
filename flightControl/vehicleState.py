@@ -36,7 +36,7 @@ class BasicVehicleState(object):
 		self.timestamp = None #time.time()
 		self.position = dronekit.LocationGlobalRelative(0,0,0)
 		self.velocity = [0,0,0]
-		self.fwdAccel = 0
+		self.accel = [0,0,0]
 		self.heading = CourseAngle()
 		self.pitch = CourseAngle()
 		self.roll = CourseAngle()
@@ -64,13 +64,16 @@ class BasicVehicleState(object):
 		values.append(self.timeToWait)
 
 		headers.append('isFlocking')
-		values.append(self.isFlocking*1) #times one to from True to 1
+		values.append(self.isFlocking*1) #times one to convert from True to 1
 
 		headers+= ['lat','lon','alt','posTime']
 		values+= [self.position.lat,self.position.lon,self.position.alt,self.position.time]
 
 		headers+=['latSpd','lonSpd','altSpd']
 		values+=self.velocity
+
+		headers += ['latAccel','lonAccel','altAccel']
+		values += self.accel
 
 		headers+=['cHeading','cHeadingRate','cHeadingAccel']
 		values+=[self.heading.value,self.heading.rate,self.heading.accel]
@@ -81,8 +84,7 @@ class BasicVehicleState(object):
 		headers += ['cRoll', 'cRollRate', 'cRollAccel']
 		values += [self.roll.value,self.roll.rate,self.roll.accel]
 
-		headers += ['fwdAccel']
-		values += [self.fwdAccel]	
+
 
 		out = OrderedDict(zip(headers,values))
 		return out
@@ -101,7 +103,6 @@ class BasicVehicleState(object):
 	def fromCSVList(self,lin): #Probably intended to be used for different data transmission format
 		out= BasicVehicleState()
 		din = out.getCSVLists()
-#		print "lin" + str(lin)
 		din = OrderedDict(zip(din.keys(),lin  ))
 		out.ID =din['ID']
 		out.counter = din['Counter']
@@ -113,17 +114,14 @@ class BasicVehicleState(object):
 		out.position.lon = din['lon']
 		out.position.alt = din['alt']
 		out.position.time =din['posTime']
-#		print "din: "+ str(din)
-#		print "din[\'latSpd\']" + str(din['latSpd'])
-#		print "\n\n\n\n"
+
 		out.velocity = [ din['latSpd'],din['lonSpd'] ,din['altSpd']  ]
+		out.accel = [din['latAccel'], din['lonAccel'], din['altAccel']]
 		out.heading = CourseAngle(din['cHeading'],din['cHeadingRate'], din['cHeadingAccel'] )
 		out.roll = CourseAngle(din['cRoll'],din['cRollRate'],din['cRollAccel'])
 		out.pitch = CourseAngle(din['cPitch'], din['cPitchRate'], din['cPitchAccel'])
-		self.fwdAccel= din['fwdAccel']
 		return out
 	
-		
 class FullVehicleState(BasicVehicleState):
 	def __init__(self, other = None):
 		super(FullVehicleState, self).__init__(other)
@@ -141,7 +139,7 @@ class FullVehicleState(BasicVehicleState):
 		self.batteryV = None
 		self.batteryI = None
 		self.servoOut = None
-		self.abortReson= None
+		self.abortReason= None
 		self.timeout= Timeout()
 		self.parameters=Parameter()
 		self.navOutput={'navRoll':None,'navPitch':None,'navBearing':None}
@@ -184,30 +182,6 @@ class FullVehicleState(BasicVehicleState):
 		(h,v) = recordTypeToLists(self.command)
 		headers += h
 		values += v	
-		headers.append('GCSLastRX')		
-		
-		try:
-			values.append(str((self.timeout.GCSLastRx-epoch).total_seconds()))
-		except: 
-			values.append('')
-
-		headers.append('GCSLastRX_1')
-		try:
-			values.append(str((self.timeout.peerLastRX[1]-epoch) . total_seconds()))
-		except: 
-			values.append('')
-
-		headers.append('GCSLastRX_2')
-		try:
-			values.append(str((self.timeout.peerLastRX[2]-epoch) . total_seconds()))
-		except: 
-			values.append('')
-
-		headers.append('GCSLastRX_3')
-		try:
-			values.append(str((self.timeout.peerLastRX[3]-epoch) . total_seconds()))
-		except: 
-			values.append('')
 
 		headers.append('abortReason')
 		try:
@@ -225,7 +199,6 @@ class FullVehicleState(BasicVehicleState):
 		
 		out = OrderedDict(zip(headers,values))
 		return out
-	
 
 def vecToCSV(mat,prefix):
 	outKey = []
@@ -234,14 +207,6 @@ def vecToCSV(mat,prefix):
 		outKey.append(prefix+'_'+str(j))
 		outValue.append(mat[j,0])
 	return (outKey,outValue)
-
-#def RecordTypeToCSV(rt,basename):
-#	keys = rt._fields
-#	outKey = []
-#	outValue = []
-#	for k in keys:
-#		outKey.append(basename = '_' + k)
-#		outValue.append(rt[k])
 
 def recordTypeToLists(rt,prefix =''):
 	headers = []
@@ -289,7 +254,3 @@ class PrintManager(object):
 			self._counter = 0
 	def increment(self):
 		self._counter +=1
-	
-
-
-

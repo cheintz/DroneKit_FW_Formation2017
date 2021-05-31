@@ -274,6 +274,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 	def getVehicleState(self):
 		self.clockOffset = self.vehicle.system_boot_time.bootTimeCC - self.vehicle.system_boot_time.bootTimeFC
 		lastPositionTime = self.vehicle.location.global_relative_frame.time
+
+		VS = self.vehicleState
 		if(lastPositionTime is None):
 				lastPositionTime = 0
 		if (self.sitl):
@@ -307,16 +309,16 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.thisTS = Ts
 		self.pm.pMsg("thisTs: " , "{:.5f}".format(Ts))
 
-		#Cache old values for filters
-		lastHeading = self.vehicleState.heading.value
-		lastSpeed = self.vehicleState.groundspeed
+		#Cache old values for filters (numerical differentiation heading rates)
+#		lastHeading = self.vehicleState.heading.value
 		lastHeadingRate = self.vehicleState.heading.rate
-		lastHeadingAccel = self.vehicleState.heading.accel
+		lastPitchRate = self.vehicleState.pitch.rate
+		#lastHeadingAccel = self.vehicleState.heading.accel
 
 		velocityVector= np.matrix([[self.vehicleState.velocity[0] ],[self.vehicleState.velocity[1]],[self.vehicleState.velocity[2] ]])
 		self.vehicleState.groundspeed = np.linalg.norm(velocityVector,2)
 
-		if self.vehicleState.groundspeed>3:
+		if self.vehicleState.groundspeed>5:
 			self.vehicleState.heading.value = m.atan2(velocityVector[1],velocityVector[0])
 			self.pm.pMsg("heading rate: ",self.vehicleState.heading.rate)
 			self.vehicleState.pitch.value = m.asin(-velocityVector[2]/ max(np.linalg.norm(velocityVector[0:2],2),abs(velocityVector[2]))   ) 
@@ -344,15 +346,23 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		nco = self.vehicle.nav_controller_output
 		self.vehicleState.navOutput = {'navRoll': nco.nav_roll,'navPitch':nco.nav_pitch,'navBearing':nco.nav_bearing}
 		ATT=self.vehicleState.attitude
-		s = self.vehicleState.groundspeed
+#		s = self.vehicleState.groundspeed
 
 		if isFirstLoop:
 			print "initializing fwdAccel"
 			lastSpeed=self.vehicleState.groundspeed
 			self.vehicleState.fwdAccel = 0
 
+		#Earth frame Acceleration from accelerometers
+		R = eul2rotm(ATT.yaw,ATT.pitch,ATT.roll)
+		earthAccel = (R*np.matrix(self.vehicleState.imuAccel.__dict__.values()).transpose()).transpose().tolist()
+		earthAccel = earthAccel[0]
+		earthAccel[2]+=9.81
+		self.vehicleState.accel=earthAccel
+
 
 	#"Attitude" Rates
+
 	#Filtered differentiation startup handling
 #		if self.vehicleState.heading.rate is None:
 #			lastHeading = self.vehicleState.heading.value
@@ -380,37 +390,37 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 #			self.vehicleState.heading.accel = 0
 
 	#Gyro-based Heading Rate
-		lastHeadingRate = self.vehicleState.heading.rate
-		lastPitchRate = self.vehicleState.pitch.rate
-		omega = np.matrix([[ATT.rollspeed],[ATT.pitchspeed],[ATT.yawspeed]])
-		EulerRates = WToERates(ATT.yaw,ATT.pitch,ATT.roll,omega)
-#		self.pm.p('EulerRates:' + str(EulerRates))
-#		self.pm.p('omega:' + str(omega))
+#		lastHeadingRate = self.vehicleState.heading.rate
+#		lastPitchRate = self.vehicleState.pitch.rate
+#		omega = np.matrix([[ATT.rollspeed],[ATT.pitchspeed],[ATT.yawspeed]])
+#		EulerRates = WToERates(ATT.yaw,ATT.pitch,ATT.roll,omega)
+#		self.vehicleState.heading.rate = np.asscalar(EulerRates[2])
+#		self.vehicleState.pitch.rate = np.asscalar(EulerRates[1])
+#		aHdg = self.parameters.gains['aFilterHdg']
 
-		self.vehicleState.heading.rate = np.asscalar(EulerRates[2])
-		self.vehicleState.pitch.rate = np.asscalar(EulerRates[1])
-		aHdg = self.parameters.gains['aFilterHdg']
+	#Accelerometer-based Attitude Rates
+		if(VS.groundspeed>5):
+			inPlaneVelocity = m.sqrt(VS.velocity[0]**2 + VS.velocity[1]**2)
+			VS.heading.rate =(VS.velocity[0] * earthAccel[1] - VS.velocity[1]*earthAccel[0]) / inPlaneVelocity**2
+
+			VS.pitch.rate = ((VS.velocity[0]*earthAccel[0] + VS.velocity[1]*earthAccel[1]) * VS.velocity[2] / inPlaneVelocity -
+				earthAccel[2]* inPlaneVelocity ) / VS.groundspeed**2
+		else:
+			self.pm.p("Low speed: Using body angular velocities for velocity frame")
+			omega = np.matrix([[ATT.rollspeed],[ATT.pitchspeed],[ATT.yawspeed]])
+			EulerRates = WToERates(ATT.yaw,ATT.pitch,ATT.roll,omega)
+			self.vehicleState.heading.rate = np.asscalar(EulerRates[2])
+			self.vehicleState.pitch.rate = np.asscalar(EulerRates[1])
+
+
+#   	#Velocity orientation acceleration
 		dHeadingRate = self.vehicleState.heading.rate - lastHeadingRate
 		dPitchRate = self.vehicleState.pitch.rate - lastPitchRate
-		#self.vehicleState.heading.accel = (1.0-aHdg) * self.vehicleState.heading.accel + aHdg / Ts * dHeadingRate
-		#self.vehicleState.pitch.accel = (1.0-aHdg) * self.vehicleState.pitch.accel + aHdg / Ts * dPitchRate
+#		aHdg = self.parameters.gains['aFilterHdg']
+#		#self.vehicleState.heading.accel = (1.0-aHdg) * self.vehicleState.heading.accel + aHdg / Ts * dHeadingRate
+#		#self.vehicleState.pitch.accel = (1.0-aHdg) * self.vehicleState.pitch.accel + aHdg / Ts * dPitchRate
 		self.vehicleState.heading.accel =  deadzone(dHeadingRate / Ts,0.15)
 		self.vehicleState.pitch.accel =  deadzone(dPitchRate / Ts,0.7)
-
-
-	#	if(self.vehicleState.heading.accel is None:
-	#		lastHeadingRate = 0
-	#		print "heading Accel is none"
-
-	#FwdAcceleration
-	#Filter startup handling
-		aSpd = self.parameters.gains['aFilterSpd']
-#		print "groundspeed2: " + str(self.vehicleState.groundspeed )
-#		print "lastSpd: " + str(lastSpeed)
-		deltaSpd = self.vehicleState.groundspeed - lastSpeed
-#		print "deltaSpd: " + str(deltaSpd)
-		lastFwdAccel = self.vehicleState.fwdAccel
-		self.vehicleState.fwdAccel =  (1- aSpd) * lastFwdAccel +aSpd/Ts *(deltaSpd)
 
 		if(True or self.vehicle.channels['8'] < 1200): #currently hard-coded to the first desired relative position
 			self.vehicleState.qdIndex = 0
@@ -430,8 +440,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				dt = self.fcTime() - self.vehicleState.timestamp
 				propagateVehicleState(self.vehicleState, dt)
 			newPos = self.vehicleState.position
-			newqGPS = np.matrix([[newPos.lat], [newPos.lon],[-newPos.alt]])
-			dq = getRelPos(oldqGPS,newqGPS)
+#			newqGPS = np.matrix([[newPos.lat], [newPos.lon],[-newPos.alt]])
+#			dq = getRelPos(oldqGPS,newqGPS)
 		else: #still have to set set the timestamp...
 			self.vehicleState.timestamp = self.fcTime()
 
@@ -611,8 +621,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		OmegaGDot = 1*skew(EAccelToAlpha(LEADER.heading,LEADER.pitch,LEADER.roll))
 
 		RgDot = Rg*OmegaG
-		RgDDot =Rg*OmegaG*OmegaG+ 0*Rg*OmegaGDot
-		pgDot = LEADER.fwdAccel*1 * Rg*e1 + RgDot* e1 * sg *1
+		RgDDot =1*Rg*OmegaG*OmegaG+ 0*Rg*OmegaGDot
+		pgDot = np.matrix(LEADER.accel).transpose()
 		CS.pgDot = pgDot
 
 		self.pm.p( 'Time: = ' + str(THIS.timestamp))
@@ -766,7 +776,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 	#compute implementable orientation controls
 
 		CS.angleRateTarget = computeQInv(THIS.heading.value,thetaI,0) * THIS.command.omega  #use 0 for the roll angle
-		CS.angleRateTarget = THIS.command.omega  		#TODO probably get rid of this?
+		#self.pm.p("Angle Rate Targets: " + str(CS.angleRateTarget))
+		self.pm.p('pgTerm: ' + str(CS.pgTerm))
+		#CS.angleRateTarget = THIS.command.omega  *0		#TODO probably get rid of this?
 	#	self.pm.p("Commanded roll rate: "+str(CS.angleRateTarget[0, 0]))
 	#	self.pm.p( "omega: "+  str(omega))
 #		self.pm.p( "eulrSpeedsFlipped: " + str(np.flipud(CS.angleRateTarget)))
@@ -951,8 +963,8 @@ def saturate(value, minimum, maximum):
 
 def propagateVehicleState(state, dtPos): #assumes heading rate and fwdAccel are constant
 	psiDot,ignored = saturate(state.heading.rate,-2,2) 
-	sDot = state.fwdAccel
-	psi = state.heading
+	#sDot = state.fwdAccel
+	#psi = state.heading
 #	print "propagating vehicle state"
 	
 	vx = state.velocity[0]
@@ -1035,7 +1047,7 @@ def skew(omega):
 					   [-omega[1],omega[0],0]])
 	return Omega
 
-nu1=500*500
+nu1=1#500*500
 nu2=1.0
 def sigma(x):
 	#return 1.0
