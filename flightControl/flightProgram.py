@@ -21,11 +21,17 @@ from servovehicle import ServoVehicle
 
 #get enviromental variables
 AdHocIP = os.environ['ADHOCIP']
+
+#AdHocIP = "127.0.0.1"
 #AdHocIP = "192.168.0.109" #override if the environmental variable is wrong
 peerReadPort = int(os.environ['PORT'])
-myAddr = (AdHocIP, peerReadPort)
 logPath = os.environ["LOGPATH"]
 broadcastIP= os.environ["BROADCASTIP"]
+
+# SITL for desktop on campus
+AdHocIP = "10.164.40.51"
+broadcastIP = "10.164.43.255"
+
 try:
 	SITLFlag = os.environ["SITL"]
 except KeyError:
@@ -59,7 +65,7 @@ connection_string = args.connect
 sitl = None
 #Start SITL if no connection string specified
 if not connection_string:
-    import dronekit_sitl
+	import dronekit_sitl
     sitl = dronekit_sitl.start_default()
     connection_string = sitl.connection_string()
 
