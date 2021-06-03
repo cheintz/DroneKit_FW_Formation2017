@@ -337,6 +337,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicleState.channels = dict(zip(self.vehicle.channels.keys(),self.vehicle.channels.values())) #necessary to be able to serialize it
 		self.vehicleState.wind_estimate=windHeadingToInertial(self.vehicle.wind_estimate)
 		self.vehicleState.imuAccel = self.vehicle.acceleration
+#		self.vehicleState.imuAccel.x*=9.81/1000
+#		self.vehicleState.imuAccel.y *= 9.81 / 1000
+#		self.vehicleState.imuAccel.z *= 9.81 / 1000
+		#print "IMUZ: " + str(self.vehicleState.imuAccel.z)
 		self.vehicleState.isArmable = self.vehicle.is_armable
 		self.vehicleState.mode = self.vehicle.mode
 		self.vehicleState.parameters = self.parameters
@@ -778,7 +782,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.angleRateTarget = computeQInv(THIS.heading.value,thetaI,0) * THIS.command.omega  #use 0 for the roll angle
 		#self.pm.p("Angle Rate Targets: " + str(CS.angleRateTarget))
 		self.pm.p('pgTerm: ' + str(CS.pgTerm))
-		#CS.angleRateTarget = THIS.command.omega  *0		#TODO probably get rid of this?
 	#	self.pm.p("Commanded roll rate: "+str(CS.angleRateTarget[0, 0]))
 	#	self.pm.p( "omega: "+  str(omega))
 #		self.pm.p( "eulrSpeedsFlipped: " + str(np.flipud(CS.angleRateTarget)))
@@ -849,7 +852,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		if speedError:
 				print "asTarget: " + "{:.3f}".format(asTarget) + " was " + "{:.3f}".format(oldASTarget)
 
-		throttleFFTerm = (vp['TRIM_THROTTLE']  + gains['kThrottleFF']*vp['TECS_RLL2THR']*(1.0/m.pow(m.cos(rollAngle),2)-1) +
+		throttleFFTerm = (vp['TRIM_THROTTLE'] + gains['TRIM_THROT_OFFSET']  + gains['kThrottleFF']*vp['TECS_RLL2THR']*(1.0/m.pow(m.cos(rollAngle),2)-1) +
 			self.parameters.gains['kSpdToThrottle']  *(asTarget - vp['TRIM_ARSPD_CM']/100)   )
 
 		(cmd.throttleCMD , CS.throttleTerms) = self.throttleController.update(eSpeed,
@@ -868,7 +871,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		vp = self.vehicle.parameters
 		eTheta = (self.vehicleState.pitch.value- cmd.thetaD)
 		self.pm.pMsg("pitch dt ", self.thisTS)
-		(cmd.pitchCMD , CS.pitchTerms) = self.pitchController.update(eTheta, THIS.pitch.rate - cmd.thetaDDot ,self.thisTS,vp['TRIM_PITCH_CD']/100.0/(180/m.pi) + cmd.thetaD)
+		(cmd.pitchCMD , CS.pitchTerms) = self.pitchController.update(eTheta, THIS.pitch.rate - cmd.thetaDDot ,self.thisTS,
+				 (THIS.attitude.pitch-THIS.pitch.value) +  cmd.thetaD) #Feedforward is desired pitch plus difference between velocity and body pitch
 		CS.accPitchError  = self.pitchController.integrator
 		cmd.timestamp = self.fcTime()
 		self.pm.p('Pitch Error: ' + str(eTheta))
@@ -1047,7 +1051,7 @@ def skew(omega):
 					   [-omega[1],omega[0],0]])
 	return Omega
 
-nu1=1#500*500
+nu1=1
 nu2=1.0
 def sigma(x):
 	#return 1.0
