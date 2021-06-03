@@ -355,8 +355,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		#Earth frame Acceleration from accelerometers
 		R = eul2rotm(ATT.yaw,ATT.pitch,ATT.roll)
-		earthAccel = (R*np.matrix(self.vehicleState.imuAccel.__dict__.values()).transpose()).transpose().tolist()
-		earthAccel = earthAccel[0]
+		earthAccel = (R*np.matrix([[VS.imuAccel.x],[VS.imuAccel.y],[VS.imuAccel.z]])).transpose().tolist()
+		earthAccel = earthAccel[0] #reduce to list from list of lists
 		earthAccel[2]+=9.81
 		self.vehicleState.accel=earthAccel
 
@@ -996,7 +996,7 @@ def propagateVehicleState(state, dtPos): #assumes heading rate and fwdAccel are 
 	state.isPropagated = 1
 
 def eul2rotm(psi,theta,phi):
-	R = np.matrix([[m.cos(theta) * m.cos(psi),  m.sin(phi)* m.sin(theta)*m.cos(psi) - m.cos(phi)*m.sin(psi), m.cos(phi)*m.sin(theta)*m.cos(phi) + m.sin(phi)*m.sin(psi)],
+	R = np.matrix([[m.cos(theta) * m.cos(psi),  m.sin(phi)* m.sin(theta)*m.cos(psi) - m.cos(phi)*m.sin(psi), m.cos(phi)*m.sin(theta)*m.cos(psi) + m.sin(phi)*m.sin(psi)],
 				  [m.cos(theta)*m.sin(psi), m.sin(phi)*m.sin(theta)*m.sin(psi) + m.cos(phi)*m.cos(psi), m.cos(phi)*m.sin(theta)*m.sin(psi) - m.sin(phi)*m.cos(psi)],
 				  [-m.sin(theta), m.sin(phi)*m.cos(theta), m.cos(phi)*m.cos(theta)]])
 	return R
