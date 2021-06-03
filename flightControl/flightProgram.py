@@ -66,8 +66,8 @@ sitl = None
 #Start SITL if no connection string specified
 if not connection_string:
 	import dronekit_sitl
-    sitl = dronekit_sitl.start_default()
-    connection_string = sitl.connection_string()
+	sitl = dronekit_sitl.start_default()
+	connection_string = sitl.connection_string()
 
 defaultParams = defaultConfig.getParams()
 
