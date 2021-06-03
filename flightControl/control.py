@@ -708,6 +708,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 #		sdi = 10
 		if(didSatSd):
 			sdiDot = 0
+			print "saturated sd"
+			pdi = pdi * sdt/sdi
 #			self.pm.p("sdi saturated, was " + str(sdi)+ " Now " + str(sdt))
 		pdiDot = sdiDot*bdi + sdi*bdiDot #Checked good, will saturate with sdi
 
@@ -779,7 +781,17 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	#compute implementable orientation controls
 
-		CS.angleRateTarget = computeQInv(THIS.heading.value,thetaI,0) * THIS.command.omega  #use 0 for the roll angle
+		#CS.angleRateTarget = computeQInv(THIS.heading.value,thetaI,0) * THIS.command.omega  #use 0 for the roll angle
+		inPlaneVelocity = m.sqrt(pdi[0] ** 2 + pdi[1] ** 2)
+		desiredHeadingRate = (pdi[0] * pdiDot[1] - pdi[1] * pdiDot[0]) / inPlaneVelocity ** 2
+
+		desiredPitchRate = ((pdi[0] * pdiDot[0] + pdi[1] * pdiDot[1]) * pdi[2] / inPlaneVelocity -
+						 pdiDot[2] * inPlaneVelocity) / sdt ** 2
+
+		CS.angleRateTarget=np.matrix([[0],[desiredPitchRate],[desiredHeadingRate]])
+
+
+
 		#self.pm.p("Angle Rate Targets: " + str(CS.angleRateTarget))
 		self.pm.p('pgTerm: ' + str(CS.pgTerm))
 	#	self.pm.p("Commanded roll rate: "+str(CS.angleRateTarget[0, 0]))
