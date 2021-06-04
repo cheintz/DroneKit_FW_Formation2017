@@ -860,7 +860,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			asTarget = max(vp['ARSPD_FBW_MIN'], asTarget)
 			print "airspeed below minimum"
 			speedError = True
-		eSpeed = THIS.groundspeed - asTarget
+		eSpeed = THIS.airspeed - asTarget
 		if speedError:
 				print "asTarget: " + "{:.3f}".format(asTarget) + " was " + "{:.3f}".format(oldASTarget)
 
