@@ -4,11 +4,11 @@ import socket
 import logging
 import multiprocessing
 import Queue
-import jsonpickle
-import cPickle
+#import cPickle
 import zlib
 import time
 import signal
+from mutil import *
 
 class Transmitter(multiprocessing.Process):
 
@@ -17,6 +17,7 @@ class Transmitter(multiprocessing.Process):
 		self.s = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 		self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		myAddr = (AdHocIP,port)
+		print "Port: " + str(port)
 		self.s.bind(myAddr)
 		self.s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 		self.transmitQueue=transmitQueue
@@ -28,30 +29,21 @@ class Transmitter(multiprocessing.Process):
 	def run(self):
 		signal.signal(signal.SIGINT, signal.SIG_IGN)
 		while( not self.stoprequest.is_set()):
-			while( not self.stoprequest.is_set()):
-#				print "Have a message to transmit"
-			#	if(self.transmitQueue.qsize()>5):
-				#	print "TX Queue" + str(self.transmitQueue.qsize())
-				try:
-					msg = self.transmitQueue.get(True, 0.5)
-					self.sendMessage(msg)
-#					print "sending message"
-				#	self.transmitQueue.task_done() #May or may not be helpful
-				except Queue.Empty:
-					time.sleep(0.00001)
-					break #no more messages.
+			if(self.transmitQueue.qsize()>1):
+				print "TX Queue size: " + str(self.transmitQueue.qsize())
+			try:
+				msg = self.transmitQueue.get(True, 0.5)
+				self.sendMessage(msg)
+				#print "sending message"
+			#	self.transmitQueue.task_done() #May or may not be helpful
+			except Queue.Empty:
+				time.sleep(0.001)
+				print "Tx queue empty"
+				continue #no more messages.
+
 		print "Transmit Stopped"
-					
+
 	def sendMessage(self, msg):
-		mp = cPickle.dumps(msg,cPickle.HIGHEST_PROTOCOL)
-		mp = zlib.compress(mp)
-		#print "Length: " + str(len(mp))	
-
-#		print "Length zlib: "+str(len(zlib.compress(mp)))	
-#		print "Encoded is" + mp
-		self.s.sendto(mp,self.sendAddress);
-		#print "Send complete"
-		
-		
-		
-
+		smsg = msgToBinary(msg)
+		#note msg.content is an OrderedDict created by BasicVehicleState.getCSVLists
+		self.s.sendto(smsg,self.sendAddress);

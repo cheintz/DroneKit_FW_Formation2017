@@ -1,4 +1,5 @@
 from  vehicleState import *
+
 import copy
 
 class PIDController:
@@ -14,26 +15,39 @@ class PIDController:
 		terms.p = -e *self.gains.kp
 		terms.i = -self.integrator * self.gains.ki
 		terms.d = -eDot * self.gains.kd
-		terms.ff = ff  
-		output = terms.p+terms.d+terms.i+terms.ff
-		output = saturate(output,self._lowerOutSat,self._upperOutSat)
-		self.integrator =antiWindup(output,self._lowerOutSat,self._upperOutSat,self.integrator,e*Ts)
+		terms.ff = ff
+		terms.unsaturatedOutput=  terms.p+terms.d+terms.i+terms.ff
+		output = saturate(terms.unsaturatedOutput
+			,self._lowerOutSat,self._upperOutSat)
+		[self.integrator,satFlag] =antiWindup(output,self._lowerOutSat,self._upperOutSat,self.integrator,e*Ts)
 		self.integrator = saturate(self.integrator,self._lowerIntSat,self._upperIntSat)
+		if(satFlag):
+	#		print "KPID: " + str(self.gains)
+			pass
 		return [output, terms]
+		
 	def reset(self):
 		self.terms=PIDTerms()
 		self.integrator = 0.0
 
 def antiWindup(value, lowLimit,highLimit, accumulator, toAdd):
-	if(value>=highLimit): #Saturation and anti-windup
+	satFlag = False
+	if(value>=highLimit): 
 		if(toAdd>0):
 			accumulator =accumulator+toAdd
+		else:
+	#		print "Antiwindup high HL" + str(highLimit)
+			satFlag = True
 	elif(value<=lowLimit):
 		if(toAdd < 0):
 			accumulator =accumulator+toAdd		
+		else:
+	#		print "antiwindup low LL " + str(lowLimit)
+			satFlag = True
 	else:
 		accumulator =accumulator+toAdd
-	return accumulator
+	
+	return [accumulator,satFlag]
 
 def saturate(value, minimum, maximum):
 	out = max(value,minimum)
