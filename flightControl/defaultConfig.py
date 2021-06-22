@@ -1,4 +1,3 @@
-
 from vehicleState import Parameter, KPID
 from dronekit import  VehicleMode
 import time

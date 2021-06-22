@@ -98,7 +98,8 @@ def vsToLogPrep(vs):
 			headers.append(k)
 			values.append(item)
 
-	headers.append('GCSLastRX')		
+	headers.append('GCSLastRX')
+	epoch = 0
 	
 	try:
 		values.append(str((vs.timeout.GCSLastRx-epoch).total_seconds()))
@@ -148,7 +149,15 @@ def handleMatrix(mat,basename):
 		outValue.append(mat[j,0])
 	return (outKey,outValue)
 
-binFormat = 'd I I I d f ? f f f d f f f f f f f f f f f f f'
+
+binFormat = ('d I '  # sendtime, type,
+			'I I d f'  #ID, counter, timestamp, time2wait
+			' ? f f f'  #isFlocking, lng,lat,alt
+			' d f f f'  #posTime, latSpd,lngSpd,altSpd
+			' f f f '  #latAccel,lonAccel,altAccel
+			'f f f '  #heading value, rate, accel
+			'f f f '  #pitch value, rate, accel
+			'f f f') #Roll value, rate, accel
 messageStruct = struct.Struct(binFormat)
 
 def msgToBinary(msg):
