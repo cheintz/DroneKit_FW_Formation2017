@@ -40,7 +40,7 @@ except KeyError:
 import defaultConfig
 
 
-#broadcastIP= "10.0.2.255" #for virual machine
+#broadcastIP= "10.0.2.255" #for virtual machine
 #broadcastIP= "192.168.0.255"  #this is for the physical machine
 
 transmitAddress = (broadcastIP,peerReadPort)

@@ -393,22 +393,12 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 #		else:
 #			self.vehicleState.heading.accel = 0
 
-	#Gyro-based Heading Rate
-#		lastHeadingRate = self.vehicleState.heading.rate
-#		lastPitchRate = self.vehicleState.pitch.rate
-#		omega = np.matrix([[ATT.rollspeed],[ATT.pitchspeed],[ATT.yawspeed]])
-#		EulerRates = WToERates(ATT.yaw,ATT.pitch,ATT.roll,omega)
-#		self.vehicleState.heading.rate = np.asscalar(EulerRates[2])
-#		self.vehicleState.pitch.rate = np.asscalar(EulerRates[1])
-#		aHdg = self.parameters.gains['aFilterHdg']
-
 	#Accelerometer-based Attitude Rates
-		if(VS.groundspeed>5):
-			inPlaneVelocity = m.sqrt(VS.velocity[0]**2 + VS.velocity[1]**2)
-			VS.heading.rate =(VS.velocity[0] * earthAccel[1] - VS.velocity[1]*earthAccel[0]) / inPlaneVelocity**2
-
-			VS.pitch.rate = ((VS.velocity[0]*earthAccel[0] + VS.velocity[1]*earthAccel[1]) * VS.velocity[2] / inPlaneVelocity -
-				earthAccel[2]* inPlaneVelocity ) / VS.groundspeed**2
+		if(VS.groundspeed>3):
+			omega = np.matrix([[ATT.rollspeed], [ATT.pitchspeed], [ATT.yawspeed]])
+			EulerRates = WToERates(ATT.yaw,ATT.pitch,ATT.roll,omega)
+			self.vehicleState.heading.rate = np.asscalar(EulerRates[2])
+			self.vehicleState.pitch.rate = np.asscalar(EulerRates[1])
 		else:
 			self.pm.p("Low speed: Using body angular velocities for velocity frame")
 			omega = np.matrix([[ATT.rollspeed],[ATT.pitchspeed],[ATT.yawspeed]])
@@ -627,6 +617,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		RgDot = Rg*OmegaG
 		RgDDot =1*Rg*OmegaG*OmegaG+ 0*Rg*OmegaGDot
 		pgDot = np.matrix(LEADER.accel).transpose()
+		leaderBodyAccel = np.linalg.inv(Rg)*pgDot
+
+		pgDot = np.asscalar(leaderBodyAccel[0]) * Rg*e1 + RgDot* e1 * sg *1
 		CS.pgDot = pgDot
 
 		self.pm.p( 'Time: = ' + str(THIS.timestamp))
