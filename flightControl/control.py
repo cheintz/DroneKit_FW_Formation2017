@@ -272,7 +272,18 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		return True
 			
 	def getVehicleState(self):
-		self.clockOffset = self.vehicle.system_boot_time.bootTimeCC - self.vehicle.system_boot_time.bootTimeFC
+		candidateClockOffset= self.vehicle.system_boot_time.bootTimeCC - self.vehicle.system_boot_time.bootTimeFC
+		#print "Getting vehicle state"f
+		if (self.clockOffset == 0 or abs(self.clockOffset - candidateClockOffset) < 0.01 or
+			abs(self.clockOffset - candidateClockOffset) >1): #Once clock offset is calculated, reject moderate jumps in clock offset
+																	# to reject delayed processing of timestamp messages by PyMAVLink
+#			print "Clock offset shifted by " + str(self.clockOffset - candidateClockOffset)
+			self.clockOffset = candidateClockOffset
+		self.pm.pMsg("Clock offset: ", self.clockOffset)
+		self.pm.pMsg("candidate offset: ", candidateClockOffset)
+		self.vehicleState.bootTimeFC=self.vehicle.system_boot_time.bootTimeFC
+		self.vehicleState.bootTimeCC = self.vehicle.system_boot_time.bootTimeCC
+
 		lastPositionTime = self.vehicle.location.global_relative_frame.time
 
 		VS = self.vehicleState
@@ -919,7 +930,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			,-gains['maxEAlt'],gains['maxEAlt'])
 
 	def fcTime(self):
-		if self.sitl:
+		if self.sitl:  # Ignore flight controller time in SITL because it drifts
 			return time.time()
 		else:
 			return time.time()-self.clockOffset
