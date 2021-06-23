@@ -362,7 +362,17 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		earthAccel = (R*np.matrix([[VS.imuAccel.x],[VS.imuAccel.y],[VS.imuAccel.z]])).transpose().tolist()
 		earthAccel = earthAccel[0] #reduce to list from list of lists
 		earthAccel[2]+=9.81
-		self.vehicleState.accel=earthAccel
+
+		lastEarthAccel = self.vehicleState.accel
+		aAccelVert = self.parameters.gains['aFiltAccelVert']
+		aAccelHoriz = self.parameters.gains['aFiltAccelHoriz']
+		earthAccelFiltered=list()
+		earthAccelFiltered.append(aAccelHoriz * earthAccel[0] + (1.0-aAccelHoriz) *lastEarthAccel[0])
+		earthAccelFiltered.append(aAccelHoriz * earthAccel[1] + (1.0 - aAccelHoriz) * lastEarthAccel[1])
+		earthAccelFiltered.append(aAccelVert * earthAccel[2] + (1.0 - aAccelVert) * lastEarthAccel[2])
+
+		self.vehicleState.accel=earthAccelFiltered
+		#print(earthAccelFiltered)
 
 
 	#"Attitude" Rates
@@ -617,10 +627,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		RgDot = Rg*OmegaG
 		RgDDot =1*Rg*OmegaG*OmegaG+ 0*Rg*OmegaGDot
 		pgDot = np.matrix(LEADER.accel).transpose()
-		leaderBodyAccel = np.linalg.inv(Rg)*pgDot
-
-		pgDot = np.asscalar(leaderBodyAccel[0]) * Rg*e1 + RgDot* e1 * sg *1
-		CS.pgDot = pgDot
 
 		self.pm.p( 'Time: = ' + str(THIS.timestamp))
 	#Compute from leader
