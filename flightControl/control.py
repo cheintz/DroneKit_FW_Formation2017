@@ -337,9 +337,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicleState.channels = dict(zip(self.vehicle.channels.keys(),self.vehicle.channels.values())) #necessary to be able to serialize it
 		self.vehicleState.wind_estimate=windHeadingToInertial(self.vehicle.wind_estimate)
 		self.vehicleState.imuAccel = self.vehicle.acceleration
-#		self.vehicleState.imuAccel.x*=9.81/1000
-#		self.vehicleState.imuAccel.y *= 9.81 / 1000
-#		self.vehicleState.imuAccel.z *= 9.81 / 1000
+		self.vehicleState.imuAccel.x*=9.81/10.0
+		self.vehicleState.imuAccel.y *= 9.81/10.0
+		self.vehicleState.imuAccel.z *= 9.81/10.0
 		#print "IMUZ: " + str(self.vehicleState.imuAccel.z)
 		self.vehicleState.isArmable = self.vehicle.is_armable
 		self.vehicleState.mode = self.vehicle.mode
