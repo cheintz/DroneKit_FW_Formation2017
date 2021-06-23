@@ -142,6 +142,8 @@ class FullVehicleState(BasicVehicleState):
 		self.abortReason= None
 		self.timeout= Timeout()
 		self.parameters=Parameter()
+		self.bootTimeCC=None
+		self.bootTimeFC=None
 		self.navOutput={'navRoll':None,'navPitch':None,'navBearing':None}
 		if other is not None:
 			#print "Calling Full copy constructor"
@@ -174,6 +176,9 @@ class FullVehicleState(BasicVehicleState):
 
 		headers += ['navRoll','navPitch','navBearing']
 		values += [self.navOutput['navRoll'], self.navOutput['navPitch'], self.navOutput['navBearing'] ]
+
+		headers += ['CCBootTime','FCBootTime']
+		values += [self.bootTimeCC,self.bootTimeFC]
 		
 		(h,v) = recordTypeToLists(self.controlState)
 		headers += h
