@@ -10,14 +10,16 @@ def getParams():
 	defaultParams.desiredPosition=np.array([[-10,0,-15],[-10,0,15],
 		[-5,-5,2],[-0.5,-0.5,-120] ])  #Agent, amount forward, amount right, absolute altitude, meters
 #	defaultParams.desiredPosition = np.array([[[-5,5,2]],[[-5,5,-80]]])
+	#aFiltAccel to 1 for no filtering
 	print defaultParams.desiredPosition
 	defaultParams.gains = {'kl':0.3*np.diag([1,1,0.3]) , 'ka': 0.0*np.diag([1,1,1+0*0.3])
 		,'vMin': 14,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.2222, 'kHeading':KPID(1,0.1,0.2)
-		,'kSpeed':KPID(1.5,0.1,0.0),'rollLimit':50/(180/m.pi),'kPitch':KPID(1, 0.2,.2),'kAlt':KPID(.026, .0017,.0105),'pitchLimit':20/(180/m.pi)
+		,'kSpeed':KPID(2,0.2,0.0),'rollLimit':50/(180/m.pi),'kPitch':KPID(1, 0.2,.2),'kAlt':KPID(.026, .0017,.0105),'pitchLimit':20/(180/m.pi)
 		, 'maxEHeading':50,'maxEPitch':50,'maxESpeed':500, 'aSpeed':0.9,'gammaS':1,'kSpdToThrottle':4.5
-		,'kThrottleFF': 0,'kRollFF':1,'gammaB':0.0003,'maxEAlt':50,'epsD':0.2,'ki':4,'TRIM_THROT_OFFSET':-20}
+		,'kThrottleFF': 0,'kRollFF':1,'gammaB':0.0002,'maxEAlt':50,'epsD':0.2,'ki':4,'TRIM_THROT_OFFSET':-20}
 	defaultParams.config = {'printEvery':50,'ignoreSelfPackets':False,'propagateStates':True , 'geofenceAbort':False
-		,'mode':'Formation','acceptableEngageMode': (VehicleMode('FBWA'),),'dimensions':3,'maxPropagateSeconds':5}
+		,'mode':'Formation','acceptableEngageMode': (VehicleMode('FBWA'),),'dimensions':3,'maxPropagateSeconds':5
+		,'LeaderAccelSource':'Accel','LeaderRotationSource':'Accel'}
 	defaultParams.GCSTimeout = 5 #seconds
 	defaultParams.peerTimeout = 5 #seconds
 	defaultParams.localTimeout = 1  # seconds

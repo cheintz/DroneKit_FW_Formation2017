@@ -274,7 +274,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 	def getVehicleState(self):
 		candidateClockOffset= self.vehicle.system_boot_time.bootTimeCC - self.vehicle.system_boot_time.bootTimeFC
 		#print "Getting vehicle state"f
-		if (self.clockOffset == 0 or abs(self.clockOffset - candidateClockOffset) < 0.01 or
+		if (self.sitl or self.clockOffset == 0 or abs(self.clockOffset - candidateClockOffset) < 0.02 or
 			abs(self.clockOffset - candidateClockOffset) >1): #Once clock offset is calculated, reject moderate jumps in clock offset
 																	# to reject delayed processing of timestamp messages by PyMAVLink
 #			print "Clock offset shifted by " + str(self.clockOffset - candidateClockOffset)
@@ -302,6 +302,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.vehicleState.position = self.vehicle.location.global_relative_frame
 			self.vehicleState.velocity = self.vehicle.velocity
 		self.vehicleState.attitude = self.vehicle.attitude
+		self.pm.p("velocity" + str(self.vehicle.velocity))
 		if (self.sitl):
 			self.vehicleState.position.time = self.vehicleState.position.time + self.clockOffset  # use the companion computer's time instead
 			self.vehicleState.attitude.time = self.vehicleState.attitude.time + self.clockOffset  # use the companion computer's time instead
@@ -382,6 +383,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		earthAccelFiltered.append(aAccelHoriz * earthAccel[1] + (1.0 - aAccelHoriz) * lastEarthAccel[1])
 		earthAccelFiltered.append(aAccelVert * earthAccel[2] + (1.0 - aAccelVert) * lastEarthAccel[2])
 
+#		print "EarthAccel Raw:" + str(earthAccel[0]) + "\tfiltered: " + str(earthAccelFiltered[0])
+#		earthAccelFiltered = earthAccel
 		self.vehicleState.accel=earthAccelFiltered
 		#print(earthAccelFiltered)
 
@@ -416,10 +419,18 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	#Accelerometer-based Attitude Rates
 		if(VS.groundspeed>3):
-			omega = np.matrix([[ATT.rollspeed], [ATT.pitchspeed], [ATT.yawspeed]])
-			EulerRates = WToERates(ATT.yaw,ATT.pitch,ATT.roll,omega)
-			self.vehicleState.heading.rate = np.asscalar(EulerRates[2])
-			self.vehicleState.pitch.rate = np.asscalar(EulerRates[1])
+			if(self.parameters.config['LeaderRotationSource']=='Gyro'):
+				omega = np.matrix([[ATT.rollspeed], [ATT.pitchspeed], [ATT.yawspeed]])
+				EulerRates = WToERates(ATT.yaw,ATT.pitch,ATT.roll,omega)
+				self.vehicleState.heading.rate = np.asscalar(EulerRates[2])
+				self.vehicleState.pitch.rate = np.asscalar(EulerRates[1])
+			elif(self.parameters.config['LeaderRotationSource'] == 'Accel'):
+				inPlaneVelocity = m.sqrt(VS.velocity[0] ** 2 + VS.velocity[1] ** 2)
+				VS.heading.rate = (VS.velocity[0] * earthAccel[1] - VS.velocity[1] * earthAccel[0]) / inPlaneVelocity ** 2
+
+				VS.pitch.rate = ((VS.velocity[0] * earthAccel[0] + VS.velocity[1] * earthAccel[1]) * VS.velocity[
+					2] / inPlaneVelocity -
+								 earthAccel[2] * inPlaneVelocity) / VS.groundspeed ** 2
 		else:
 			self.pm.p("Low speed: Using body angular velocities for velocity frame")
 			omega = np.matrix([[ATT.rollspeed],[ATT.pitchspeed],[ATT.yawspeed]])
@@ -520,6 +531,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 #		t0 = time.time()
 		if (self.parameters.config['mode'] == 'Formation'):
 			self.computeFormationControl()
+			self.vehicleState.command.asTarget = self.vehicleState.command.ui
 		elif (self.parameters.config['mode'] == 'MiddleLoop' ):
 			self.PilotMiddleLoopRefs()
 		else:
@@ -638,6 +650,12 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		RgDot = Rg*OmegaG
 		RgDDot =1*Rg*OmegaG*OmegaG+ 0*Rg*OmegaGDot
 		pgDot = np.matrix(LEADER.accel).transpose()
+		if(THIS.parameters.config['LeaderAccelSource'] == 'Accel'):
+			pass #use pgDot as is
+		elif(THIS.parameters.config['LeaderAccelSource'] == 'Model'):
+			leaderBodyAccel = np.linalg.inv(Rg) * pgDot
+			pgDot = np.asscalar(leaderBodyAccel[0]) * Rg * e1 + RgDot * e1 * sg * 1
+		CS.pgDot = pgDot
 
 		self.pm.p( 'Time: = ' + str(THIS.timestamp))
 	#Compute from leader
@@ -776,15 +794,14 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.mu=mu
 
 
-		asTarget = (-1.0/littleg * (  littlef + GAINS['gammaS']*siTilde*h/mu + (sdiDot/mu)*(siTilde*phpsd -h)    )
+		ui = (-1.0/littleg * (  littlef + GAINS['gammaS']*siTilde*h/mu + (sdiDot/mu)*(siTilde*phpsd -h)    )
 			 )+ 1*(airspd-THIS.groundspeed)
 
 #		self.pm.p("asControlError: "+ str(CS.backstepSpeed + CS.backstepSpeedError+CS.backstepSpeedRate+(airspd-groundspd-asTargetnew) ))
-		self.pm.p('asTarget: '  + "{:.3f}".format(asTarget))
-		THIS.command.asTarget,didSatASTarget = saturate(asTarget, vMin, vMax)
+		self.pm.p('ui: '  + "{:.3f}".format(ui))
 
 
-		THIS.command.asTarget=asTarget #Don't saturate the target airspeed
+		THIS.command.ui=ui #Don't saturate the target airspeed
 		self.pm.p("Commanded omega_z:" + str(omega[2,0]))
 
 	#compute implementable orientation controls
@@ -856,7 +873,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		if(THIS.airspeed < vp['ARSPD_FBW_MIN']): #airspeed below minimum
 			asTarget = max(vp['ARSPD_FBW_MIN'], asTarget)
-			print "airspeed below minimum"
+			cmd.asTarget=asTarget
+			print "airspeed below minimum: " + "{:.3f}".format(THIS.airspeed)
 			speedError = True
 		eSpeed = THIS.airspeed - asTarget
 		if speedError:
