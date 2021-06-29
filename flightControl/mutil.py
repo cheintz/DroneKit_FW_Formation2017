@@ -99,7 +99,6 @@ def vsToLogPrep(vs):
 			values.append(item)
 
 	headers.append('GCSLastRX')
-	epoch = 0
 	
 	try:
 		values.append(str((vs.timeout.GCSLastRx-epoch).total_seconds()))
