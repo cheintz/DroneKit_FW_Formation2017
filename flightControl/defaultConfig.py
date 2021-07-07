@@ -19,7 +19,7 @@ def getParams():
 		,'kThrottleFF': 0,'kRollFF':1,'gammaB':0.0002,'maxEAlt':50,'epsD':0.2,'ki':4,'TRIM_THROT_OFFSET':-20}
 	defaultParams.config = {'printEvery':50,'ignoreSelfPackets':False,'propagateStates':True , 'geofenceAbort':False
 		,'mode':'Formation','acceptableEngageMode': (VehicleMode('FBWA'),),'dimensions':3,'maxPropagateSeconds':5
-		,'LeaderAccelSource':'Accel','LeaderRotationSource':'Accel'}
+		,'LeaderAccelSource':'Accel','LeaderRotationSource':'Gyro'}
 	defaultParams.GCSTimeout = 5 #seconds
 	defaultParams.peerTimeout = 5 #seconds
 	defaultParams.localTimeout = 1  # seconds
