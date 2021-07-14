@@ -5,18 +5,19 @@ import copy
 class PIDController:
 	def __init__(self,gains, lowerOutSat, upperOutSat, lowerIntSat,upperIntSat):
 		self.integrator = 0.0
+		self.terms=PIDTerms()
 		self.gains = copy.deepcopy(gains)
 		self._lowerIntSat = lowerIntSat
 		self._upperIntSat = upperIntSat
 		self._lowerOutSat = lowerOutSat
 		self._upperOutSat = upperOutSat
-	def update(self,e,eDot,Ts,ff=0,PIFactor=1):
+	def update(self,e,eDot,Ts,ff=0,extraGain=1):
 		terms = PIDTerms()
-		terms.p = -e *self.gains.kp * PIFactor
-		terms.i = -self.integrator * self.gains.ki* PIFactor
-		terms.d = -eDot * self.gains.kd
+		terms.p = -e *self.gains.kp * extraGain
+		terms.i = -self.integrator * self.gains.ki* extraGain
+		terms.d = -eDot * self.gains.kd * extraGain
 		terms.ff = ff
-		terms.PIFactor=PIFactor
+		terms.extraGain=extraGain
 		terms.unsaturatedOutput=  terms.p+terms.d+terms.i+terms.ff
 		output = saturate(terms.unsaturatedOutput
 			,self._lowerOutSat,self._upperOutSat)

@@ -836,17 +836,17 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		ePsi = wrapToPi(psi-THIS.command.psiD)
 		calcTurnRate = THIS.heading.rate
 		if (self.parameters.config['enableRCMiddleLoopGainAdjust']):
-			rolLFactor = linearToExponential(self.vehicle.channels['8'],1000.0,2000.0,3.0)
+			rollFactor = linearToExponential(self.vehicle.channels['8'],1000.0,2000.0,3.0)
 		else:
-			rolLFactor = 1.0
-		self.pm.p("RollFactor: " + str(rolLFactor))
+			rollFactor = 1.0
+		self.pm.p("RollFactor: " + str(rollFactor))
 		arg = cmd.psiDDot * THIS.groundspeed / 9.81 * m.cos(THIS.attitude.pitch)
 		rollFFTerm = THIS.parameters.gains['kRollFF']*m.atan(arg) 
 		#rollFFTerm = rollFFTerm + (THIS.parameters.gains['kRollInversion'] * self.vehicle.parameters['RLL2SRV_TCONST'] * cmd.psiDDDot * 
 		#	1/m.sqrt(arg**2+1)  ) #Attempt to invert the roll/yaw dynamics (that are assumed to be 1 by the agent model)
 
 		(cmd.rollCMD , CS.rollTerms) = self.rollController.update(ePsi,
-			(calcTurnRate-cmd.psiDDot),self.thisTS,rollFFTerm,rolLFactor)
+			(calcTurnRate-cmd.psiDDot),self.thisTS,rollFFTerm,rollFactor)
 		CS.accHeadingError=self.rollController.integrator
 		#cmd.rollCMD = 50.0*m.pi/180.0 * m.sin(2.0*m.pi/5.0 * (time.time() - self.startTime)  )
 		cmd.timestamp = self.fcTime()
