@@ -424,9 +424,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				EulerRates = WToERates(ATT.yaw,ATT.pitch,ATT.roll,omega)
 				self.vehicleState.heading.rate = np.asscalar(EulerRates[2])
 				self.vehicleState.pitch.rate = np.asscalar(EulerRates[1])
+				self.pm.p("Using gyro for orientation rate")
 			elif(self.parameters.config['LeaderRotationSource'] == 'Accel'):
 				VS.pitch.rate=velAndAccelToPitchRate(VS.velocity,earthAccelFiltered)
-				VS.heading.rate = velAndAccelToPitchRate(VS.velocity, earthAccelFiltered)
+				VS.heading.rate = velAndAccelToHeadingRate(VS.velocity, earthAccelFiltered)
+				self.pm.p("Using Accel for orientation rate")
 		else:
 			self.pm.p("Low speed: Using body angular velocities for velocity frame")
 			omega = np.matrix([[ATT.rollspeed],[ATT.pitchspeed],[ATT.yawspeed]])
@@ -805,8 +807,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			CS.angleRateTarget = computeQInv(THIS.heading.value,thetaI,0) * THIS.command.omega  #use 0 for the roll angle
 			self.pm.p('Using OmegaI for Euler rates')
 		elif THIS.parameters.config['OrientationRateMethod'] == 'Direct' :
-			CS.angleRateTarget[1,0] = velAndAccelToPitchRate(pdi,pdiDot)
-			CS.angleRateTarget[2,0] = velAndAccelToHeadingRate(pdi,pdiDot)
+			CS.angleRateTarget = np.matrix([[0],
+											[velAndAccelToPitchRate(pdi,pdiDot)],
+											[velAndAccelToHeadingRate(pdi,pdiDot)]]) #Have to do it this way because
+									# overwriting elements doesn't make it a float matrix and things get truncated to int
 			self.pm.p('Using Direct for Euler rates')
 		else:
 			print "Error: invalid method for rotation rate targets"
