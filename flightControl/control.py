@@ -424,13 +424,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				EulerRates = WToERates(ATT.yaw,ATT.pitch,ATT.roll,omega)
 				self.vehicleState.heading.rate = np.asscalar(EulerRates[2])
 				self.vehicleState.pitch.rate = np.asscalar(EulerRates[1])
+				self.pm.p("Using gyro for orientation rate")
 			elif(self.parameters.config['LeaderRotationSource'] == 'Accel'):
-				inPlaneVelocity = m.sqrt(VS.velocity[0] ** 2 + VS.velocity[1] ** 2)
-				VS.heading.rate = (VS.velocity[0] * earthAccel[1] - VS.velocity[1] * earthAccel[0]) / inPlaneVelocity ** 2
-
-				VS.pitch.rate = ((VS.velocity[0] * earthAccel[0] + VS.velocity[1] * earthAccel[1]) * VS.velocity[
-					2] / inPlaneVelocity -
-								 earthAccel[2] * inPlaneVelocity) / VS.groundspeed ** 2
+				VS.pitch.rate=velAndAccelToPitchRate(VS.velocity,earthAccelFiltered)
+				VS.heading.rate = velAndAccelToHeadingRate(VS.velocity, earthAccelFiltered)
+				self.pm.p("Using Accel for orientation rate")
 		else:
 			self.pm.p("Low speed: Using body angular velocities for velocity frame")
 			omega = np.matrix([[ATT.rollspeed],[ATT.pitchspeed],[ATT.yawspeed]])
@@ -805,8 +803,19 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.pm.p("Commanded omega_z:" + str(omega[2,0]))
 
 	#compute implementable orientation controls
+		if THIS.parameters.config['OrientationRateMethod'] == 'OmegaI' :
+			CS.angleRateTarget = computeQInv(THIS.heading.value,thetaI,0) * THIS.command.omega  #use 0 for the roll angle
+			self.pm.p('Using OmegaI for Euler rates')
+		elif THIS.parameters.config['OrientationRateMethod'] == 'Direct' :
+			CS.angleRateTarget = np.matrix([[0],
+											[velAndAccelToPitchRate(pdi,pdiDot)],
+											[velAndAccelToHeadingRate(pdi,pdiDot)]]) #Have to do it this way because
+									# overwriting elements doesn't make it a float matrix and things get truncated to int
+			self.pm.p('Using Direct for Euler rates')
+		else:
+			print "Error: invalid method for rotation rate targets"
 
-		CS.angleRateTarget = computeQInv(THIS.heading.value,thetaI,0) * THIS.command.omega  #use 0 for the roll angle
+
 		#self.pm.p("Angle Rate Targets: " + str(CS.angleRateTarget))
 		self.pm.p('pgTerm: ' + str(CS.pgTerm))
 	#	self.pm.p("Commanded roll rate: "+str(CS.angleRateTarget[0, 0]))
@@ -830,14 +839,18 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		psi = THIS.heading.value
 		ePsi = wrapToPi(psi-THIS.command.psiD)
 		calcTurnRate = THIS.heading.rate
-
+		if (self.parameters.config['enableRCMiddleLoopGainAdjust']):
+			rollFactor = linearToExponential(self.vehicle.channels['8'],1000.0,2000.0,3.0)
+		else:
+			rollFactor = 1.0
+		self.pm.p("RollFactor: " + str(rollFactor))
 		arg = cmd.psiDDot * THIS.groundspeed / 9.81 * m.cos(THIS.attitude.pitch)
 		rollFFTerm = THIS.parameters.gains['kRollFF']*m.atan(arg) 
 		#rollFFTerm = rollFFTerm + (THIS.parameters.gains['kRollInversion'] * self.vehicle.parameters['RLL2SRV_TCONST'] * cmd.psiDDDot * 
 		#	1/m.sqrt(arg**2+1)  ) #Attempt to invert the roll/yaw dynamics (that are assumed to be 1 by the agent model)
 
 		(cmd.rollCMD , CS.rollTerms) = self.rollController.update(ePsi,
-			(calcTurnRate-cmd.psiDDot),self.thisTS,rollFFTerm)
+			(calcTurnRate-cmd.psiDDot),self.thisTS,rollFFTerm,rollFactor)
 		CS.accHeadingError=self.rollController.integrator
 		#cmd.rollCMD = 50.0*m.pi/180.0 * m.sin(2.0*m.pi/5.0 * (time.time() - self.startTime)  )
 		cmd.timestamp = self.fcTime()
@@ -898,9 +911,14 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS = THIS.controlState
 		vp = self.vehicle.parameters
 		eTheta = (self.vehicleState.pitch.value- cmd.thetaD)
+		if(self.parameters.config['enableRCMiddleLoopGainAdjust']):
+			pitchFactor = linearToExponential(self.vehicle.channels['7'],1000.0,2000.0,3.0)
+		else:
+			pitchFactor = 1.0
+		self.pm.p("PitchFactor: " + str(pitchFactor))
 		self.pm.pMsg("pitch dt ", self.thisTS)
 		(cmd.pitchCMD , CS.pitchTerms) = self.pitchController.update(eTheta, THIS.pitch.rate - cmd.thetaDDot ,self.thisTS,
-				 (THIS.attitude.pitch-THIS.pitch.value) +  cmd.thetaD) #Feedforward is desired pitch plus difference between velocity and body pitch
+				 (THIS.attitude.pitch-THIS.pitch.value) +  cmd.thetaD,pitchFactor) #Feedforward is desired pitch plus difference between velocity and body pitch
 		CS.accPitchError  = self.pitchController.integrator
 		cmd.timestamp = self.fcTime()
 		self.pm.p('Pitch Error: ' + str(eTheta))
@@ -1108,3 +1126,16 @@ def deadzone(value, width):
 #		else: 
 	return value
 
+def velAndAccelToHeadingRate(v,a):
+	inPlaneVelocity = m.sqrt(v[0] ** 2 + v[1] ** 2)
+	return  (v[0] * a[1] - v[1] * a[0]) / inPlaneVelocity ** 2
+
+def velAndAccelToPitchRate(v, a):
+	inPlaneVelocity = m.sqrt(v[0] ** 2 + v[1] ** 2)
+	s = m.sqrt(v[0] ** 2 + v[1] ** 2+ v[2] ** 2)
+	return (   (v[0] * a[0] + v[1] * a[1])   * v[2] / inPlaneVelocity - a[2] * inPlaneVelocity) / s ** 2
+
+def linearToExponential(value,min,max,factor):
+	normalized = (value-min)/(max-min) #0 to 1
+	normalized = normalized*2.0-1.0 #-1 to 1
+	return factor**normalized   # Example, factor =2, returns 1/2 for -1 and 2 for 1. 1 for 0.

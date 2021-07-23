@@ -9,7 +9,7 @@ zeroVect = np.matrix([[0],[0],[0]])
 
 KPID = recordtype('KPID', ['kp','ki','kd'])
 
-PIDTerms = recordtype('PIDTerms',['p','i','d','ff','unsaturatedOutput'],default = 0.0)
+PIDTerms = recordtype('PIDTerms',['p','i','d','ff','unsaturatedOutput','extraGain'],default = 0.0)
 
 Timeout = recordtype('Timeout' , ['GCSTimeoutTime', ('peerTimeoutTime',{}), 'localTimeoutTime', 'GCSLastRx', ('peerLastRX',{})], default = None)
 
