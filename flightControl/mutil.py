@@ -97,32 +97,6 @@ def vsToLogPrep(vs):
 		else:
 			headers.append(k)
 			values.append(item)
-
-	headers.append('GCSLastRX')
-	
-	try:
-		values.append(str((vs.timeout.GCSLastRx-epoch).total_seconds()))
-	except: 
-		values.append(' ')
-
-	headers.append('GCSLastRX_1')
-	try:
-		values.append(str((vs.timeout.peerLastRX[1]-epoch) . total_seconds()))
-	except: 
-		values.append(' ')
-
-	headers.append('GCSLastRX_2')
-	try:
-		values.append(str((vs.timeout.peerLastRX[2]-epoch) . total_seconds()))
-	except: 
-		values.append(' ')
-
-	headers.append('GCSLastRX_3')
-	try:
-		values.append(str((vs.timeout.peerLastRX[3]-epoch) . total_seconds()))
-	except: 
-		values.append(' ')
-
 	headers.append('abortReason')
 	try:
 		values.append(str(vs.abortReason))
