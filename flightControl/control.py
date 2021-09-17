@@ -759,18 +759,20 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS.command.omega=omega
 
 	#ACC-published way of computing the speed control
+		p=1.0/255.0
+
 		littlef = -GAINS['aSpeed'] * si
 		littleg = GAINS['aSpeed']
 		siTilde = si - sdt
-		h=((vMax-sdt)*(sdt-vMin))/((vMax-si)*(si-vMin))
-		phps=-(vMax+vMin-2*si)/((vMax-si)*(si-vMin)) * h
-		phpsd=(vMax+vMin-2*sdt) / ((vMax-si)*(si-vMin))
+		h=np.real(((vMax-sdt)*(sdt-vMin))/((vMax-si)*(si-vMin))**p)
+		phps=np.real(-p*(vMax+vMin-2*si)/((vMax-si)*(si-vMin)) * h)
+		phpsd=np.real((vMax+vMin-2*sdt) / ((vMax-si)*(si-vMin))**p)
 
 
 		#uncomment to disable the speed BLF
-		h=1.0
-		phps=0.0
-		phpsd = 0.0
+		# h=1.0
+		# phps=0.0
+		# phpsd = 0.0
 
 		mu=h+siTilde*phps
 		if(mu<0):
@@ -786,7 +788,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		CS.backstepSpeed = (-1.0/littleg) * littlef
 		CS.backstepSpeedError =  (-1.0/littleg) * GAINS['gammaS'] *  GAINS['gammaS']*siTilde*h/mu
-		CS.backstepSpeedRate = (-1.0/littleg) * (sdiDot/mu)*(siTilde*phpsd -h)  
+		CS.backstepSpeedRate = (-1.0/littleg) * swc(-sdiDot*siTilde)*(sdiDot/mu)*(siTilde*phpsd -h)
 		CS.h = h
 		CS.phps = phps
 		CS.phpsd=phpsd
@@ -1114,3 +1116,7 @@ def linearToExponential(value,min,max,factor):
 	normalized = (value-min)/(max-min) #0 to 1
 	normalized = normalized*2.0-1.0 #-1 to 1
 	return factor**normalized   # Example, factor =2, returns 1/2 for -1 and 2 for 1. 1 for 0.
+
+def swc(value):
+	eps = 0.1
+	return 0.5 * saturate(2.0*value/eps - 1,-1,1)[0] + 0.5
