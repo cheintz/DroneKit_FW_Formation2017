@@ -669,10 +669,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.pm.p("qil Inertial: " + str(qil))
 		self.pm.p("qil Leader: " + str(Rg.transpose()*qil))
 
-		#CS.pgTerm = F(zetai)*pg
-		#CS.rotFFTerm = F(zetai)*RgDot*di
-		#print "With" + str(CS.pgTerm)
 		CS.pgTerm = pg
+		self.pm.p('pgTerm: ' + str(CS.pgTerm))
 		CS.rotFFTerm = RgDot*di
 		self.pm.p('F(zetai)' + str( F(zetai)))
 
@@ -705,14 +703,14 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		pdi=CS.pgTerm+CS.rotFFTerm+GAINS['ki']*sigma(phii)*phii
 		pdiDot = 1*pgDot+1*RgDDot*di + GAINS['ki'] * np.asscalar(sigmaDot(phii).transpose()*phiiDot)*phii+sigma(phii)*phiiDot
 		if (THIS.parameters.config['dimensions'] == 2 and not pdi[2] == 0):
-			print "Warning, pdi not 2D. pdi[2]: " + str(pdi[2])
+			print "Warning: pdi not 2D. pdi[2]: " + str(pdi[2])
 
 		CS.pdi=pdi
 		self.pm.p('Formation FFTerm: ' + str(np.linalg.norm(CS.pgTerm+CS.rotFFTerm) ))
 
-		si = THIS.groundspeed
 
 	#Compute intermediates
+		si = THIS.groundspeed
 		thetaI = THIS.pitch.value
 		thetaIDot = THIS.pitch.rate
 		if (THIS.parameters.config['dimensions'] == 2 and not pdi[2] == 0):
@@ -757,49 +755,51 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 #		self.pm.p("OmegaNet : " + str(OmegaFF[1, 0]+OmegaFB[1, 0]))
 #		self.pm.p("OmegaDifference : " + str(OmegaFF[1, 0]+OmegaFB[1, 0] - Omega[1,0]))
 		THIS.command.omega=omega
+		self.pm.p("Commanded omega_z:" + str(omega[2,0]))
 
-	#ACC-published way of computing the speed control
+	#Speed Controller
 		littlef = -GAINS['aSpeed'] * si
 		littleg = GAINS['aSpeed']
 		siTilde = si - sdt
-		h=((vMax-sdt)*(sdt-vMin))/((vMax-si)*(si-vMin))
-		phps=-(vMax+vMin-2*si)/((vMax-si)*(si-vMin)) * h
-		phpsd=(vMax+vMin-2*sdt) / ((vMax-si)*(si-vMin))
 
-
-		#uncomment to disable the speed BLF
-		h=1.0
-		phps=0.0
-		phpsd = 0.0
-
-		mu=h+siTilde*phps
-		if(mu<0):
-			print "mu<0: " +str(mu)
-		
-#		self.pm.p("h: " +str(h))
-#		self.pm.p("NumH: " + str((sMax-sdt)*(sdt-sMin)))
-#		self.pm.p("DenH: " + str((sMax-si)*(si-sMin)))
+		if(THIS.parameters.config['uiBarrier']):
+			print  THIS.parameters.config['uiBarrier']
+			p=GAINS['pBarrier']
+			h=np.real(((vMax-sdt)*(sdt-vMin))/((vMax-si)*(si-vMin))**p)
+			phps=np.real(-p*(vMax+vMin-2*si)/((vMax-si)*(si-vMin)) * h)
+			phpsd=np.real((vMax+vMin-2*sdt) / ((vMax-si)*(si-vMin))**p)
+			self.pm.p('Using speed barrier')
+		else:
+			h=1.0
+			phps=0.0
+			phpsd = 0.0
+			self.pm.p('Not using speed barrier')
+		mu = h + siTilde * phps
+		if (mu < 0):
+			print "mu<0: " + str(mu)
 		self.pm.p("sdt: " +str(sdt))
-#		self.pm.p("mu: " +str(mu))
-#		self.pm.p("phps: "+str(phps))
-#		self.pm.p("phpsd: "+str(phpsd))
-
+		if(THIS.parameters.config['SwitchedSpeedControl'] == 'Continuous'):
+			switchState =swc(-sdiDot*siTilde)
+			self.pm.p('Using continuous switch')
+		elif(THIS.parameters.config['SwitchedSpeedControl'] == 'Pure'):
+			switchState = swp(-sdiDot * siTilde)
+			self.pm.p('Using pure switch')
+		else:
+			switchState = 1.0
+			self.pm.p('Using no switch')
 		CS.backstepSpeed = (-1.0/littleg) * littlef
 		CS.backstepSpeedError =  (-1.0/littleg) * GAINS['gammaS'] *  GAINS['gammaS']*siTilde*h/mu
-		CS.backstepSpeedRate = (-1.0/littleg) * (sdiDot/mu)*(siTilde*phpsd -h)  
+		CS.backstepSpeedRate = (-1.0/littleg) * switchState*(sdiDot/mu)*(siTilde*phpsd -h)
 		CS.h = h
 		CS.phps = phps
 		CS.phpsd=phpsd
 		CS.mu=mu
 
-
-		ui = (-1.0/littleg * (  littlef + GAINS['gammaS']*siTilde*h/mu + (sdiDot/mu)*(siTilde*phpsd -h)    )
+		ui = (-1.0/littleg * (  littlef + GAINS['gammaS']*siTilde*h/mu + (switchState*sdiDot/mu)*(siTilde*phpsd -h)    )
 			 )
-
 		self.pm.p('ui: '  + "{:.3f}".format(ui))
-
 		THIS.command.ui=ui
-		self.pm.p("Commanded omega_z:" + str(omega[2,0]))
+
 
 	#compute implementable orientation controls
 		if THIS.parameters.config['OrientationRateMethod'] == 'OmegaI' :
@@ -814,19 +814,12 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else:
 			print "Error: invalid method for Euler rate targets"
 
-		#self.pm.p("Angle Rate Targets: " + str(CS.angleRateTarget))
-		self.pm.p('pgTerm: ' + str(CS.pgTerm))
-	#	self.pm.p("Commanded roll rate: "+str(CS.angleRateTarget[0, 0]))
-	#	self.pm.p( "omega: "+  str(omega))
-#		self.pm.p( "eulrSpeedsFlipped: " + str(np.flipud(CS.angleRateTarget)))
-
 		#write roll rate and pitch rate commands for middle loops
 		THIS.command.thetaDDot = CS.angleRateTarget[1,0]
 		THIS.command.psiDDot = CS.angleRateTarget[2,0]
 		THIS.command.thetaD = m.asin(-pdi[2,0]/sdi)
 		THIS.command.psiD = m.atan2(pdi[1,0],pdi[0,0])
 
-		self.pm.p('SDesired: ' + str(THIS.command.sdi))
 		self.pm.p('groundspd: ' + str(THIS.groundspeed))
 
 	def rollControl(self):
@@ -842,15 +835,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else:
 			rollFactor = 1.0
 		self.pm.p("RollFactor: " + str(rollFactor))
-		arg = cmd.psiDDot * THIS.groundspeed / 9.81 * m.cos(THIS.attitude.pitch)
+		arg = cmd.psiDDot * THIS.groundspeed / 9.81 * m.cos(THIS.pitch.value)
 		rollFFTerm = THIS.parameters.gains['kRollFF']*m.atan(arg) 
-		#rollFFTerm = rollFFTerm + (THIS.parameters.gains['kRollInversion'] * self.vehicle.parameters['RLL2SRV_TCONST'] * cmd.psiDDDot * 
-		#	1/m.sqrt(arg**2+1)  ) #Attempt to invert the roll/yaw dynamics (that are assumed to be 1 by the agent model)
-
 		(cmd.rollCMD , CS.rollTerms) = self.rollController.update(ePsi,
 			(calcTurnRate-cmd.psiDDot),self.thisTS,rollFFTerm,rollFactor)
 		CS.accHeadingError=self.rollController.integrator
-		#cmd.rollCMD = 50.0*m.pi/180.0 * m.sin(2.0*m.pi/5.0 * (time.time() - self.startTime)  )
 		cmd.timestamp = self.fcTime()
 		self.pm.p("Commanded heading rate (rllctrl): " + str(THIS.command.psiDDot))
 		self.pm.p( "Heading Error: " + str(ePsi) )
@@ -946,7 +935,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		if(vp['RC1_REVERSED'] == 1):
 			params.rollGain = - params.rollGain
 		params.rollOffset = vp['RC1_TRIM']
-#		print "Roll offset: " +str(params.rollOffset)
 	#PITCH
 		pg1 = -(vp['RC2_MAX']-vp['RC2_TRIM']) / (vp['LIM_PITCH_MIN']/100/(180/m.pi))
 		pg2 = (vp['RC2_TRIM']-vp['RC2_MIN']) / (vp['LIM_PITCH_MAX']/100/(180/m.pi))
@@ -1114,3 +1102,13 @@ def linearToExponential(value,min,max,factor):
 	normalized = (value-min)/(max-min) #0 to 1
 	normalized = normalized*2.0-1.0 #-1 to 1
 	return factor**normalized   # Example, factor =2, returns 1/2 for -1 and 2 for 1. 1 for 0.
+
+def swc(value):
+	eps = 0.1
+	return 0.5 * saturate(2.0*value/eps - 1,-1,1)[0] + 0.5
+
+def swp(value):
+	if(value>0):
+		return 1.0
+	else:
+		return 0.0
