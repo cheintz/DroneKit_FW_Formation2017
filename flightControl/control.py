@@ -529,7 +529,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 #		t0 = time.time()
 		if (self.parameters.config['mode'] == 'Formation'):
 			self.computeFormationControl()
-			self.vehicleState.command.asTarget = self.vehicleState.command.ui
+			self.vehicleState.command.gsTarget = self.vehicleState.command.ui
 		elif (self.parameters.config['mode'] == 'MiddleLoop' ):
 			self.PilotMiddleLoopRefs()
 		else:
@@ -566,7 +566,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		
 		THIS.command.sdi = ((self.parameters.gains['vMax']-self.parameters.gains['vMin']) * speedInput  
 			+ self.parameters.gains['vMin'] )
-		THIS.command.asTarget = THIS.command.sdi 
+		THIS.command.gsTarget = THIS.command.sdi
 		THIS.command.thetaD = (pitchInput-0.5 ) * self.parameters.gains['pitchLimit'] #half alt to full alt
 		self.pm.pMsg("Desired pitch: ", THIS.command.thetaD)
 		THIS.command.psiD = wrapToPi(0.35 + m.pi*(2*headingInput-1.0) ) #North is Middle of range
@@ -621,8 +621,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		ka = GAINS['ka']
 
-		vMin = GAINS['vMin']
-		vMax = GAINS['vMax']
+		headwind = (THIS.airspeed - THIS.groundspeed)
+
+		vMin = GAINS['vMin'] - headwind #Subtract headwind to allow slower (safe) flight in strong winds
+		vMax = GAINS['vMax'] - headwind
 		e1=np.matrix([[1],[0],[0]])
 
 		psiG = LEADER.heading.value
@@ -709,7 +711,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.pm.p('Formation FFTerm: ' + str(np.linalg.norm(CS.pgTerm+CS.rotFFTerm) ))
 
 		si = THIS.groundspeed
-		airspd = THIS.airspeed
 
 	#Compute intermediates
 		thetaI = THIS.pitch.value
@@ -793,13 +794,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 
 		ui = (-1.0/littleg * (  littlef + GAINS['gammaS']*siTilde*h/mu + (sdiDot/mu)*(siTilde*phpsd -h)    )
-			 )+ 1*(airspd-THIS.groundspeed)
+			 )
 
-#		self.pm.p("asControlError: "+ str(CS.backstepSpeed + CS.backstepSpeedError+CS.backstepSpeedRate+(airspd-groundspd-asTargetnew) ))
 		self.pm.p('ui: '  + "{:.3f}".format(ui))
 
-
-		THIS.command.ui=ui #Don't saturate the target airspeed
+		THIS.command.ui=ui
 		self.pm.p("Commanded omega_z:" + str(omega[2,0]))
 
 	#compute implementable orientation controls
@@ -813,8 +812,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 									# overwriting elements doesn't make it a float matrix and things get truncated to int
 			self.pm.p('Using Direct for Euler rates')
 		else:
-			print "Error: invalid method for rotation rate targets"
-
+			print "Error: invalid method for Euler rate targets"
 
 		#self.pm.p("Angle Rate Targets: " + str(CS.angleRateTarget))
 		self.pm.p('pgTerm: ' + str(CS.pgTerm))
@@ -866,42 +864,41 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		kspeed = gains['kSpeed']
 		rollAngle = THIS.attitude.roll
-		#eSpeed = THIS.airspeed - cmd.asTarget
 
 		vp = self.vehicle.parameters
-		asTarget = cmd.asTarget
+		gsTarget = cmd.gsTarget
 		headwind = (THIS.airspeed-THIS.groundspeed)
 
 		speedError=False
-		oldASTarget = asTarget
+		oldgsTarget = gsTarget
 
 #		if(THIS.groundspeed < gains['vMin']):
-#			asTarget = max(gains['vMin'] + headwind+gains['epsD'], asTarget) #asTarget already includes the headwind
+#			gsTarget = max(gains['vMin'] + headwind+gains['epsD'], gsTarget) #gsTarget already includes the headwind
 #			print "groundspeed below minimum"
 #			speedError=True
 #		elif(THIS.groundspeed>gains['vMax']):
-#			asTarget = min(gains['vMax'] + headwind-gains['epsD'], asTarget) #asTarget already includes the headwind
+#			gsTarget = min(gains['vMax'] + headwind-gains['epsD'], gsTarget) #gsTarget does not includes the headwind
 #			print "groundsped above maximum"
 #			speedError = True
 
 		if(THIS.airspeed < vp['ARSPD_FBW_MIN']): #airspeed below minimum
-			asTarget = max(vp['ARSPD_FBW_MIN'], asTarget)
-			cmd.asTarget=asTarget
+			gsTarget = max(vp['ARSPD_FBW_MIN'] - headwind, gsTarget - headwind)  #positive headwind means we can go slower
+			cmd.gsTarget=gsTarget
 			print "airspeed below minimum: " + "{:.3f}".format(THIS.airspeed)
 			speedError = True
-		eSpeed = THIS.airspeed - asTarget
+		eSpeed = THIS.groundspeed - gsTarget
 		if speedError:
-				print "asTarget: " + "{:.3f}".format(asTarget) + " was " + "{:.3f}".format(oldASTarget)
+				print "gsTarget: " + "{:.3f}".format(gsTarget) + " was " + "{:.3f}".format(oldgsTarget)
 
 		throttleFFTerm = (vp['TRIM_THROTTLE'] + gains['TRIM_THROT_OFFSET']  + gains['kThrottleFF']*vp['TECS_RLL2THR']*(1.0/m.pow(m.cos(rollAngle),2)-1) +
-			self.parameters.gains['kSpdToThrottle']  *(asTarget - vp['TRIM_ARSPD_CM']/100)   )
+			self.parameters.gains['kSpdToThrottle']  *(gsTarget+headwind - vp['TRIM_ARSPD_CM']/100)   )
 
 		(cmd.throttleCMD , CS.throttleTerms) = self.throttleController.update(eSpeed,
 			(THIS.fwdAccel - 1.0*cmd.sdiDot),self.thisTS,throttleFFTerm)
 		CS.accSpeedError=self.throttleController.integrator
 		cmd.timestamp = self.fcTime()
-		self.pm.p('eAirSpeed: ' + str(eSpeed))
-		self.pm.p('ASTarget: ' + str(asTarget))
+		self.pm.p('eGroundSpeed: ' + str(eSpeed))
+		self.pm.p('GSTarget: ' + str(gsTarget))
 		self.pm.p('ESpeed: ' + str(CS.accSpeedError))
 
 	#pitch control
@@ -1011,38 +1008,24 @@ def saturate(value, minimum, maximum):
 	didSaturate = (out==minimum or out==maximum)
 	return out, didSaturate
 
-def propagateVehicleState(state, dtPos): #assumes heading rate and fwdAccel are constant
-	psiDot,ignored = saturate(state.heading.rate,-2,2) 
-	#sDot = state.fwdAccel
-	#psi = state.heading
-#	print "propagating vehicle state"
+def propagateVehicleState(state, dtPos): #assumes velocity is constant (single integrator)
+	psiDot,ignored = saturate(state.heading.rate,-2,2)
 	
 	vx = state.velocity[0]
 	vy = state.velocity[1]
 	vz = state.velocity[2] #positive = down
 
-
-#	s = m.sqrt(vx**2+vy**2+vz**2)
-#	sf = s+0*sDot*dtPos #Don't do this to avoid possibly destabilizing the numerical computation of fwdAccel
-#	psif = state.heading.value+psiDot*dtPos*0
-
 	dx = vx*dtPos #simplified, assumes straight line flight
 	dy = vy*dtPos
 	dz = vz*dtPos
 
-	#write output back to state
-#	state.velocity[0] = sf * m.cos(psif)
-#	state.velocity[1] = sf *m.sin(psif)
-#	state.heading.value = wrapToPi(psif)
-#	state.groundspeed = sf
-
 	qGPS = np.matrix([[state.position.lat],[ state.position.lon],[-state.position.alt]])
-	dqGPS = getRelPos(qGPS,qGPS + 1e-6) / 1e-6
+	dqGPS = getRelPos(qGPS,qGPS + 1e-6) / 1e-6 #get linearization of the  spherical earth to NED transforation
 	state.position.lat = np.asscalar(state.position.lat + dx/dqGPS[0])
 	state.position.lon = np.asscalar(state.position.lon + dy/dqGPS[1])
 	state.position.alt = (state.position.alt - dz)
 
-	state.timestamp = state.timestamp+dtPos #state.timestamp + dtPos
+	state.timestamp = state.timestamp+dtPos
 	state.isPropagated = 1
 
 def eul2rotm(psi,theta,phi):
@@ -1051,17 +1034,9 @@ def eul2rotm(psi,theta,phi):
 				  [-m.sin(theta), m.sin(phi)*m.cos(theta), m.cos(phi)*m.cos(theta)]])
 	return R
 def computeQ(psi, theta, phi):
-#	QInv = np.matrix([[1, m.sin(phi)*m.tan(theta), m.cos(phi)*m.tan(theta)],
-#				   [0, m.cos(phi), -m.sin(phi)],
-#				   [0,m.sin(phi)/m.cos(theta),m.cos(phi)/m.cos(theta)]])
-
 	Q = np.matrix([[1, 0,  -m.sin(theta)],
 				  [0, m.cos(phi), m.cos(theta)*m.sin(phi)],
 				  [0, -m.sin(phi), m.cos(phi)*m.cos(theta) ]])
-
-	#print Q
-	#print QInv
- # 	print Q*QInv - np.identity(3)
 	return Q
 
 def computeQInv(psi, theta, phi):
@@ -1074,7 +1049,7 @@ def ERatesToW(psi,theta,phi,psiDot,thetaDDot,phiDot):
 	Q = computeQ(psi,theta,phi)
 	Phi = np.matrix([[phiDot],[thetaDDot],[psiDot]])
 	return Q * Phi
-def WToERates(psi,theta,phi,omega): #accepts, x y z, yields roll, pitch, yaw ratesrc
+def WToERates(psi,theta,phi,omega): #accepts, x y z, yields roll, pitch, yaw rates
 	QInv = computeQInv(psi,theta,phi)
 	Phi = QInv*omega
 	return Phi
