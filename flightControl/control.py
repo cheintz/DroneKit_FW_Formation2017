@@ -745,11 +745,17 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		siTilde = si - sdt
 
 	# Compute angular velocity control
-		Omega = (GAINS['gammaB']*sdt*(Ri.transpose()*pdi*e1.transpose()-e1*pdi.transpose()*Ri)+
+		if(self.parameters.config['enableRCMiddleLoopGainAdjust']):
+			gammaBFactor  = linearToExponential(self.vehicle.channels['9'],1000.0,2000.0,5.0)
+		else:
+			gammaBFactor = 1.0
+		self.pm.pMsg('etaFactor: ', gammaBFactor)
+		Omega = (gammaBFactor*GAINS['gammaB']*sdt*(Ri.transpose()*pdi*e1.transpose()-e1*pdi.transpose()*Ri)+
 			1.0/sdt**2.0*Ri.transpose()*(pdiDot*pdi.transpose()-pdi*pdiDot.transpose())*Ri)
 		omega=np.matrix([[Omega[2,1] ], [-Omega[2,0] ], [Omega[1,0] ]])
 		OmegaFF =  1.0 / sdt ** 2.0 * Ri.transpose() * (pdiDot * pdi.transpose() - pdi * pdiDot.transpose()) * Ri
-		OmegaFB =  (GAINS['gammaB']*sdt*(Ri.transpose()*pdi*e1.transpose()-e1*pdi.transpose()*Ri) )
+		OmegaFB =  (gammaBFactor*GAINS['gammaB']*sdt*(Ri.transpose()*pdi*e1.transpose()-e1*pdi.transpose()*Ri) )
+		CS.gammaBFactor = gammaBFactor
 		self.pm.p("OmegaFF_Z : " + str(OmegaFF[1, 0]))
 		self.pm.p("OmegaFB_Z : " + str(OmegaFB[1, 0]))
 #		self.pm.p("OmegaNet : " + str(OmegaFF[1, 0]+OmegaFB[1, 0]))
@@ -831,7 +837,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		ePsi = wrapToPi(psi-THIS.command.psiD)
 		calcTurnRate = THIS.heading.rate
 		if (self.parameters.config['enableRCMiddleLoopGainAdjust']):
-			rollFactor = linearToExponential(self.vehicle.channels['8'],1000.0,2000.0,3.0)
+			rollFactor = linearToExponential(self.vehicle.channels['8'],1000.0,2000.0,5.0)
 		else:
 			rollFactor = 1.0
 		self.pm.p("RollFactor: " + str(rollFactor))
@@ -898,11 +904,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		vp = self.vehicle.parameters
 		eTheta = (self.vehicleState.pitch.value- cmd.thetaD)
 		if(self.parameters.config['enableRCMiddleLoopGainAdjust']):
-			pitchFactor = linearToExponential(self.vehicle.channels['7'],1000.0,2000.0,3.0)
+			pitchFactor = linearToExponential(self.vehicle.channels['7'],1000.0,2000.0,5.0)
 		else:
 			pitchFactor = 1.0
 		self.pm.p("PitchFactor: " + str(pitchFactor))
-		self.pm.pMsg("pitch dt ", self.thisTS)
 		(cmd.pitchCMD , CS.pitchTerms) = self.pitchController.update(eTheta, THIS.pitch.rate - cmd.thetaDDot ,self.thisTS,
 				 (THIS.attitude.pitch-THIS.pitch.value) +  cmd.thetaD,pitchFactor) #Feedforward is desired pitch plus difference between velocity and body pitch
 		CS.accPitchError  = self.pitchController.integrator
