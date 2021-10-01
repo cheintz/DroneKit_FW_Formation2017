@@ -78,7 +78,8 @@ class Logger(multiprocessing.Process):
 					if myOrderedDict[k] is None:
 #						print k + " is None"
 						valueStringList.append(str(None))
-					elif(k == "timestamp" or k == "posTime"):
+					elif(k == "timestamp" or k == "posTime" or
+						k=="CCBootTime" or k == "FCBootTime"):
 						valueStringList.append("{:.4f}".format(myOrderedDict[k]) )
 					else:
 						valueStringList.append( str(myOrderedDict[k]) )

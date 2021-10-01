@@ -709,7 +709,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.pm.p('Formation FFTerm: ' + str(np.linalg.norm(CS.pgTerm+CS.rotFFTerm) ))
 
 
-
 	#Compute intermediates
 		si = THIS.groundspeed
 		thetaI = THIS.pitch.value
@@ -795,10 +794,12 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.phps = phps
 		CS.phpsd=phpsd
 		CS.mu=mu
+
 		ui = (-1.0/littleg * (  littlef + GAINS['gammaS']*siTilde*h/mu + (switchState*sdiDot/mu)*(siTilde*phpsd -h)    )
 			 )
 		self.pm.p('ui: '  + "{:.3f}".format(ui))
 		THIS.command.ui=ui
+
 
 	#compute implementable orientation controls
 		if THIS.parameters.config['OrientationRateMethod'] == 'OmegaI' :
@@ -812,6 +813,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.pm.p('Using Direct for Euler rates')
 		else:
 			print "Error: invalid method for Euler rate targets"
+
 		#write roll rate and pitch rate commands for middle loops
 		THIS.command.thetaDDot = CS.angleRateTarget[1,0]
 		THIS.command.psiDDot = CS.angleRateTarget[2,0]

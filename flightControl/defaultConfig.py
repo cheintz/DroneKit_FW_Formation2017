@@ -55,7 +55,7 @@ def getParams():
 
 
 	defaultParams.communication=temp
-	defaultParams.Ts = 1.0/50.0
+	defaultParams.Ts = 1.0/25.0
 	defaultParams.txStateType = 'basic'
 
 	return defaultParams
