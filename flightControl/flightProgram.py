@@ -29,8 +29,8 @@ logPath = os.environ["LOGPATH"]
 broadcastIP= os.environ["BROADCASTIP"]
 
 # SITL for desktop on campus
-AdHocIP = "10.164.40.51"
-broadcastIP = "10.164.43.255"
+# AdHocIP = "10.164.40.51"
+# broadcastIP = "10.164.43.255"
 
 try:
 	SITLFlag = os.environ["SITL"]
@@ -39,21 +39,15 @@ except KeyError:
 
 import defaultConfig
 
-
 #broadcastIP= "10.0.2.255" #for virtual machine
 #broadcastIP= "192.168.0.255"  #this is for the physical machine
 
 transmitAddress = (broadcastIP,peerReadPort)
 
-
 #create message queues
 loggingQueue= multiprocessing.Queue()
 transmitQueue = multiprocessing.Queue()
 receiveQueue = multiprocessing.Queue()
-
-
-
-
 
 #Parse the connection arg and connect to the vehicle
 parser = argparse.ArgumentParser(description='Print out vehicle state information. Connects to SITL on local PC by default.')
@@ -77,8 +71,6 @@ print "\nConnecting to vehicle on: %s" % connection_string
 vehicle = connect(connection_string, wait_ready=True, baud=1500000, rate=1/defaultParams.Ts,vehicle_class=ServoVehicle)
 
 vehicle.wait_ready('autopilot_version')
-
-
 
 receiveThread = receive.Receiver(receiveQueue,AdHocIP,peerReadPort,defaultParams.config['ignoreSelfPackets'])
 transmitThread = transmit.Transmitter(transmitQueue,AdHocIP,peerReadPort,transmitAddress)
@@ -124,7 +116,7 @@ while hasLiveThreads(threads):
 
 		# Shut down simulator if it was started.
 		if sitl is not None:
-		    sitl.stop()
+			sitl.stop()
 	
 print "exiting Main"
 
