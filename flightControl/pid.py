@@ -11,13 +11,16 @@ class PIDController:
 		self._upperIntSat = upperIntSat
 		self._lowerOutSat = lowerOutSat
 		self._upperOutSat = upperOutSat
-	def update(self,e,eDot,Ts,ff=0,extraGain=1):
+	def update(self,e,eDot,Ts,ff=0,extraKP=1,extraKI=1,extraKD=1):
 		terms = PIDTerms()
-		terms.p = -e *self.gains.kp * extraGain
-		terms.i = -self.integrator * self.gains.ki* extraGain
-		terms.d = -eDot * self.gains.kd * extraGain
+		terms.p = -e *self.gains.kp * extraKP
+		terms.i = -self.integrator * self.gains.ki* extraKI
+		terms.d = -eDot * self.gains.kd * extraKD
 		terms.ff = ff
-		terms.extraGain=extraGain
+		terms.extraKP = extraKP
+		terms.extraKI = extraKI
+		terms.extraKD = extraKD
+
 		terms.unsaturatedOutput=  terms.p+terms.d+terms.i+terms.ff
 		output = saturate(terms.unsaturatedOutput
 			,self._lowerOutSat,self._upperOutSat)

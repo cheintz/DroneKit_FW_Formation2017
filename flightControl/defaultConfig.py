@@ -2,7 +2,7 @@ from vehicleState import Parameter, KPID
 from dronekit import  VehicleMode
 import time
 import numpy as np
-import math as m # MiddleLoop Formation
+import math as m
 
 def getParams():
 	defaultParams = Parameter()
@@ -13,13 +13,17 @@ def getParams():
 	#aFiltAccel to 1 for no filtering
 	print defaultParams.desiredPosition
 	defaultParams.gains = {'kl':0.3*np.diag([1,1,0.3]) , 'ka': 0.0*np.diag([1,1,1+0*0.3])
-		,'vMin': 14,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941, 'kHeading':KPID(1.0,0.1,0.2)
-		,'kSpeed':KPID(2,0.2,0.0),'rollLimit':50/(180/m.pi),'kPitch':KPID(1, 0.2,.2),'kAlt':KPID(.026, .0017,.0105),'pitchLimit':20/(180/m.pi)
+		,'vMin': 14,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941, 'kHeading':KPID(1.0,0.0,0.5)
+		,'kSpeed':KPID(4,0.4,0.0),'rollLimit':50/(180/m.pi),'kPitch':KPID(.5, 0.2,0.0),'kAlt':KPID(.026, .0017,.0105),'pitchLimit':20/(180/m.pi)
 		, 'maxEHeading':50,'maxEPitch':50,'maxESpeed':500, 'aSpeed':0.9,'gammaS':1,'kSpdToThrottle':4.5
 		,'kThrottleFF': 0,'kRollFF':1,'gammaB':0.0002,'maxEAlt':50,'epsD':0.2,'ki':4,'TRIM_THROT_OFFSET':-5,'pBarrier':1/255.0}
-	defaultParams.config = {'printEvery':50,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
-		,'mode':'Formation','acceptableEngageMode': (VehicleMode('FBWA'),),'dimensions':3,'maxPropagateSeconds':5
-		,'LeaderAccelSource':'Accel','LeaderRotationSource':'Gyro','OrientationRateMethod':'OmegaI','enableRCMiddleLoopGainAdjust': True
+	defaultParams.config = {'printEvery':50,'ignoreSelfPackets':False,'propagateStates':True , 'geofenceAbort':False
+		,'acceptableEngageMode': (VehicleMode('FBWA'),), 'dimensions': 3, 'maxPropagateSeconds': 5
+		,'mode':'ProgrammedMiddleLoop'  # PilotMiddleLoop ProgrammedMiddleLoop Formation
+		,'LeaderAccelSource':'Accel' #Model, Accel
+		,'LeaderRotationSource':'Gyro' #Gyro, Accel
+		,'OrientationRateMethod':'OmegaI' #OmegaI, Direct
+		,'enableRCMiddleLoopGainAdjust': 'Switched' #Switched, Both, False
 		,'SwitchedSpeedControl':'Continuous','uiBarrier':False}
 	defaultParams.GCSTimeout = 5 #seconds
 	defaultParams.peerTimeout = 5 #seconds
@@ -55,7 +59,7 @@ def getParams():
 
 
 	defaultParams.communication=temp
-	defaultParams.Ts = 1.0/50.0
+	defaultParams.Ts = 1.0/25.0
 	defaultParams.txStateType = 'basic'
 
 	return defaultParams
