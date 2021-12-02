@@ -13,10 +13,12 @@ PIDTerms = recordtype('PIDTerms',['p','i','d','ff','unsaturatedOutput','extraKP'
 
 Timeout = recordtype('Timeout' , ['GCSTimeoutTime', ('peerTimeoutTime',{}), 'localTimeoutTime', 'GCSLastRx', ('peerLastRX',{})], default = None)
 
-Parameter = recordtype('Parameter',['receivedTime','desiredPosition','gains', 'Ts', 'GCSTimeout', 'peerTimeout', 'localTimeout', 'leaderID', 'expectedMAVs', 'rollGain', 'config', 'rollOffset', 'pitchGain', 'pitchOffset', 'throttleGain', 'throttleMin',('txStateType','basic'),'communication'], default = None)
+Parameter = recordtype('Parameter',['receivedTime','desiredPosition','gains', 'Ts', 'GCSTimeout', 'peerTimeout', 'localTimeout', 'leaderID'
+	,'expectedMAVs', 'rollGain', 'config', 'rollOffset', 'pitchGain', 'pitchOffset', 'throttleGain', 'throttleMin'
+	,'communication', 'fns'], default = None)
 
-Command = recordtype('Command',['sdi','sdt','sdiDot','ui','gsTarget',('omega',zeroVect),'psiD','psiDDot','thetaD','rollCMD','thetaDDot',
-	'pitchCMD','throttleCMD','timestamp',('qd',zeroVect)], default = None)
+Command = recordtype('Command',['sdi','sdt','sdiDot','ui','gsTarget',('omega',zeroVect),'psiD','psiDDot','thetaD','rollCMD','thetaDDot'
+	,'pitchCMD','throttleCMD','timestamp',('qd',zeroVect)], default = None)
 
 CourseAngle = recordtype('CourseAngle',['value','rate','accel'],default=0.0)	
 

@@ -119,5 +119,3 @@ while hasLiveThreads(threads):
 			sitl.stop()
 	
 print "exiting Main"
-
-	

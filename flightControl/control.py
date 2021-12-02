@@ -476,8 +476,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		msg=Message()
 		msg.msgType = UAV
 		msg.sendTime = self.fcTime()
-		if self.parameters.txStateType == 'basic':  #note: deep copy takes a very long time, un and de pickling with cPickle is faster, binary seems to be fastest.
-			msg.content =BasicVehicleState.getCSVLists(self.vehicleState)  #explicit call to BasicVehicleState to avoid calling the method for FullVehicleState
+		msg.content =BasicVehicleState.getCSVLists(self.vehicleState)  #explicit call to BasicVehicleState to avoid calling the method for FullVehicleState
 		self.transmitQueue.put(msg)
 
 	def pushStateToLoggingQueue(self):
@@ -572,7 +571,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS.command.sdi = ((self.parameters.gains['vMax']-self.parameters.gains['vMin']) * speedInput
 			+ self.parameters.gains['vMin'] )
 		THIS.command.gsTarget = THIS.command.sdi
-		THIS.command.thetaD = (pitchInput-0.5 ) * self.parameters.gains['pitchLimit'] #half alt to full alt
+		THIS.command.thetaD = (pitchInput-0.5 ) * self.parameters.gains['pitchLimit'] #Stick controls pitch, center is level flight
 		self.pm.pMsg("Desired pitch: ", THIS.command.thetaD)
 		THIS.command.psiD = wrapToPi(0.35 + m.pi*(2*headingInput-1.0) ) #North is Middle of range
 		THIS.command.psiDDot=0
@@ -584,19 +583,64 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS = self.vehicleState
 		tRel = THIS.timestamp - self.tStart
 
-		THIS.command.sdi = 20.0
 		THIS.command.gsTarget =THIS.command.sdi
 		THIS.command.sdiDot = 0
+		self.speedControl()
 
 		upField = 0.35
-		if (self.vehicle.channels['10'] < 1200): #no speed tuning
-			if THIS.command.psiD is None:
-				THIS.command.psiD = THIS.heading.value  # hold heading
-			THIS.command.thetaD = 0.0
-			THIS.command.psiDDot = 0.0
-			THIS.command.thetaDDot = 0.0
-		if (self.vehicle.channels['10'] < 1700): #Heading
+		if (self.vehicle.channels['10'] < 1200):
+			self.pm.p("programmed speed routine")
+			if tRel < 5:
+				THIS.command.thetaD = 0.0
+				THIS.command.sdi= 20.0
+				if THIS.command.psiD is None:
+					THIS.command.psiD = upField
+				THIS.command.sdiDot = 0
+				THIS.command.psiDDot = 0.0
+				THIS.command.thetaDDot = 0.0
+			elif tRel < 12:
+				THIS.command.sdiDot	 = 0.5 #ramp up to 25 m/s
+				THIS.command.psiDDot = 0.0
+				THIS.command.thetaDDot = 0.0
+			elif tRel < 20:   #reach steady state (hopefully)
+				THIS.command.sdiDot = 0.0
+				THIS.command.psiDDot = 0.0
+				THIS.command.thetaDDot = 0.0
+			elif tRel < 28:
+				THIS.command.sdiDot = 0.0
+				THIS.command.thetaDDot = 0.0
+				THIS.command.psiDDot = m.pi / 8.0  # 180 deg turn in 8 seconds
+			elif tRel < 32:  #reach steady state
+				THIS.command.sdiDot = 0.0
+				THIS.command.psiDDot = 0.0
+				THIS.command.thetaDDot = 0.0
+			elif tRel < 47:  # reach steady state
+				THIS.command.sdiDot = -0.5  #slow to 15 m/s
+				THIS.command.psiDDot = 0.0
+				THIS.command.thetaDDot = 0.0
+			elif tRel < 55:
+				THIS.command.sdiDot = 0.0
+				THIS.command.thetaDDot = 0.0
+				THIS.command.psiDDot = m.pi / 8.0  # 180 deg turn in 8 seconds
+			elif tRel < 65:  # reach steady state
+				THIS.command.sdiDot = 1.0  #Accelerate to 25 m/s
+				THIS.command.psiDDot = 0.0
+				THIS.command.thetaDDot = 0.0
+			elif tRel<75:
+				THIS.command.sdiDot = 0.0  # Reach steady state
+				THIS.command.psiDDot = 0.0
+				THIS.command.thetaDDot = 0.0
+			else:
+				THIS.command.sdiDot = 0.0
+				THIS.command.psiDDot = 0.0
+				THIS.command.thetaDDot = 0.0
+				self.releaseControl()
+
+
+		elif (self.vehicle.channels['10'] < 1700): #Heading
+			self.pm.p('Programmed heading routine')
 			if tRel <18:
+				THIS.command.sdi = 20.0
 				THIS.command.psiD = upField
 				THIS.command.thetaD = 0.0
 				THIS.command.psiDDot = 0.0
@@ -635,7 +679,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				return
 
 		else:  # (self.vehicle.channels['10'] >  1700)pitch
+			self.pm.p('Programmed pitch routine')
 			if tRel < 5:
+				THIS.command.sdi=20.0
 				THIS.command.thetaD = 0.0
 				if THIS.command.psiD is None:
 					THIS.command.psiD = THIS.heading.value # hold heading
@@ -699,6 +745,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.pm.pMsg('T Rel: ', tRel)
 		THIS.command.psiD = wrapToPi(THIS.command.psiD  + self.thisTS *THIS.command.psiDDot)
 		THIS.command.thetaD = THIS.command.thetaD + self.thisTS *THIS.command.thetaDDot
+		THIS.command.sdi = THIS.command.sdi + self.thisTS * THIS.command.sdiDot
+		# sdt is set outside this function
+
 
 	def propagateOtherStates(self):
 		for i in self.stateVehicles.keys():
@@ -834,13 +883,12 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.pdi=pdi
 		self.pm.p('Formation FFTerm: ' + str(np.linalg.norm(CS.pgTerm+CS.rotFFTerm) ))
 
-
 	#Compute intermediates
 		si = THIS.groundspeed
 		thetaI = THIS.pitch.value
 		thetaIDot = THIS.pitch.rate
 		if (THIS.parameters.config['dimensions'] == 2 and not pdi[2] == 0):
-			myPitch = 0
+			thetaI = 0
 
 		Ri = eul2rotm(THIS.heading.value,thetaI,THIS.roll.value)
 		sdi = np.linalg.norm(pdi,2)
@@ -856,10 +904,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		sdiDot = np.asscalar( (pdi.transpose() / sdi) * pdiDot)
 		bdiDot = 1.0/sdi * pdiDot - 1.0/sdi**2.0 * sdiDot * pdi
 
-#		sdi = 10
 		if(didSatSd):
 			sdiDot = 0
-#			self.pm.p("sdi saturated, was " + str(sdi)+ " Now " + str(sdt))
+			self.pm.p("sdi saturated, was " + str(sdi)+ " Now " + str(sdt))
 		pdiDot = sdiDot*bdi + sdi*bdiDot #Checked good, will saturate with sdi
 
 		THIS.command.sdt = sdt  #saturated desired speed and derivative
@@ -888,54 +935,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.gammaBFactor = gammaBFactor
 		self.pm.p("OmegaFF_Z : " + str(OmegaFF[1, 0]))
 		self.pm.p("OmegaFB_Z : " + str(OmegaFB[1, 0]))
-#		self.pm.p("OmegaNet : " + str(OmegaFF[1, 0]+OmegaFB[1, 0]))
-#		self.pm.p("OmegaDifference : " + str(OmegaFF[1, 0]+OmegaFB[1, 0] - Omega[1,0]))
+
 		THIS.command.omega=omega
-		self.pm.p("Commanded omega_z:" + str(omega[2,0]))
-
-	#Speed Controller
-		littlef = -GAINS['aSpeed'] * si
-		littleg = GAINS['aSpeed']
-		siTilde = si - sdt
-
-		if(THIS.parameters.config['uiBarrier']):
-			print  THIS.parameters.config['uiBarrier']
-			p=GAINS['pBarrier']
-			h=np.real(((vMax-sdt)*(sdt-vMin))/((vMax-si)*(si-vMin))**p)
-			phps=np.real(-p*(vMax+vMin-2*si)/((vMax-si)*(si-vMin)) * h)
-			phpsd=np.real((vMax+vMin-2*sdt) / ((vMax-si)*(si-vMin))**p)
-			self.pm.p('Using speed barrier')
-		else:
-			h=1.0
-			phps=0.0
-			phpsd = 0.0
-			self.pm.p('Not using speed barrier')
-		mu = h + siTilde * phps
-		if (mu < 0):
-			print "mu<0: " + str(mu)
-		self.pm.p("sdt: " +str(sdt))
-		if(THIS.parameters.config['SwitchedSpeedControl'] == 'Continuous'):
-			switchState =swc(-sdiDot*siTilde)
-			self.pm.p('Using continuous switch')
-		elif(THIS.parameters.config['SwitchedSpeedControl'] == 'Pure'):
-			switchState = swp(-sdiDot * siTilde)
-			self.pm.p('Using pure switch')
-		else:
-			switchState = 1.0
-			self.pm.p('Using no switch')
-		CS.backstepSpeed = (-1.0/littleg) * littlef
-		CS.backstepSpeedError =  (-1.0/littleg) * GAINS['gammaS'] *  GAINS['gammaS']*siTilde*h/mu
-		CS.backstepSpeedRate = (-1.0/littleg) * switchState*(sdiDot/mu)*(siTilde*phpsd -h)
-		CS.h = h
-		CS.phps = phps
-		CS.phpsd=phpsd
-		CS.mu=mu
-
-		ui = (-1.0/littleg * (  littlef + GAINS['gammaS']*siTilde*h/mu + (switchState*sdiDot/mu)*(siTilde*phpsd -h)    )
-			 )
-		self.pm.p('ui: '  + "{:.3f}".format(ui))
-		THIS.command.ui=ui
-
 
 	#compute implementable orientation controls
 		if THIS.parameters.config['OrientationRateMethod'] == 'OmegaI' :
@@ -950,13 +951,84 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else:
 			print "Error: invalid method for Euler rate targets"
 
+		self.speedControl()
+		# Do QP here
+
+
+
+
+
 		#write roll rate and pitch rate commands for middle loops
 		THIS.command.thetaDDot = CS.angleRateTarget[1,0]
 		THIS.command.psiDDot = CS.angleRateTarget[2,0]
 		THIS.command.thetaD = m.asin(-pdi[2,0]/sdi)
 		THIS.command.psiD = m.atan2(pdi[1,0],pdi[0,0])
 
-		self.pm.p('groundspd: ' + str(THIS.groundspeed))
+
+	def speedControl(self):
+		THIS = self.vehicleState
+		GAINS = THIS.parameters.gains
+		CS = THIS.controlState
+
+		headwind = (THIS.airspeed - THIS.groundspeed)
+		vMin = GAINS['vMin'] - headwind  # Subtract headwind to allow slower (safe) flight in strong winds
+		vMax = GAINS['vMax'] - headwind
+
+		si = THIS.groundspeed
+		sdt, didSatSd = saturate(THIS.command.sdi, vMin, vMax)
+		sdiDot = THIS.command.sdiDot
+		siTilde = si - sdt
+		# Speed Controller
+		if(False and self.sitl):
+			littlef = getSpeedFSITL(THIS)
+			littleg = getSpeedGSITL(THIS)
+		else:
+			littlef = getSpeedF(THIS)
+			littleg = getSpeedG(THIS)
+
+
+
+		if (THIS.parameters.config['uiBarrier']):
+			print  THIS.parameters.config['uiBarrier']
+			p = GAINS['pBarrier']
+			h = np.real(((vMax - sdt) * (sdt - vMin)) / ((vMax - si) * (si - vMin)) ** p)
+			phps = np.real(-p * (vMax + vMin - 2 * si) / ((vMax - si) * (si - vMin)) * h)
+			phpsd = np.real((vMax + vMin - 2 * sdt) / ((vMax - si) * (si - vMin)) ** p)
+			self.pm.p('Using speed barrier')
+			mu = h + siTilde * phps
+			if (mu < 0):
+				print "mu<0: " + str(mu)
+		else:
+			h = 1.0
+			phps = 0.0
+			phpsd = 0.0
+			mu=1
+			self.pm.p('Not using speed barrier')
+
+		self.pm.p("sdt: " + str(sdt))
+		if (THIS.parameters.config['SwitchedSpeedControl'] == 'Continuous'):
+			switchState = swc(-sdiDot * siTilde)
+			self.pm.p('Using continuous switch')
+		elif (THIS.parameters.config['SwitchedSpeedControl'] == 'Pure'):
+			switchState = swp(-sdiDot * siTilde)
+			self.pm.p('Using pure switch')
+		else:
+			switchState = 1.0
+			self.pm.p('Using no switch')
+		CS.backstepSpeed = (-1.0 / littleg) * littlef
+		CS.backstepSpeedError = (-1.0 / littleg) * GAINS['gammaS'] * GAINS['gammaS'] * siTilde * h / mu
+		CS.backstepSpeedRate = (-1.0 / littleg) * switchState * (sdiDot / mu) * (siTilde * phpsd - h)
+		CS.h = h
+		CS.phps = phps
+		CS.phpsd = phpsd
+		CS.mu = mu
+
+		ui = (-1.0 / littleg * (
+					littlef + GAINS['gammaS'] * siTilde * h / mu + (switchState * sdiDot / mu) * (siTilde * phpsd - h)))
+		self.pm.p('ui: ' + "{:.3f}".format(ui))
+		THIS.command.ui = ui
+		THIS.command.sdt = sdt
+		THIS.command.gsTarget = sdt
 
 	def rollControl(self):
 		THIS=self.vehicleState
@@ -1004,8 +1076,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		cmd = THIS.command
 		gains = THIS.parameters.gains
 
-		pitchFFGain = 0.5 *  (100 - self.vehicle.parameters['TRIM_THROTTLE']) /(m.sin(self.vehicle.parameters['LIM_PITCH_MAX'] / 100.0/ (180.0/m.pi)))
-		self.pm.pMsg('Pitch2throt Gain: ', pitchFFGain)
+
 		kspeed = gains['kSpeed']
 		rollAngle = THIS.attitude.roll
 
@@ -1034,12 +1105,15 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		if speedError:
 				print "gsTarget: " + "{:.3f}".format(gsTarget) + " was " + "{:.3f}".format(oldgsTarget)
 
-		throttleFFTerm = (vp['TRIM_THROTTLE'] + gains['TRIM_THROT_OFFSET']  + gains['kThrottleFF']*vp['TECS_RLL2THR']*(1.0/m.pow(m.cos(rollAngle),2)-1) +
-			self.parameters.gains['kSpdToThrottle']  *(gsTarget+headwind - vp['TRIM_ARSPD_CM']/100)   +
-				  pitchFFGain * m.sin(THIS.pitch.value))
+		throttleFFTerm = (vp['TRIM_THROTTLE'] + gains['TRIM_THROT_OFFSET']  + gains['kRoll2Throt']*vp['TECS_RLL2THR']*(1.0/m.pow(m.cos(rollAngle),2)-1) +
+			self.parameters.gains['kSpdToThrottle']  *(gsTarget+headwind - vp['TRIM_ARSPD_CM']/100)  )
 
 		(cmd.throttleCMD , CS.throttleTerms) = self.throttleController.update(eSpeed,
-			(THIS.fwdAccel - 1.0*cmd.sdiDot),self.thisTS,throttleFFTerm)
+			(THIS.fwdAccel - 1.0*cmd.sdiDot),self.thisTS,0*throttleFFTerm) #throttleCMD is 0 to 100
+		THIS.command.ui += CS.throttleTerms.i
+		rpmDesired = thrustToRPM(THIS.parameters,THIS.command.ui, THIS.airspeed)
+		cmd.throttleCMD = 100.0* rpmDesired/THIS.batteryV / THIS.parameters.config['spdParam']['motorKV']
+
 		CS.accSpeedError=self.throttleController.integrator
 		cmd.timestamp = self.fcTime()
 		self.pm.p('eGroundSpeed: ' + str(eSpeed))
@@ -1287,3 +1361,34 @@ def swp(value):
 		return 1.0
 	else:
 		return 0.0
+
+def getSpeedF(vs):
+	param=vs.parameters
+	sp = param.config['spdParam']
+	cd0 = sp['cd0']
+
+	out = (-9.81 * m.sin(vs.pitch.value)  # out has units force, returns acceleration by dividing by mass
+		- vs.airspeed ** 2 * (sp['cd0'] + sp['cd_ail'] * abs(linearToLinear(vs.servoOut['1'],982.0, 2006.0,2.0)-1.0)
+		+ sp['cd_ele'] * abs(linearToLinear(vs.servoOut['2'],982.0, 2006.0,2.0)-1.0))
+		- sp['cdl'] * vs.imuAccel.z ** 2 * param.config['mass'] ** 2 / vs.airspeed ** 2)
+	return out / param.config['mass']
+
+def getSpeedG(vs):
+	return 1.0 / vs.parameters.config['mass']
+
+def getSpeedFSITL(vs):
+	return -9.81 * m.sin(vs.pitch.value) -vs.parameters.config['spdParam']['aSpd'] * vs.groundspeed
+
+def getSpeedGSITL(vs):
+	return vs.parameters.config['spdParam']['aSpd']
+
+# def c2normalized(minValue, maxValue, value):
+# 	return value - ((maxValue + minValue) / 2.0) / (maxValue - minValue)
+
+def thrustToRPM(params,thrust, airspeed):
+	rpm = params.config['spdParam']['thrustInterpLin'](thrust,airspeed)
+	if np.isnan(rpm):
+		rpm = params.config['spdParam']['thrustInterpNear'](thrust, airspeed)
+	if thrust<0.0:
+		rpm = 0.0
+	return rpm
