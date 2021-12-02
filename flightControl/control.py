@@ -598,7 +598,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				THIS.command.sdiDot = 0
 				THIS.command.psiDDot = 0.0
 				THIS.command.thetaDDot = 0.0
-			elif tRel < 12:
+			elif tRel < 15:
 				THIS.command.sdiDot	 = 0.5 #ramp up to 25 m/s
 				THIS.command.psiDDot = 0.0
 				THIS.command.thetaDDot = 0.0
@@ -1006,6 +1006,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.pm.p('Not using speed barrier')
 
 		self.pm.p("sdt: " + str(sdt))
+		self.pm.p("sdi: " + str(THIS.command.sdi))
 		if (THIS.parameters.config['SwitchedSpeedControl'] == 'Continuous'):
 			switchState = swc(-sdiDot * siTilde)
 			self.pm.p('Using continuous switch')
@@ -1374,7 +1375,9 @@ def getSpeedF(vs):
 	return out / param.config['mass']
 
 def getSpeedG(vs):
-	return 1.0 / vs.parameters.config['mass']
+	return ((1.0 / vs.parameters.config['mass'])
+	* 1.0/ (m.cos(wrapToPi(vs.pitch.value-vs.attitude.pitch))
+	* m.cos(wrapToPi(vs.heading.value - vs.attitude.yaw))))
 
 def getSpeedFSITL(vs):
 	return -9.81 * m.sin(vs.pitch.value) -vs.parameters.config['spdParam']['aSpd'] * vs.groundspeed

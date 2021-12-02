@@ -200,7 +200,7 @@ class FullVehicleState(BasicVehicleState):
 			headers.append("ch"+str(i))
 			values.append(self.channels[str(i)])
 
-		for i in range(1,5):
+		for i in range(1,9):
 			headers.append("servoOut"+str(i))
 			values.append(self.servoOut[str(i)])
 		
