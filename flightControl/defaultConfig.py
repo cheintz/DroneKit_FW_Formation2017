@@ -26,7 +26,7 @@ def getParams():
 		,'kRoll2Throt': 0,'kRollFF':1,'gammaB':0.0002,'maxEAlt':50,'epsD':0.2,'ki':4,'TRIM_THROT_OFFSET':-5,'pBarrier':1/255.0}
 	defaultParams.config = {'printEvery':50,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
 		,'acceptableEngageMode': (VehicleMode('FBWA'),), 'dimensions': 3, 'maxPropagateSeconds': 5,'mass':6.766
-		,'spdParam':{'cd0':0.0,'cd_ail':0.0110,'cd_ele':0.178,'cdl':0.0026,'aSpd':0.9,'spdThrustScl': 0.8371,'thrustScale':1.0,'motorKV':385.0,'useBatVolt':True}
+		,'spdParam':{'cd0':0.0333,'cd_ail':0.0,'cd_ele':0.0,'cdl':0.0029,'aSpd':0.9,'spdThrustScl': 0.7093,'thrustScale':1.0,'motorKV':385.0,'useBatVolt':True}
 		,'mode':'ProgrammedMiddleLoop'  # PilotMiddleLoop ProgrammedMiddleLoop Formation
 		,'LeaderAccelSource':'Accel' #Model, Accel
 		,'LeaderRotationSource':'Gyro' #Gyro, Accel
