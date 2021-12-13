@@ -583,11 +583,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS = self.vehicleState
 		tRel = THIS.timestamp - self.tStart
 
-		THIS.command.gsTarget =THIS.command.sdi
-		THIS.command.sdiDot = 0
-		self.speedControl()
+		upField = 0.35 #approximate runway heading
 
-		upField = 0.35
 		if (self.vehicle.channels['10'] < 1200):
 			self.pm.p("programmed speed routine")
 			if tRel < 5:
@@ -676,7 +673,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				THIS.command.psiDDot = 0.0
 				THIS.command.thetaDDot = 0.0
 				self.releaseControl()
-				return
 
 		else:  # (self.vehicle.channels['10'] >  1700)pitch
 			self.pm.p('Programmed pitch routine')
@@ -746,7 +742,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS.command.psiD = wrapToPi(THIS.command.psiD  + self.thisTS *THIS.command.psiDDot)
 		THIS.command.thetaD = THIS.command.thetaD + self.thisTS *THIS.command.thetaDDot
 		THIS.command.sdi = THIS.command.sdi + self.thisTS * THIS.command.sdiDot
-		# sdt is set outside this function
+
+		self.speedControl()# sdt is set here
+
 
 
 	def propagateOtherStates(self):
@@ -986,7 +984,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			littlef = getSpeedF(THIS)
 			littleg = getSpeedG(THIS)
 
-
+		CS.f = littlef
+		CS.g=littleg
 
 		if (THIS.parameters.config['uiBarrier']):
 			print  THIS.parameters.config['uiBarrier']
@@ -1016,13 +1015,15 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else:
 			switchState = 1.0
 			self.pm.p('Using no switch')
-		CS.backstepSpeed = (-1.0 / littleg) * littlef
-		CS.backstepSpeedError = (-1.0 / littleg) * GAINS['gammaS'] * GAINS['gammaS'] * siTilde * h / mu
-		CS.backstepSpeedRate = (-1.0 / littleg) * switchState * (sdiDot / mu) * (siTilde * phpsd - h)
+		CS.speedCancelTerm = (-1.0 / littleg) * littlef
+		CS.speedErrorTerm = (-1.0 / littleg) * GAINS['gammaS'] * siTilde * h / mu
+		CS.speedIntTerm= (-1.0 / littleg) * GAINS['gammaSI'] * CS.accSpeedError * h / mu
+		# CS.backstepSpeedRate = (-1.0 / littleg) * switchState * (sdiDot / mu) * (siTilde * phpsd - h)
 		CS.h = h
 		CS.phps = phps
 		CS.phpsd = phpsd
 		CS.mu = mu
+		CS.accSpeedError = CS.accSpeedError + self.thisTS * siTilde
 
 		ui = (-1.0 / littleg * (
 					littlef + GAINS['gammaS'] * siTilde * h / mu + (switchState * sdiDot / mu) * (siTilde * phpsd - h)))
@@ -1077,7 +1078,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		cmd = THIS.command
 		gains = THIS.parameters.gains
 
-
 		kspeed = gains['kSpeed']
 		rollAngle = THIS.attitude.roll
 
@@ -1106,16 +1106,23 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		if speedError:
 				print "gsTarget: " + "{:.3f}".format(gsTarget) + " was " + "{:.3f}".format(oldgsTarget)
 
-		throttleFFTerm = (vp['TRIM_THROTTLE'] + gains['TRIM_THROT_OFFSET']  + gains['kRoll2Throt']*vp['TECS_RLL2THR']*(1.0/m.pow(m.cos(rollAngle),2)-1) +
-			self.parameters.gains['kSpdToThrottle']  *(gsTarget+headwind - vp['TRIM_ARSPD_CM']/100)  )
+		# throttleFFTerm = (vp['TRIM_THROTTLE'] + gains['TRIM_THROT_OFFSET']  + gains['kRoll2Throt']*vp['TECS_RLL2THR']*(1.0/m.pow(m.cos(rollAngle),2)-1) +
+		# 	self.parameters.gains['kSpdToThrottle']  *(gsTarget+headwind - vp['TRIM_ARSPD_CM']/100)  )
+		#
+		# (cmd.throttleCMD , CS.throttleTerms) = self.throttleController.update(eSpeed,
+		# 	(THIS.fwdAccel - 1.0*cmd.sdiDot),self.thisTS,0*throttleFFTerm) #throttleCMD is 0 to 100
 
-		(cmd.throttleCMD , CS.throttleTerms) = self.throttleController.update(eSpeed,
-			(THIS.fwdAccel - 1.0*cmd.sdiDot),self.thisTS,0*throttleFFTerm) #throttleCMD is 0 to 100
-		THIS.command.ui += CS.throttleTerms.i
+		# THIS.command.ui += CS.throttleTerms.i
 		rpmDesired = thrustToRPM(THIS.parameters,THIS.command.ui, THIS.airspeed)
-		cmd.throttleCMD = 100.0* rpmDesired/THIS.batteryV / THIS.parameters.config['spdParam']['motorKV']
+		cmd.rpmTarget =rpmDesired
+		if(THIS.parameters.config['spdParam']['useBatVolt']):
+			cmd.throttleCMD = 100.0* rpmDesired/THIS.batteryV / THIS.parameters.config['spdParam']['motorKV']
+		else:
+			cmd.throttleCMD = 100.0 * rpmDesired / THIS.parameters.config['spdParam']['motorKV']
 
-		CS.accSpeedError=self.throttleController.integrator
+
+
+		# CS.accSpeedError=self.throttleController.integrator
 		cmd.timestamp = self.fcTime()
 		self.pm.p('eGroundSpeed: ' + str(eSpeed))
 		self.pm.p('GSTarget: ' + str(gsTarget))
@@ -1255,7 +1262,7 @@ def propagateVehicleState(state, dtPos): #assumes velocity is constant (single i
 	dz = vz*dtPos
 
 	qGPS = np.matrix([[state.position.lat],[ state.position.lon],[-state.position.alt]])
-	dqGPS = getRelPos(qGPS,qGPS + 1e-6) / 1e-6 #get linearization of the  spherical earth to NED transforation
+	dqGPS = getRelPos(qGPS,qGPS + 1e-6) / 1e-6 #get linearization of the  spherical earth to NED transformation
 	state.position.lat = np.asscalar(state.position.lat + dx/dqGPS[0])
 	state.position.lon = np.asscalar(state.position.lon + dy/dqGPS[1])
 	state.position.alt = (state.position.alt - dz)
@@ -1376,14 +1383,16 @@ def getSpeedF(vs):
 
 def getSpeedG(vs):
 	return ((1.0 / vs.parameters.config['mass'])
-	* 1.0/ (m.cos(wrapToPi(vs.pitch.value-vs.attitude.pitch))
-	* m.cos(wrapToPi(vs.heading.value - vs.attitude.yaw))))
+	* m.cos(wrapToPi(vs.pitch.value-vs.attitude.pitch))
+	* m.cos(wrapToPi(vs.heading.value - vs.attitude.yaw))  )
 
 def getSpeedFSITL(vs):
 	return -9.81 * m.sin(vs.pitch.value) -vs.parameters.config['spdParam']['aSpd'] * vs.groundspeed
 
 def getSpeedGSITL(vs):
-	return vs.parameters.config['spdParam']['aSpd']
+	return ((1.0 / vs.parameters.config['mass'])
+	* m.cos(wrapToPi(vs.pitch.value-vs.attitude.pitch))
+	* m.cos(wrapToPi(vs.heading.value - vs.attitude.yaw))  )
 
 # def c2normalized(minValue, maxValue, value):
 # 	return value - ((maxValue + minValue) / 2.0) / (maxValue - minValue)

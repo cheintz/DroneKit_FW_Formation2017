@@ -18,15 +18,15 @@ def getParams():
 		[-5,-5,2],[-0.5,-0.5,-120] ])  #Agent, amount forward, amount right, absolute altitude, meters
 #	defaultParams.desiredPosition = np.array([[[-5,5,2]],[[-5,5,-80]]])
 	#aFiltAccel to 1 for no filtering
-	print defaultParams.desiredPosition
+
 	defaultParams.gains = {'kl':0.3*np.diag([1,1,0.3]) , 'ka': 0.0*np.diag([1,1,1+0*0.3])
 		,'vMin': 14,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941, 'kHeading':KPID(1.0,0.0,0.5)
 		,'kSpeed':KPID(1.0/6.7,0.4,0.0),'rollLimit':50/(180/m.pi),'kPitch':KPID(.5, 0.2,0.0),'kAlt':KPID(.026, .0017,.0105),'pitchLimit':20/(180/m.pi)
-		,'maxEHeading':50,'maxEPitch':50,'maxESpeed':500,'gammaS':.1,'kSpdToThrottle':4.5
+		,'maxEHeading':50,'maxEPitch':50,'maxESpeed':500,'gammaS':1,'gammaSI':.1,'kSpdToThrottle':4.5
 		,'kRoll2Throt': 0,'kRollFF':1,'gammaB':0.0002,'maxEAlt':50,'epsD':0.2,'ki':4,'TRIM_THROT_OFFSET':-5,'pBarrier':1/255.0}
 	defaultParams.config = {'printEvery':50,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
 		,'acceptableEngageMode': (VehicleMode('FBWA'),), 'dimensions': 3, 'maxPropagateSeconds': 5,'mass':6.766
-		,'spdParam':{'cd0':0.0,'cd_ail':0.0110,'cd_ele':0.178,'cdl':0.0026,'aSpd':0.9,'spdThrustScl': 0.8371,'thrustScale':1.0,'motorKV':385.0}
+		,'spdParam':{'cd0':0.0,'cd_ail':0.0110,'cd_ele':0.178,'cdl':0.0026,'aSpd':0.9,'spdThrustScl': 0.8371,'thrustScale':1.0,'motorKV':385.0,'useBatVolt':True}
 		,'mode':'ProgrammedMiddleLoop'  # PilotMiddleLoop ProgrammedMiddleLoop Formation
 		,'LeaderAccelSource':'Accel' #Model, Accel
 		,'LeaderRotationSource':'Gyro' #Gyro, Accel
@@ -70,19 +70,23 @@ def getParams():
 	defaultParams.Ts = 1.0/50.0
 
 	thrustData = np.genfromtxt('thrust.csv', delimiter=',',skip_header=1)
-	defaultParams.config['spdParam']['thrustInterpLin'] = LinearNDInterpolator(thrustData[:,0:2],thrustData[:,2])
-	defaultParams.config['spdParam']['thrustInterpNear'] = NearestNDInterpolator(thrustData[:, 0:2], thrustData[:, 2])
+
 	if(SITLFlag):
 		defaultParams.Ts = 1.0 / 25.0
 		defaultParams.config['printEvery'] = 25
 		defaultParams.config['mass'] = 2.0
 		# defaultParams.config['spdParam'] = {'aSpd':0.9}
 		defaultParams.config['ignoreSelfPackets'] = False
-		sp = {'cd0': 0.0, 'cd_ail': 0.0110, 'cd_ele': 0.178, 'cdl': 0.0026, 'aSpd': 0.9, 'spdThrustScl': 0.8371,
-		 'thrustScale': 1.0,'motorKV':1000}
+		sp = {'cd0': 0.0613*0.5, 'cd_ail': 0.001, 'cd_ele': 0.001, 'cdl': 0.0735*0.5, 'aSpd': 0.9, 'spdThrustScl': 1.0,
+		 'thrustScale': 1.0,'motorKV':1000,'useBatVolt':False}
 		defaultParams.config['spdParam'].update(sp)
+		thrustData = np.genfromtxt('thrustSITL.csv', delimiter=',',skip_header=1)
+		# defaultParams.config['spdParam']['thrustInterpLin'] = lambda t,s: t/((9.81*2.0/0.7)/1000)
+		# defaultParams.config['spdParam']['thrustInterpNear'] = defaultParams.config['spdParam']['thrustInterpLin']
 	if (not SITLFlag):
-		thrustData = np.genfromtxt('thrust.csv',delimiter=',')
+		thrustData = np.genfromtxt('thrust.csv',delimiter=',',skip_header=1)
+	defaultParams.config['spdParam']['thrustInterpLin'] = LinearNDInterpolator(thrustData[:, 0:2], thrustData[:, 2])
+	defaultParams.config['spdParam']['thrustInterpNear'] = NearestNDInterpolator(thrustData[:, 0:2], thrustData[:, 2])
 
 	return defaultParams
 
