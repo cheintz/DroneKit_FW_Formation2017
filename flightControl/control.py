@@ -582,6 +582,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		vp = self.vehicle.parameters
 		THIS = self.vehicleState
 		tRel = THIS.timestamp - self.tStart
+		if THIS.command.sdiDot is None:
+			THIS.command.sdiDot = 0.0
 
 		upField = 0.35 #approximate runway heading
 
