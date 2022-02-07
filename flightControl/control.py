@@ -230,7 +230,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.vehicleState.isFlocking = False
 			self.vehicleState.RCLatch = True
 			self.abortReason = "RC Disable"
-			print ("Abort: RC Disable" + str(self.fcTime()))
+			print ("Abort: RC Disable " + str(self.fcTime()))
 			self.releaseControl()
 			self.vehicleState.command = Command()
 			return True
@@ -1014,7 +1014,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.pm.p('Using continuous switch')
 		elif (THIS.parameters.config['SwitchedSpeedControl'] == 'Pure'):
 			switchStateDot = swp(-sdiDot * siTilde)
-			switchStateInt = swp(sdiDot * siTilde)
+			switchStateInt = swp(CS.accSpeedError * siTilde)
 			self.pm.p('Using pure switch')
 		else:
 			switchStateDot = 1.0
@@ -1030,11 +1030,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.phpsd = phpsd
 		CS.mu = mu
 		CS.accSpeedError = CS.accSpeedError + self.thisTS * siTilde
-
+#CS.speedCancelTerm + CS.speedErrorTerm +CS.speedIntTerm+CS.speedDotTerm
 		ui = (-1.0 / littleg * (
 			littlef + GAINS['gammaS'] * siTilde * h / mu
-			+ (switchStateDot * sdiDot / mu) * (siTilde * phpsd - h))
-		  	+ GAINS['gammaSI'] * switchStateInt*CS.accSpeedError * h / mu)
+			+ (switchStateDot * sdiDot / mu) * (siTilde * phpsd - h)
+		  	+ GAINS['gammaSI'] * switchStateInt*CS.accSpeedError * h / mu )  )
 		self.pm.p('ui: ' + "{:.3f}".format(ui))
 		THIS.command.ui = ui
 		THIS.command.sdt = sdt
@@ -1086,7 +1086,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		cmd = THIS.command
 		gains = THIS.parameters.gains
 
-		kspeed = gains['kSpeed']
 		rollAngle = THIS.attitude.roll
 
 		vp = self.vehicle.parameters
@@ -1129,8 +1128,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			cmd.throttleCMD = 100.0* (spdParams['motork1'] *rpmDesired + spdParams['motork2']*torqueRequired ) / THIS.batteryV
 		else:
 			cmd.throttleCMD = 100.0* (spdParams['motork1'] *rpmDesired + spdParams['motork2']*torqueRequired )
-
-		# CS.accSpeedError=self.throttleController.integrator
 		cmd.timestamp = self.fcTime()
 		self.pm.p('eGroundSpeed: ' + str(eSpeed))
 		self.pm.p('GSTarget: ' + str(gsTarget))

@@ -10,7 +10,7 @@ try:
 	SITLFlag = os.environ["SITL"]
 except KeyError:
 	print "No SITL flag in environment; using false"
-	SITLFlag =True
+	SITLFlag =False
 
 
 def getParams():
@@ -28,7 +28,7 @@ def getParams():
 		,'kRoll2Throt': 0,'kRollFF':1,'gammaB':0.0002,'maxEAlt':50,'epsD':0.2,'ki':4,'TRIM_THROT_OFFSET':-5,'pBarrier':1/255.0}
 	defaultParams.config = {'printEvery':50,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
 		,'acceptableEngageMode': (VehicleMode('FBWA'),), 'dimensions': 3, 'maxPropagateSeconds': 5,'mass':6.766
-		,'spdParam':{'cd0':0.0333,'cd_ail':0.0,'cd_ele':0.0,'cdl':0.0029,'aSpd':0.9,'spdThrustScl': 0.7093
+		,'spdParam':{'cd0':0.0333,'cd_ail':0.0,'cd_ele':0.0,'cdl':0.0029,'aSpd':0.9,'spdThrustScl': 1.00
 			,'thrustScale':1.0,'motork1':0.0023,'motork2': 0.015164,'useBatVolt':True}
 		,'mode':'ProgrammedMiddleLoop'  # PilotMiddleLoop ProgrammedMiddleLoop Formation
 		,'LeaderAccelSource':'Accel' #Model, Accel
