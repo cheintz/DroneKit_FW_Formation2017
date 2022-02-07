@@ -1007,18 +1007,22 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.pm.p("sdt: " + str(sdt))
 		self.pm.p("sdi: " + str(THIS.command.sdi))
 		if (THIS.parameters.config['SwitchedSpeedControl'] == 'Continuous'):
-			switchState = swc(-sdiDot * siTilde)
+			switchStateDot = swc(-sdiDot * siTilde)
+			switchStateInt = swc(sdiDot * siTilde)
 			self.pm.p('Using continuous switch')
 		elif (THIS.parameters.config['SwitchedSpeedControl'] == 'Pure'):
-			switchState = swp(-sdiDot * siTilde)
+			switchStateDot = swp(-sdiDot * siTilde)
+			switchStateInt = swp(sdiDot * siTilde)
 			self.pm.p('Using pure switch')
 		else:
-			switchState = 1.0
+			switchStateDot = 1.0
+			switchStateInt = 1.0
 			self.pm.p('Using no switch')
 		CS.speedCancelTerm = (-1.0 / littleg) * littlef
 		CS.speedErrorTerm = (-1.0 / littleg) * GAINS['gammaS'] * siTilde * h / mu
-		CS.speedIntTerm= (-1.0 / littleg) * GAINS['gammaSI'] * CS.accSpeedError * h / mu
-		# CS.backstepSpeedRate = (-1.0 / littleg) * switchState * (sdiDot / mu) * (siTilde * phpsd - h)
+		CS.speedIntTerm= (-1.0 / littleg) * GAINS['gammaSI'] * switchStateInt*CS.accSpeedError * h / mu
+		CS.speedDotTerm = (1.0/ littleg) * (switchStateDot * sdiDot / mu) * (siTilde * phpsd - h)
+
 		CS.h = h
 		CS.phps = phps
 		CS.phpsd = phpsd
@@ -1026,7 +1030,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.accSpeedError = CS.accSpeedError + self.thisTS * siTilde
 
 		ui = (-1.0 / littleg * (
-					littlef + GAINS['gammaS'] * siTilde * h / mu + (switchState * sdiDot / mu) * (siTilde * phpsd - h)))
+			littlef + GAINS['gammaS'] * siTilde * h / mu
+			+ (switchStateDot * sdiDot / mu) * (siTilde * phpsd - h))
+		  	+ GAINS['gammaSI'] * switchStateInt*CS.accSpeedError * h / mu)
 		self.pm.p('ui: ' + "{:.3f}".format(ui))
 		THIS.command.ui = ui
 		THIS.command.sdt = sdt
@@ -1113,14 +1119,14 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		# 	(THIS.fwdAccel - 1.0*cmd.sdiDot),self.thisTS,0*throttleFFTerm) #throttleCMD is 0 to 100
 
 		# THIS.command.ui += CS.throttleTerms.i
-		rpmDesired = thrustToRPM(THIS.parameters,THIS.command.ui, THIS.airspeed)
+		[rpmDesired, torqueRequired] = propellerToThrustAndTorque(THIS.parameters,THIS.command.ui, THIS.airspeed)
 		cmd.rpmTarget =rpmDesired
-		if(THIS.parameters.config['spdParam']['useBatVolt']):
-			cmd.throttleCMD = 100.0* rpmDesired/THIS.batteryV / THIS.parameters.config['spdParam']['motorKV']
+		cmd.torqueRequired = torqueRequired
+		spdParams = THIS.parameters.config['spdParam']
+		if(spdParams['useBatVolt']):
+			cmd.throttleCMD = 100.0* (spdParams['motork1'] *rpmDesired + spdParams['motork2']*torqueRequired ) / THIS.batteryV
 		else:
-			cmd.throttleCMD = 100.0 * rpmDesired / THIS.parameters.config['spdParam']['motorKV']
-
-
+			cmd.throttleCMD = 100.0* (spdParams['motork1'] *rpmDesired + spdParams['motork2']*torqueRequired )
 
 		# CS.accSpeedError=self.throttleController.integrator
 		cmd.timestamp = self.fcTime()
@@ -1362,7 +1368,7 @@ def linearToLinear(value,min,max,factor):
 
 def swc(value):
 	eps = 0.1
-	return 0.5 * saturate(2.0*value/eps - 1,-1,1)[0] + 0.5
+	return 0.5 * saturate(2.0*value/eps + 1,-1,1)[0] + 0.5
 
 def swp(value):
 	if(value>0):
@@ -1397,10 +1403,16 @@ def getSpeedGSITL(vs):
 # def c2normalized(minValue, maxValue, value):
 # 	return value - ((maxValue + minValue) / 2.0) / (maxValue - minValue)
 
-def thrustToRPM(params,thrust, airspeed):
-	rpm = params.config['spdParam']['thrustInterpLin'](thrust,airspeed)
+def propellerToThrustAndTorque(params,thrust, airspeed):
+	rpm = np.asscalar(params.config['spdParam']['thrustInterpLin'](thrust,airspeed))
 	if np.isnan(rpm):
-		rpm = params.config['spdParam']['thrustInterpNear'](thrust, airspeed)
-	if thrust<0.0:
+		rpm = np.asscalar(params.config['spdParam']['thrustInterpNear'](thrust, airspeed))
+	if thrust < 0.0:
 		rpm = 0.0
-	return rpm
+
+	torque = np.asscalar(params.config['spdParam']['torqueInterpLin'](thrust, airspeed))
+	if np.isnan(torque):
+		torque = np.asscalar(params.config['spdParam']['torqueInterpNear'](thrust, airspeed))
+	if torque<0.0:
+		torque = 0.0
+	return rpm, torque

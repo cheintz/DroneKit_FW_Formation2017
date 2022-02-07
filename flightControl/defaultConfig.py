@@ -9,7 +9,9 @@ from scipy.interpolate import LinearNDInterpolator,NearestNDInterpolator
 try:
 	SITLFlag = os.environ["SITL"]
 except KeyError:
-	SITLFlag =False
+	print "No SITL flag in environment; using false"
+	SITLFlag =True
+
 
 def getParams():
 	defaultParams = Parameter()
@@ -26,12 +28,13 @@ def getParams():
 		,'kRoll2Throt': 0,'kRollFF':1,'gammaB':0.0002,'maxEAlt':50,'epsD':0.2,'ki':4,'TRIM_THROT_OFFSET':-5,'pBarrier':1/255.0}
 	defaultParams.config = {'printEvery':50,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
 		,'acceptableEngageMode': (VehicleMode('FBWA'),), 'dimensions': 3, 'maxPropagateSeconds': 5,'mass':6.766
-		,'spdParam':{'cd0':0.0333,'cd_ail':0.0,'cd_ele':0.0,'cdl':0.0029,'aSpd':0.9,'spdThrustScl': 0.7093,'thrustScale':1.0,'motorKV':385.0,'useBatVolt':True}
+		,'spdParam':{'cd0':0.0333,'cd_ail':0.0,'cd_ele':0.0,'cdl':0.0029,'aSpd':0.9,'spdThrustScl': 0.7093
+			,'thrustScale':1.0,'motork1':0.0023,'motork2': 0.015164,'useBatVolt':True}
 		,'mode':'ProgrammedMiddleLoop'  # PilotMiddleLoop ProgrammedMiddleLoop Formation
 		,'LeaderAccelSource':'Accel' #Model, Accel
 		,'LeaderRotationSource':'Gyro' #Gyro, Accel
 		,'OrientationRateMethod':'OmegaI' #OmegaI, Direct
-		,'enableRCMiddleLoopGainAdjust': 'Switched' #Switched, Both, False
+		,'enableRCMiddleLoopGainAdjust': False
 		,'SwitchedSpeedControl':'Continuous' #Continuous, Pure, None
 		,'uiBarrier':False}
 	defaultParams.GCSTimeout = 5 #seconds
@@ -69,7 +72,7 @@ def getParams():
 	defaultParams.communication=temp
 	defaultParams.Ts = 1.0/50.0
 
-	thrustData = np.genfromtxt('thrust.csv', delimiter=',',skip_header=1)
+	propellerData = np.genfromtxt('propellerData.csv', delimiter=',',skip_header=1)
 
 	if(SITLFlag):
 		defaultParams.Ts = 1.0 / 25.0
@@ -77,16 +80,19 @@ def getParams():
 		defaultParams.config['mass'] = 2.0
 		# defaultParams.config['spdParam'] = {'aSpd':0.9}
 		defaultParams.config['ignoreSelfPackets'] = False
-		sp = {'cd0': 0.0613*0.5, 'cd_ail': 0.001, 'cd_ele': 0.001, 'cdl': 0.0735*0.5, 'aSpd': 0.9, 'spdThrustScl': 1.0,
-		 'thrustScale': 1.0,'motorKV':1000,'useBatVolt':False}
+		sp = {'cd0': .1*.5*1.225*.45, 'cd_ail': 0, 'cd_ele': 0, 'cdl': 2.0/(1.225*3.14*0.9*1.88**2), 'aSpd': 0.9, 'spdThrustScl': 1.0,
+		 'thrustScale': 1.0,'motork1':.001,'motork2':0.0,'useBatVolt':False}
 		defaultParams.config['spdParam'].update(sp)
-		thrustData = np.genfromtxt('thrustSITL.csv', delimiter=',',skip_header=1)
+		propellerData = np.genfromtxt('propellerDataSITL.csv', delimiter=',',skip_header=1)
+		print "SITL FLAG ACTIVE in defaultConfig!!"
 		# defaultParams.config['spdParam']['thrustInterpLin'] = lambda t,s: t/((9.81*2.0/0.7)/1000)
 		# defaultParams.config['spdParam']['thrustInterpNear'] = defaultParams.config['spdParam']['thrustInterpLin']
 	if (not SITLFlag):
-		thrustData = np.genfromtxt('thrust.csv',delimiter=',',skip_header=1)
-	defaultParams.config['spdParam']['thrustInterpLin'] = LinearNDInterpolator(thrustData[:, 0:2], thrustData[:, 2])
-	defaultParams.config['spdParam']['thrustInterpNear'] = NearestNDInterpolator(thrustData[:, 0:2], thrustData[:, 2])
+		propellerData = np.genfromtxt('propellerDataSITL.csv',delimiter=',',skip_header=1)
+	defaultParams.config['spdParam']['thrustInterpLin'] = LinearNDInterpolator(propellerData[:, 0:2], propellerData[:, 2])
+	defaultParams.config['spdParam']['thrustInterpNear'] = NearestNDInterpolator(propellerData[:, 0:2], propellerData[:, 2])
+	defaultParams.config['spdParam']['torqueInterpLin'] = LinearNDInterpolator(propellerData[:, 0:2], propellerData[:, 3])
+	defaultParams.config['spdParam']['torqueInterpNear'] = NearestNDInterpolator(propellerData[:, 0:2], propellerData[:, 3])
 
 	return defaultParams
 
