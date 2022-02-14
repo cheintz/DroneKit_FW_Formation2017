@@ -1379,11 +1379,14 @@ def getSpeedF(vs):
 	param=vs.parameters
 	sp = param.config['spdParam']
 	cd0 = sp['cd0']
-
-	out = (-9.81 * m.sin(vs.pitch.value)  # out has units force, returns acceleration by dividing by mass
+	if(vs.airspeed<3.0):
+		out = -9.81 * m.sin(vs.pitch.value)  # out has units force, returns acceleration by dividing by mass
+	else:
+		out = (-9.81 * m.sin(vs.pitch.value)  # out has units force, returns acceleration by dividing by mass
 		- vs.airspeed ** 2 * (sp['cd0'] + sp['cd_ail'] * abs(linearToLinear(vs.servoOut['1'],982.0, 2006.0,2.0)-1.0)
 		+ sp['cd_ele'] * abs(linearToLinear(vs.servoOut['2'],982.0, 2006.0,2.0)-1.0))
 		- sp['cdl'] * vs.imuAccel.z ** 2 * param.config['mass'] ** 2 / vs.airspeed ** 2)
+
 	return out / param.config['mass']
 
 def getSpeedG(vs):
