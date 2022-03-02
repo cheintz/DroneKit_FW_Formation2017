@@ -12,7 +12,6 @@ except KeyError:
 	print "No SITL flag in environment; using false"
 	SITLFlag =False
 
-
 def getParams():
 	defaultParams = Parameter()
 	defaultParams.receivedTime = time.time()     #Note: negative Z = up
@@ -22,10 +21,10 @@ def getParams():
 	#aFiltAccel to 1 for no filtering
 
 	defaultParams.gains = {'kl':0.3*np.diag([1,1,0.3]) , 'ka': 0.0*np.diag([1,1,1+0*0.3])
-		,'vMin': 14,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941, 'kHeading':KPID(1.0,0.0,0.5)
-		,'kSpeed':KPID(1.0/6.7,0.4,0.0),'rollLimit':50/(180/m.pi),'kPitch':KPID(.5, 0.2,0.0),'kAlt':KPID(.026, .0017,.0105),'pitchLimit':20/(180/m.pi)
-		,'maxEHeading':50,'maxEPitch':50,'maxESpeed':500,'gammaS':1,'gammaSI':.1,'kSpdToThrottle':4.5
-		,'kRoll2Throt': 0,'kRollFF':1,'gammaB':0.0002,'maxEAlt':50,'epsD':0.2,'ki':4,'TRIM_THROT_OFFSET':-5,'pBarrier':1/255.0}
+		,'vMin': 14,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941
+		,'rollLimit':50/(180/m.pi),'kPitch':KPID(.5, 0.2,0.0),'kAlt':KPID(.026, .0017,.0105),'pitchLimit':20/(180/m.pi)
+		,'maxEHeading':50,'maxEPitch':50,'maxESpeed':500,'a1':1.0,'a2':0.1,'b1':1.0,'b2':0.0,'c1':0.5,'c2':0.2 #a for speed, b for heading, c for pitch
+		,'maxEAlt':50,'epsD':0.2,'ki':4,'pBarrier':1/255.0}
 	defaultParams.config = {'printEvery':50,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
 		,'acceptableEngageMode': (VehicleMode('FBWA'),), 'dimensions': 3, 'maxPropagateSeconds': 5,'mass':6.766
 		,'spdParam':{'cd0':0.0139,'cd_ail':0.0,'cd_ele':0.0195,'cdl':0.0875,'aSpd':0.9,'spdThrustScl': 1.04
@@ -81,7 +80,7 @@ def getParams():
 		# defaultParams.config['spdParam'] = {'aSpd':0.9}
 		defaultParams.config['ignoreSelfPackets'] = False
 		sp = {'cd0': .1*.5*1.225*.45, 'cd_ail': 0, 'cd_ele': 0, 'cdl': 2.0/(1.225*3.14*0.9*1.88**2), 'aSpd': 0.9, 'spdThrustScl': 1.0,
-		 'thrustScale': 1.0,'motork1':.001,'motork2':0.0,'useBatVolt':False}
+		 'thrustScale': 1.0,'motork1':0.001,'motork2':0.0,'useBatVolt':False}
 		defaultParams.config['spdParam'].update(sp)
 		propellerData = np.genfromtxt('propellerDataSITL.csv', delimiter=',',skip_header=1)
 		print "SITL FLAG ACTIVE in defaultConfig!!"
@@ -98,4 +97,3 @@ def getParams():
 
 if __name__ == "__main__":
 	getParams()
-
