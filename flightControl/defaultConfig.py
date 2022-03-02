@@ -10,7 +10,7 @@ try:
 	SITLFlag = os.environ["SITL"]
 except KeyError:
 	print "No SITL flag in environment; using false"
-	SITLFlag =False
+	SITLFlag =True
 
 def getParams():
 	defaultParams = Parameter()

@@ -186,9 +186,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicle.channels.overrides = {}
 		self.vehicleState.controlState = ControlState()
 		self.vehicleState.isFlocking = False
-		self.vehicleState.command.accPitchError = 0.0
-		self.vehicleState.command.accHeadingError = 0.0
-		self.vehicleState.command.accSpeedError = 0.0
+		self.vehicleState.controlState.accPitchError = 0.0
+		self.vehicleState.controlState.accHeadingError = 0.0
+		self.vehicleState.controlState.accSpeedError = 0.0
 		self.altitudeController.reset()
 
 	def checkAbort(self): #only call if flocking!!
@@ -935,12 +935,12 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		sdiDot = THIS.command.sdiDot
 		siTilde = si - sdt
 
-		# Speed Controller
-		littlef = getSpeedF(THIS)
-		littleg = getSpeedG(THIS)
+		# Speed
+		fSpeed = getSpeedF(THIS)
+		gSpeed = getSpeedG(THIS)
 
-		CS.f = littlef
-		CS.g=littleg
+		CS.fSpeed = fSpeed
+		CS.gSpeed=fSpeed
 
 		if (THIS.parameters.config['uiBarrier']):
 			print  THIS.parameters.config['uiBarrier']
@@ -971,13 +971,16 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else:
 			speedPFactor = speedIFactor  = 1.0
 
+		CS.pitchTerms.extraKP = speedPFactor
+		CS.pitchTerms.extraKI = speedIFactor
+
 		switchStateDot = self.switchFunction(-siTilde * sdiDot)
 		switchStateInt = self.switchFunction(siTilde * CS.accSpeedError)
 
-		CS.speedCancelTerm = (-1.0 / littleg) * littlef
-		CS.speedPTerm = (-1.0 / littleg) * GAINS['a1'] * speedPFactor * siTilde * h / mu
-		CS.speedITerm= (-1.0 / littleg) * GAINS['a2'] * speedIFactor * switchStateInt*CS.accSpeedError * h / mu
-		CS.speedFFTerm = (1.0/ littleg) * (switchStateDot * sdiDot / mu) * (siTilde * phpsd - h)
+		CS.speedCancelTerm = (-1.0 / fSpeed) * gSpeed
+		CS.speedTerms.p = (-1.0 / gSpeed) * GAINS['a1'] * speedPFactor * siTilde * h / mu
+		CS.speedTerms.i= (-1.0 / gSpeed) * GAINS['a2'] * speedIFactor * switchStateInt*CS.accSpeedError * h / mu
+		CS.speedTerms.ff = (1.0/ gSpeed) * (switchStateDot * sdiDot / mu) * (siTilde * phpsd - h)
 
 		CS.h = h
 		CS.phps = phps
@@ -986,12 +989,12 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.accSpeedError = CS.accSpeedError + self.thisTS * siTilde
 
 
-		uiOld = (-1.0 / littleg * (
-			littlef + GAINS['gammaS'] * siTilde * h / mu
+		uiOld = (-1.0 / gSpeed * (
+			fSpeed + GAINS['a1'] * siTilde * h / mu
 			+ (switchStateDot * sdiDot / mu) * (siTilde * phpsd - h)
-		  	+ GAINS['gammaSI'] * switchStateInt*CS.accSpeedError * h / mu )  )
+		  	+ GAINS['a2'] * switchStateInt*CS.accSpeedError * h / mu )  )
 
-		ui = CS.speedCancelTerm + CS.speedPTerm + CS.speedITerm + CS.speedFFTerm
+		ui = CS.speedCancelTerm + CS.speedTerms.p + CS.speedTerms.i + CS.speedTerms.ff
 		self.pm.p('ui: ' + "{:.3f}".format(ui))
 		THIS.command.ui = ui
 		THIS.command.sdt = sdt
@@ -1020,17 +1023,16 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else:
 			rollPFactor = rollIFactor = 1.0
 		self.pm.p("RollPFactor: " + str(rollPFactor))
-		CS.rollPFactor = rollPFactor
-		CS.rollIFactor = rollIFactor
+		CS.rollTerms.extraKP = rollPFactor
+		CS.rollTerms.extraKI = rollIFactor
 
-		CS.rollPTerm = -GAINS['b1'] * rollPFactor* ePsi
-		CS.rollITerm = -GAINS['b1'] * rollIFactor* CS.accHeadingError * self.switchFunction(-ePsi * CS.accHeadingError)
-		CS.rollFFTerm = psiDDot * self.switchFunction(ePsi * cmd.psiDDot)
+		CS.rollTerms.p = -GAINS['b1'] * rollPFactor* ePsi
+		CS.rollTerms.i = -GAINS['b1'] * rollIFactor* CS.accHeadingError * self.switchFunction(ePsi * CS.accHeadingError)
+		CS.rollTerms.ff = psiDDot * self.switchFunction(ePsi * cmd.psiDDot)
 
-		cmd.rollCMD = m.atan(CS.rollFFTerm + CS.rollPTerm + CS.rollITerm)
-		cmd.rollCMD = m.atan(cmd.rolLCMD * THIS.groundspeed / 9.81 * m.cos(
-			THIS.pitch.value))  # unclear if pitch angle should be included.
-		# It might project speed into the horizontal plane
+		cmd.rollCMD = m.atan(CS.rollTerms.p + CS.rollTerms.i + CS.rollTerms.ff)
+		cmd.rollCMD = m.atan(cmd.rollCMD * THIS.groundspeed / 9.81 * m.cos(THIS.pitch.value))  # unclear if pitch angle should be included.
+																	# It might project speed into the horizontal plane
 
 		cmd.timestamp = self.fcTime()
 		self.pm.p("Commanded heading rate (rllctrl): " + str(THIS.command.psiDDot))
@@ -1105,21 +1107,29 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		self.pm.p("PitchPFactor: " + str(pitchPFactor))
 
-		pitchf = -GAINS['aPitch'] * pitchPFactor* THIS.pitch.value
-		pitchg = GAINS['aPitch'] * pitchIFactor
+		#unity gain low pass in pitch
+		aPitch = 1.0/self.vehicle.parameters['PTCH2SRV_TCONST']
+		fPitch = -aPitch * THIS.pitch.value
+		gPitch = aPitch
 		ePitch = THIS.pitch.value - THIS.command.thetaD
 
-		CS.pitchCancelTerm = pitchf / pitchg #Add some filtered offset of pitch minus desired pitch here
-		CS.pitchPTerm = GAINS['c1'] * ePitch / pitchg
-		CS.pitchITerm = GAINS['c2'] * self.switchFunction(CS.accPitchError * eTheta) / pitchg
-		CS.pitchFFTerm =  self.switchFunction(-cmd.thetaDDot * eTheta) * cmd.thetaDDot / pitchg
+		CS.fPitch = fPitch
+		CS.gPitch = gPitch
+		CS.pitchCancelTerm = -fPitch / gPitch #Add some filtered offset of pitch minus desired pitch here maybe
+		CS.pitchTerms.p = -GAINS['c1'] * pitchPFactor * ePitch / gPitch
+		CS.pitchTerms.i = -GAINS['c2'] * pitchIFactor * CS.accPitchError * self.switchFunction(CS.accPitchError * eTheta) / gPitch
+		CS.pitchTerms.ff =  self.switchFunction(-cmd.thetaDDot * eTheta) * cmd.thetaDDot / gPitch
+		CS.pitchTerms.extraKP = pitchPFactor
+		CS.pitchTerms.extraKI = pitchIFactor
 
 		CS.accPitchError += self.thisTS * ePitch
-		cmd.pitchCMD = CS.pitchCancelTerm + CS.pitchPTerm + CS.pitchITerm + CS.pitchFFTerm
+		cmd.pitchCMD = CS.pitchCancelTerm + CS.pitchTerms.p + CS.pitchTerms.i + CS.pitchTerms.ff
 
 		cmd.timestamp = self.fcTime()
+		self.pm.p('Desired Pitch: ' + str(cmd.thetaD))
 		self.pm.p('Pitch Error: ' + str(eTheta))
-		self.pm.p('cmd Pitch Rate: ' + str(cmd.thetaDDot))
+		self.pm.p('Acc Pitch Error: ' + str(CS.accPitchError))
+		self.pm.p('Pitch I term: ' + str(CS.pitchTerms.i ))
 
 	#altitude control (2D Case)
 	def altitudeControl(self):

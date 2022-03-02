@@ -10,7 +10,6 @@ zeroVect = np.matrix([[0],[0],[0]])
 KPID = recordtype('KPID', ['kp','ki','kd'])
 
 PIDTerms = recordtype('PIDTerms',['p','i','d','ff','unsaturatedOutput','extraKP','extraKI','extraKD'],default = 0.0)
-SwitchedControllerTerms = recordtype('SwitchedControllerTerms',['p','i','ff','unsaturatedOutput','extraKI','extraKP'],default = 0.0)
 
 Timeout = recordtype('Timeout' , ['GCSTimeoutTime', ('peerTimeoutTime',{}), 'localTimeoutTime', 'GCSLastRx', ('peerLastRX',{})], default = None)
 
@@ -25,11 +24,11 @@ Command = recordtype('Command',['sdi','sdt','sdiDot','ui','rpmTarget','torqueReq
 CourseAngle = recordtype('CourseAngle',['value','rate','accel'],default=0.0)	
 
 ControlState = recordtype('ControlState',[('pgTerm',zeroVect),('rotFFTerm',zeroVect),('phii',zeroVect),('pdi',zeroVect)
-	,('bdi',zeroVect),('pdiDot',zeroVect),'accHeadingError',('rollTerms',PIDTerms()),'accSpeedError'
-	,('throttleTerms',PIDTerms()),'accPitchError',('pitchTerms',PIDTerms()),'accAltError'
-	,'speedCancelTerm','speedErrorTerm','speedIntTerm','speedDotTerm'
-	,'f','g','spdIntegrator',('angleRateTarget',zeroVect),('pgDot',zeroVect),'h','phps','phpsd','mu'
-	,'gammaBFactor'], default = 0.0)
+	,('bdi',zeroVect),('pdiDot',zeroVect), ('pgDot',zeroVect)
+  	,'accHeadingError',('rollTerms',PIDTerms()),'accSpeedError'
+	,'accPitchError',('pitchTerms',PIDTerms()),'accAltError','fPitch','gPitch','pitchCancelTerm'
+	,('speedTerms',PIDTerms()),'speedCancelTerm','fSpeed','gSpeed'
+	,'h','phps','phpsd','mu'], default = 0.0)
 
 Message = recordtype('Message','msgType,sendTime,content', default = None)
 
