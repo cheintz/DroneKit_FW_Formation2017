@@ -418,8 +418,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			if(self.parameters.config['LeaderRotationSource']=='Gyro'):
 				omega = np.matrix([[ATT.rollspeed], [ATT.pitchspeed], [ATT.yawspeed]])
 				EulerRates = WToERates(ATT.yaw,ATT.pitch,ATT.roll,omega)
-				self.vehicleState.heading.rate = np.asscalar(EulerRates[2])
-				self.vehicleState.pitch.rate = np.asscalar(EulerRates[1])
+				self.vehicleState.heading.rate = EulerRates[2].item()
+				self.vehicleState.pitch.rate = EulerRates[1].item()
 				self.pm.p("Using gyro for orientation rate")
 			elif(self.parameters.config['LeaderRotationSource'] == 'Accel'):
 				VS.pitch.rate=velAndAccelToPitchRate(VS.velocity,earthAccelFiltered)
@@ -429,8 +429,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.pm.p("Low speed: Using body angular velocities for velocity frame")
 			omega = np.matrix([[ATT.rollspeed],[ATT.pitchspeed],[ATT.yawspeed]])
 			EulerRates = WToERates(ATT.yaw,ATT.pitch,ATT.roll,omega)
-			self.vehicleState.heading.rate = np.asscalar(EulerRates[2])
-			self.vehicleState.pitch.rate = np.asscalar(EulerRates[1])
+			self.vehicleState.heading.rate = EulerRates[2].item()
+			self.vehicleState.pitch.rate = EulerRates[1].item()
 
 
 #   	#Velocity orientation acceleration
@@ -860,7 +860,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				phiiDot += -GAINS['ka'] * zetaijDot
 		CS.phii=phii
 		pdi=CS.pgTerm+CS.rotFFTerm+GAINS['ki']*sigma(phii)*phii
-		pdiDot = 1*pgDot+1*RgDDot*di + GAINS['ki'] * np.asscalar(sigmaDot(phii).transpose()*phiiDot)*phii+sigma(phii)*phiiDot
+		pdiDot = 1*pgDot+1*RgDDot*di + GAINS['ki'] * (sigmaDot(phii).transpose()*phiiDot).item()*phii+sigma(phii)*phiiDot
 		if (THIS.parameters.config['dimensions'] == 2 and not pdi[2] == 0):
 			print "Warning: pdi not 2D. pdi[2]: " + str(pdi[2])
 
@@ -902,12 +902,12 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		thetaIDot = THIS.pitch.rate
 		if (THIS.parameters.config['dimensions'] == 2 and not pdi[2] == 0):
 			thetaI = 0
-		THIS.command.thetaD = m.asin(-bdi[3])
+		THIS.command.thetaD = -m.asin(bdi[2])
 		THIS.command.thetaDDot = velAndAccelToPitchRate(pdi, pdiDot)
 
 
 		#Heading/Roll
-		THIS.command.psiD = m.atan2(bdi[2],bdi[1])
+		THIS.command.psiD = m.atan2(bdi[1],bdi[0])
 		THIS.command.psiDDot = velAndAccelToHeadingRate(pdi,pdiDot)
 
 	#compute implementable orientation controls
@@ -1009,6 +1009,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		psi = THIS.heading.value
 		ePsi = wrapToPi(psi-THIS.command.psiD)
 		psiDDot = cmd.psiDDot
+		self.pm.pMsg('Desired heading: ',THIS.command.psiD)
 
 		calcTurnRate = THIS.heading.rate
 		if (self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'Both'):
@@ -1028,16 +1029,16 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		CS.rollTerms.p = -GAINS['b1'] * rollPFactor* ePsi
 		CS.rollTerms.i = -GAINS['b1'] * rollIFactor* CS.accHeadingError * self.switchFunction(ePsi * CS.accHeadingError)
-		CS.rollTerms.ff = psiDDot * self.switchFunction(ePsi * cmd.psiDDot)
+		CS.rollTerms.ff = psiDDot * self.switchFunction(-ePsi * cmd.psiDDot)
 
-		cmd.rollCMD = m.atan(CS.rollTerms.p + CS.rollTerms.i + CS.rollTerms.ff)
+		cmd.rollCMD = CS.rollTerms.p + CS.rollTerms.i + CS.rollTerms.ff
 		cmd.rollCMD = m.atan(cmd.rollCMD * THIS.groundspeed / 9.81 * m.cos(THIS.pitch.value))  # unclear if pitch angle should be included.
 																	# It might project speed into the horizontal plane
 
 		cmd.timestamp = self.fcTime()
 		self.pm.p("Commanded heading rate (rllctrl): " + str(THIS.command.psiDDot))
-		self.pm.p( "Heading Error: " + str(ePsi) )
-		self.pm.p( "Heading integral: " + str(CS.accHeadingError) )
+		self.pm.p("Heading Error: " + str(ePsi) )
+		self.pm.p("Heading integral: " + str(CS.accHeadingError) )
 
 	def throttleControl(self):
 		THIS = self.vehicleState
@@ -1070,10 +1071,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			speedError = True
 		eSpeed = THIS.groundspeed - gsTarget
 		if speedError:
-				print "gsTarget: " + "{:.3f}".format(gsTarget) + " was " + "{:.3f}".format(oldgsTarget)
+			print "gsTarget: " + "{:.3f}".format(gsTarget) + " was " + "{:.3f}".format(oldgsTarget)
 
 		[rpmDesired, torqueRequired] = propellerToThrustAndTorque(THIS.parameters,THIS.command.ui, THIS.airspeed)
-		cmd.rpmTarget =rpmDesired
+		cmd.rpmTarget = rpmDesired
 		cmd.torqueRequired = torqueRequired
 		spdParams = THIS.parameters.config['spdParam']
 		if(spdParams['useBatVolt']):
@@ -1181,13 +1182,13 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		config = self.vehicleState.parameters.config
 		if (config['SwitchedSpeedControl'] == 'Continuous'):
 			out = swc(arg)
-			self.pm.p('Using continuous switch')
+			# self.pm.p('Using continuous switch')
 		elif (config['SwitchedSpeedControl'] == 'Pure'):
 			out = swp(arg)
-			self.pm.p('Using pure switch')
+			# self.pm.p('Using pure switch')
 		else:
 			out = 1.0
-			self.pm.p('Using no switch')
+			# self.pm.p('Using no switch')
 		return out
 	def RCToExpo(self,channel, factor):
 		# type: (int, float) -> float
@@ -1293,9 +1294,9 @@ def EAccelToAlpha(heading,pitch,roll):
 	PhiDot = np.matrix([[phiDot],[thetaDDot],[psiDot]])
 	return ERatesToW(psi,theta,phi,heading.accel,pitch.accel,roll.accel) + QDot*PhiDot
 def skew(omega):
-	Omega = np.matrix([[0,-omega[2],omega[1]],
-					   [omega[2],0,-omega[0]],
-					   [-omega[1],omega[0],0]])
+	Omega = np.matrix([[0,-omega.item(2),omega.item(1)], #not a fan of Python's matrix/array handling
+					   [omega.item(2),0.0,-omega.item(0)],
+					   [-omega.item(1),omega.item(0),0.0]])
 	return Omega
 
 nu1=1
@@ -1306,7 +1307,7 @@ def sigma(x):
 
 def sigmaDot(x):
 	#return np.matrix(np.zeros((3,1)))
-	return -1.0*x/(np.asscalar(nu1+nu2*x.transpose()*x)**(3.0/2.0))
+	return -1.0*x/((nu1+nu2*x.transpose()*x).item()**(3.0/2.0))
 
 def F(x):
 	return 1.0
@@ -1377,15 +1378,15 @@ def getSpeedG(vs):
 # 	return value - ((maxValue + minValue) / 2.0) / (maxValue - minValue)
 
 def propellerToThrustAndTorque(params,thrust, airspeed):
-	rpm = np.asscalar(params.config['spdParam']['thrustInterpLin'](thrust,airspeed))
+	rpm = (params.config['spdParam']['thrustInterpLin'](thrust,airspeed)).item()
 	if np.isnan(rpm):
-		rpm = np.asscalar(params.config['spdParam']['thrustInterpNear'](thrust, airspeed))
+		rpm = (params.config['spdParam']['thrustInterpNear'](thrust, airspeed)).item()
 	if thrust < 0.0:
 		rpm = 0.0
 
-	torque = np.asscalar(params.config['spdParam']['torqueInterpLin'](thrust, airspeed))
+	torque = (params.config['spdParam']['torqueInterpLin'](thrust, airspeed)).item()
 	if np.isnan(torque):
-		torque = np.asscalar(params.config['spdParam']['torqueInterpNear'](thrust, airspeed))
+		torque = (params.config['spdParam']['torqueInterpNear'](thrust, airspeed)).item()
 	if torque<0.0:
 		torque = 0.0
 	return rpm, torque
