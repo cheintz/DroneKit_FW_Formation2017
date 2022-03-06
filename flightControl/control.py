@@ -17,11 +17,7 @@ from pid import PIDController
 from curtsies import Input
 from mutil import *
 
-try:
-	sitlFlag = os.environ["SITL"]
-	import defaultConfig_SITL as defaultConfig
-except:
-	import defaultConfig
+import defaultConfig
 
 
 acceptableControlMode = VehicleMode("FBWA")
@@ -724,19 +720,19 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		sMax = vMax-GAINS['epsD']
 		sMin = vMin+GAINS['epsD']
 		sdt, didSatSd = saturate(sdi, sMin, sMax)
-		bdi = pdi / sdi
+		ydi = pdi / sdi
 
 		THIS.command.sdi=sdi
-		CS.bdi = bdi
+		CS.ydi = ydi
 
 		sdiDot = np.asscalar( (pdi.transpose() / sdi) * pdiDot)
-		bdiDot = 1.0/sdi * pdiDot - 1.0/sdi**2.0 * sdiDot * pdi
+		ydiDot = 1.0/sdi * pdiDot - 1.0/sdi**2.0 * sdiDot * pdi
 
 #		sdi = 10
 		if(didSatSd):
 			sdiDot = 0
 #			self.pm.p("sdi saturated, was " + str(sdi)+ " Now " + str(sdt))
-		pdiDot = sdiDot*bdi + sdi*bdiDot #Checked good, will saturate with sdi
+		pdiDot = sdiDot*ydi + sdi*ydiDot #Checked good, will saturate with sdi
 
 		THIS.command.sdt = sdt  #saturated desired speed and derivative
 		THIS.command.sdiDot=sdiDot
@@ -747,54 +743,47 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		siTilde = si - sdt
 
 	# Compute angular velocity control
-		Omega = (GAINS['gammaB']*sdt*(Ri.transpose()*pdi*e1.transpose()-e1*pdi.transpose()*Ri)+
-			1.0/sdt**2.0*Ri.transpose()*(pdiDot*pdi.transpose()-pdi*pdiDot.transpose())*Ri)
-		omega=np.matrix([[Omega[2,1] ], [-Omega[2,0] ], [Omega[1,0] ]])
-		OmegaFF =  1.0 / sdt ** 2.0 * Ri.transpose() * (pdiDot * pdi.transpose() - pdi * pdiDot.transpose()) * Ri
-		OmegaFB =  (GAINS['gammaB']*sdt*(Ri.transpose()*pdi*e1.transpose()-e1*pdi.transpose()*Ri) )
-		self.pm.p("OmegaFF_Z : " + str(OmegaFF[1, 0]))
-		self.pm.p("OmegaFB_Z : " + str(OmegaFB[1, 0]))
+		yi = Ri * e1
+		omegaFF = Ri.transpose() * skew(yi) * (-yi.T *ydiDot * ydi + yi.T *ydi*ydiDot )
+		omegaFB = Ri.transpose() * skew(yi) * (GAINS['cOmega'] * ydi)
+
+		omega = omegaFF + omegaFB
+		self.pm.p("OmegaFF_Z : " + str(omegaFF[2]))
+		self.pm.p("OmegaFB_Z : " + str(omegaFB[1]))
 #		self.pm.p("OmegaNet : " + str(OmegaFF[1, 0]+OmegaFB[1, 0]))
 #		self.pm.p("OmegaDifference : " + str(OmegaFF[1, 0]+OmegaFB[1, 0] - Omega[1,0]))
 		THIS.command.omega=omega
 
 	#ACC-published way of computing the speed control
-		littlef = -GAINS['aSpeed'] * si
-		littleg = GAINS['aSpeed']
+		littlef = -GAINS['aSpeedDyn'] * si
+		littleg = GAINS['aSpeedDyn']
 		siTilde = si - sdt
-		h=((vMax-sdt)*(sdt-vMin))/((vMax-si)*(si-vMin))
-		phps=-(vMax+vMin-2*si)/((vMax-si)*(si-vMin)) * h
-		phpsd=(vMax+vMin-2*sdt) / ((vMax-si)*(si-vMin))
+		h = m.tanh(GAINS['nuSpeed'] * (sMax - si) * (si-sMin))
+		phps = -GAINS['nuSpeed'] * (  m.tanh(GAINS['nuSpeed'] * (si-sMax)*(si-sMin))**2 -1)   *(sMax-2*si+sMin)
 
 
 		#uncomment to disable the speed BLF
-		h=1.0
-		phps=0.0
-		phpsd = 0.0
+		# h=1.0
+		# phps=0.0
 
-		mu=h+siTilde*phps
-		if(mu<0):
-			print "mu<0: " +str(mu)
-		
-#		self.pm.p("h: " +str(h))
-#		self.pm.p("NumH: " + str((sMax-sdt)*(sdt-sMin)))
-#		self.pm.p("DenH: " + str((sMax-si)*(si-sMin)))
-		self.pm.p("sdt: " +str(sdt))
-#		self.pm.p("mu: " +str(mu))
-#		self.pm.p("phps: "+str(phps))
-#		self.pm.p("phpsd: "+str(phpsd))
-
-		CS.backstepSpeed = (-1.0/littleg) * littlef
-		CS.backstepSpeedError =  (-1.0/littleg) * GAINS['gammaS'] *  GAINS['gammaS']*siTilde*h/mu
-		CS.backstepSpeedRate = (-1.0/littleg) * (sdiDot/mu)*(siTilde*phpsd -h)  
 		CS.h = h
 		CS.phps = phps
-		CS.phpsd=phpsd
-		CS.mu=mu
 
+		self.pm.p("sdt: " +str(sdt))
 
-		ui = (-1.0/littleg * (  littlef + GAINS['gammaS']*siTilde*h/mu + (sdiDot/mu)*(siTilde*phpsd -h)    )
-			 )
+		denom = h + (sdt-si) * phps
+		CS.speedCancelTerm = (1.0 / littleg) * -littlef
+		if (sMin<= si <= sMax): #If in Si
+			CS.speedRateTerm =  (-1.0/littleg) * sdiDot * h / denom
+			CS.speedErrorTerm = (1.0/littleg) * GAINS['aSpeed']  *(sdt-si)*h/denom
+			CS.speedErrorCubeTerm = (1.0/littleg) * GAINS['bSpeed']  * (sdt-si)**3 / denom
+			CS.speedOutTerm = 0.0
+		else: #outside Si
+			CS.speedErrorTerm = CS.speedErrorCubeTerm = CS.speedRateTerm =0.0
+			CS.speedOutTerm = GAINS['bSpeed']*(sdt-si)**2 / phps
+			print "si outside Si."
+
+		ui = CS.speedCancelTerm+ CS.speedErrorTerm + CS.speedRateTerm + CS.speedErrorCubeTerm + CS.speedOutTerm
 
 		self.pm.p('ui: '  + "{:.3f}".format(ui))
 
