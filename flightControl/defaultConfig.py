@@ -2,7 +2,14 @@ from vehicleState import Parameter, KPID
 from dronekit import  VehicleMode
 import time
 import numpy as np
-import math as m # MiddleLoop Formation
+import math as m
+import os
+
+try:
+	SITLFlag = os.environ["SITL"]
+except KeyError:
+	print "No SITL flag in environment; using false"
+	SITLFlag =True
 
 def getParams():
 	defaultParams = Parameter()
@@ -11,15 +18,20 @@ def getParams():
 		[-5,-5,2],[-0.5,-0.5,-120] ])  #Agent, amount forward, amount right, absolute altitude, meters
 #	defaultParams.desiredPosition = np.array([[[-5,5,2]],[[-5,5,-80]]])
 	#aFiltAccel to 1 for no filtering
-	print defaultParams.desiredPosition
+
 	defaultParams.gains = {'kl':0.3*np.diag([1,1,0.3]) , 'ka': 0.0*np.diag([1,1,1+0*0.3])
-		,'vMin': 14,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941, 'kHeading':KPID(1.0,0.1,0.2)
+		,'sMin': 14,'sMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941, 'kHeading':KPID(1.0,0.1,0.2)
 		,'kSpeed':KPID(2,0.2,0.0),'rollLimit':50/(180/m.pi),'kPitch':KPID(1, 0.2,.2),'kAlt':KPID(.026, .0017,.0105),'pitchLimit':20/(180/m.pi)
 		, 'maxEHeading':50,'maxEPitch':50,'maxESpeed':500, 'aSpeedDyn':0.9,'aSpeed':1,'bSpeed':0.1,'nuSpeed':0.05,'kSpdToThrottle':4.5
-		,'kThrottleFF': 0,'kRollFF':1,'cOmega':0.1,'maxEAlt':50,'epsD':0.2,'ki':4,'TRIM_THROT_OFFSET':-5}
+		,'kThrottleFF': 0,'kRollFF':1,'cOmega':0.1,'maxEAlt':50,'ki':4,'TRIM_THROT_OFFSET':-5}
 	defaultParams.config = {'printEvery':50,'ignoreSelfPackets':False,'propagateStates':True , 'geofenceAbort':False
-		,'mode':'Formation','acceptableEngageMode': (VehicleMode('FBWA'),),'dimensions':3,'maxPropagateSeconds':5
-		,'LeaderAccelSource':'Accel','LeaderRotationSource':'Accel','OrientationRateMethod':'Direct','enableRCMiddleLoopGainAdjust': True}
+		,'acceptableEngageMode': (VehicleMode('FBWA'),),'dimensions':3,'maxPropagateSeconds':5
+		,'mode':'Formation' # PilotMiddleLoop Formation		
+		,'LeaderRotationSource':'Accel' #Model, Accel
+		,'LeaderAccelSource':'Accel' #Accel, Model
+		,'EulerRateMethod':'OmegaI' #OmegaI, Direct
+		,'enableRCMiddleLoopGainAdjust': True
+		,'uiBarrier':False}
 	defaultParams.GCSTimeout = 5 #seconds
 	defaultParams.peerTimeout = 5 #seconds
 	defaultParams.localTimeout = 1  # seconds
@@ -52,11 +64,13 @@ def getParams():
 #	temp[2][0]=1
 #	temp[3][0]=1
 
-
 	defaultParams.communication=temp
-	defaultParams.Ts = 1.0/25.0
-	defaultParams.txStateType = 'basic'
+	defaultParams.Ts = 1.0/50.0
 
+	if(SITLFlag):
+		defaultParams.Ts = 1.0 / 25.0
+		defaultParams.config['printEvery'] = 25
 	return defaultParams
 
-
+if __name__ == "__main__":
+	getParams()

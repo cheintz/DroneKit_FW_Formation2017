@@ -21,7 +21,7 @@ Command = recordtype('Command',['sdi','sdt','sdiDot','ui','gsTarget',('omega',ze
 CourseAngle = recordtype('CourseAngle',['value','rate','accel'],default=0.0)	
 
 ControlState = recordtype('ControlState',[('pgTerm',zeroVect),('rotFFTerm',zeroVect),('phii',zeroVect),('pdi',zeroVect)
-	,('bdi',zeroVect),('pdiDot',zeroVect),'accHeadingError',('rollTerms',PIDTerms()),'accSpeedError'
+	,('ydi',zeroVect),('pdiDot',zeroVect),'accHeadingError',('rollTerms',PIDTerms()),'accSpeedError'
 	,('throttleTerms',PIDTerms()),'accPitchError',('pitchTerms',PIDTerms()),'accAltError'
 	,'speedOutTerm','speedCancelTerm' ,'speedErrorTerm','speedRateTerm','speedErrorCubeTerm',('angleRateTarget',zeroVect),('pgDot',zeroVect),'h','phps','phpsd','mu']
 	, default = 0.0)
