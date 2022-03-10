@@ -971,6 +971,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else:
 			speedPFactor = speedIFactor  = 1.0
 
+		self.pm.p("SpeedPFactor: " + str(speedPFactor))
+		self.pm.p("SpeedIFactor: " + str(speedIFactor))
 		CS.pitchTerms.extraKP = speedPFactor
 		CS.pitchTerms.extraKI = speedIFactor
 
@@ -1015,11 +1017,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		if (self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'Both'):
 			rollPFactor = self.RCToExpo(8,5.0)
 			rollIFactor = rollPFactor
-
+			self.pm.p('Pitch and roll tuning')
 		elif (self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'Switched' and
 			1200<self.vehicle.channels['10']< 1700 ):
 			rollPFactor = rollPFactor = self.RCToExpo(7,5.0)
-			rollIFactor = rollPFactor = self.RCToExpo(8,5.0)
+			rollIFactor = self.RCToExpo(8,5.0)
 			self.pm.p('Switched roll tuning')
 		else:
 			rollPFactor = rollIFactor = 1.0
@@ -1028,13 +1030,14 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.rollTerms.extraKI = rollIFactor
 
 		CS.rollTerms.p = -GAINS['b1'] * rollPFactor* ePsi
-		CS.rollTerms.i = -GAINS['b1'] * rollIFactor* CS.accHeadingError * self.switchFunction(ePsi * CS.accHeadingError)
+		CS.rollTerms.i = -GAINS['b2'] * rollIFactor* CS.accHeadingError * self.switchFunction(ePsi * CS.accHeadingError)
 		CS.rollTerms.ff = psiDDot * self.switchFunction(-ePsi * cmd.psiDDot)
 
 		cmd.rollCMD = CS.rollTerms.p + CS.rollTerms.i + CS.rollTerms.ff
 		cmd.rollCMD = m.atan(cmd.rollCMD * THIS.groundspeed / 9.81 * m.cos(THIS.pitch.value))  # unclear if pitch angle should be included.
 																	# It might project speed into the horizontal plane
 
+		CS.accHeadingError += self.thisTS * ePsi
 		cmd.timestamp = self.fcTime()
 		self.pm.p("Commanded heading rate (rllctrl): " + str(THIS.command.psiDDot))
 		self.pm.p("Heading Error: " + str(ePsi) )
@@ -1097,6 +1100,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		if(self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'Both'):
 			pitchPFactor = pitchPFactor = self.RCToExpo(7,5.0)
 			pitchIFactor  = pitchPFactor
+			self.pm.p('Pitch and Roll turning')
 		elif (self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'Switched' and
 			  1700 < self.vehicle.channels['10'] ):
 			pitchPFactor = self.RCToExpo(7,5.0)

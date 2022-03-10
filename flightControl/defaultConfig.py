@@ -10,7 +10,7 @@ try:
 	SITLFlag = os.environ["SITL"]
 except KeyError:
 	print "No SITL flag in environment; using false"
-	SITLFlag =True
+	SITLFlag =False
 
 def getParams():
 	defaultParams = Parameter()
@@ -23,17 +23,17 @@ def getParams():
 	defaultParams.gains = {'kl':0.3*np.diag([1,1,0.3]) , 'ka': 0.0*np.diag([1,1,1+0*0.3])
 		,'vMin': 14,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941
 		,'rollLimit':50/(180/m.pi),'kPitch':KPID(.5, 0.2,0.0),'kAlt':KPID(.026, .0017,.0105),'pitchLimit':20/(180/m.pi)
-		,'maxEHeading':50,'maxEPitch':50,'maxESpeed':500,'a1':1.0,'a2':0.1,'b1':1.0,'b2':0.0,'c1':0.5,'c2':0.2 #a for speed, b for heading, c for pitch
+		,'maxEHeading':50,'maxEPitch':50,'maxESpeed':500,'a1':1.0,'a2':0.1,'b1':1.0,'b2':0.1,'c1':0.5,'c2':0.2 #a for speed, b for heading, c for pitch
 		,'maxEAlt':50,'epsD':0.2,'ki':4,'pBarrier':1/255.0}
 	defaultParams.config = {'printEvery':50,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
 		,'acceptableEngageMode': (VehicleMode('FBWA'),), 'dimensions': 3, 'maxPropagateSeconds': 5,'mass':6.766
-		,'spdParam':{'cd0':0.0139,'cd_ail':0.0,'cd_ele':0.0195,'cdl':0.0875,'aSpd':0.9,'spdThrustScl': 1.04
+		,'spdParam':{'cd0':0.0139,'cd_ail':0.0,'cd_ele':0.0195,'cdl':0.0875,'spdThrustScl': 1.04
 			,'thrustScale':1.0,'motork1':0.0023,'motork2': 0.015164,'useBatVolt':True}
-		,'mode':'Formation'  # PilotMiddleLoop ProgrammedMiddleLoop Formation
+		,'mode':'ProgrammedMiddleLoop'  # PilotMiddleLoop ProgrammedMiddleLoop Formation
 		,'LeaderAccelSource':'Accel' #Model, Accel
 		,'LeaderRotationSource':'Gyro' #Gyro, Accel
 		,'OrientationRateMethod':'OmegaI' #OmegaI, Direct
-		,'enableRCMiddleLoopGainAdjust': False
+		,'enableRCMiddleLoopGainAdjust': 'Switched' #Both, #Switched, false
 		,'SwitchedSpeedControl':'Continuous' #Continuous, Pure, None
 		,'uiBarrier':False}
 	defaultParams.GCSTimeout = 5 #seconds
