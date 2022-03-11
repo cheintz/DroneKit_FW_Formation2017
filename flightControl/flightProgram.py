@@ -36,7 +36,7 @@ try:
 	SITLFlag = os.environ["SITL"]
 except KeyError:
 	SITLFlag =False
-	print "No environmental variable in flightProgram.py defaulting to SITL = false"
+	print "No environmental variable in flightProgram.py defaulting to SITL = " + str(SITLFlag)
 
 import defaultConfig
 

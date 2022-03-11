@@ -931,6 +931,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		vMax = GAINS['vMax'] - headwind
 
 		si = THIS.groundspeed
+		si = THIS.airspeed
 		sdt, didSatSd = saturate(THIS.command.sdi, vMin, vMax)
 		sdiDot = THIS.command.sdiDot
 		siTilde = si - sdt

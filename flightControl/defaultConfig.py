@@ -9,8 +9,8 @@ from scipy.interpolate import LinearNDInterpolator,NearestNDInterpolator
 try:
 	SITLFlag = os.environ["SITL"]
 except KeyError:
-	print "No SITL flag in environment; using false"
 	SITLFlag =False
+	print "No SITL flag in defaultConfig; using " + str(SITLFlag)
 
 def getParams():
 	defaultParams = Parameter()
