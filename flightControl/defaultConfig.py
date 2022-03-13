@@ -9,7 +9,7 @@ from scipy.interpolate import LinearNDInterpolator,NearestNDInterpolator
 try:
 	SITLFlag = os.environ["SITL"]
 except KeyError:
-	SITLFlag =False
+	SITLFlag =True
 	print "No SITL flag in defaultConfig; using " + str(SITLFlag)
 
 def getParams():
@@ -21,7 +21,7 @@ def getParams():
 	#aFiltAccel to 1 for no filtering
 
 	defaultParams.gains = {'kl':0.3*np.diag([1,1,0.3]) , 'ka': 0.0*np.diag([1,1,1+0*0.3])
-		,'vMin': 14,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941
+		,'vMin': 16,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941
 		,'rollLimit':50/(180/m.pi),'kPitch':KPID(.5, 0.2,0.0),'kAlt':KPID(.026, .0017,.0105),'pitchLimit':20/(180/m.pi)
 		,'maxEHeading':50,'maxEPitch':50,'maxESpeed':500,'a1':1.0,'a2':0.1,'b1':1.0,'b2':0.1,'c1':0.5,'c2':0.2 #a for speed, b for heading, c for pitch
 		,'maxEAlt':50,'epsD':0.2,'ki':4,'pBarrier':1/255.0}

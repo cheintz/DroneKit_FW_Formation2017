@@ -88,14 +88,15 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				if(not self.vehicleState.isFlocking): #Should we engage flocking?
 					self.checkEngageFlocking()
 					self.tStart = self.fcTime() #note the time formation flight started
-				if(self.vehicleState.isFlocking and self.vehicleState.ID != self.parameters.leaderID): #):# and self.parameters.leaderID != self.vehicleState.ID):
+				if(self.vehicleState.isFlocking and self.vehicleState.ID != self.parameters.leaderID): #):
 					if( self.vehicleState.ID == self.parameters.leaderID):
 						self.pm.p("Won't engage, I am the leader")
 					if(not self.checkAbort()):
 						self.computeControl() #writes the control values to self.vehicleState
 						self.scaleAndWriteCommands()
 				t4 = time.time()
-				if(self.fcTime()-self.vehicleState.position.time <= self.parameters.localTimeout): #only transmit if still receiving positions from the flight controller
+				if(self.fcTime()-self.vehicleState.position.time <= self.parameters.localTimeout):
+					#only transmit if still receiving positions from the flight controller
 					self.pushStateToTxQueue() #sends the state to the UDP sending threading
 				else:
 					print ("Local timeout: "  + str(self.fcTime()-self.vehicleState.position.time) + "seconds")
@@ -131,7 +132,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				else:
 					print "Did not have time to wait!"
 					now=time.time()
-					print "T1: " +str(t1-loopStartTime) + " T2: " +str(t2-t1) + " T3: " +str(t3-t2) + " T4: " +str(t4-t3) +" T5: " +str(t5-t4) + " T6: " +str(t6-t5)
+					print ("T1: " +str(t1-loopStartTime) + " T2: " +str(t2-t1) + " T3: " +str(t3-t2) + " T4: "
+						   +str(t4-t3) +" T5: " +str(t5-t4) + " T6: " +str(t6-t5))
 			except Exception as ex:
 				print "Failed to use new config"
 				self.parameters=self.backupParams
@@ -238,7 +240,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			return False
 		#check expected number of peers
 		if(self.parameters.config['mode'] == 'Formation' and len(self.stateVehicles) < self.parameters.expectedMAVs-1):
-			self.pm.p( "Won't engage: Not enough MAVs. Expecting " + str(self.parameters.expectedMAVs) + ". Connected to:" + str(self.stateVehicles.keys()))
+			self.pm.p( "Won't engage: Not enough MAVs. Expecting " + str(self.parameters.expectedMAVs) +
+		   		". Connected to:" + str(self.stateVehicles.keys()))
 			self.vehicleState.RCLatch = True
 			return False
 		if (not (self.vehicle.mode in  self.parameters.config['acceptableEngageMode'])): #if switched
@@ -384,7 +387,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicleState.accel=earthAccelFiltered
 		#print(earthAccelFiltered)
 
-
 	#"Attitude" Rates
 
 	#Filtered differentiation startup handling
@@ -403,7 +405,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	#Roll-based heading rate
 #		if(self.vehicleState.groundspeed >5):
-#			self.vehicleState.heading.rate = 9.81/self.vehicleState.groundspeed * m.tan(self.vehicleState.attitude.roll * m.cos(self.vehicleState.attitude.pitch))
+#			self.vehicleState.heading.rate = 9.81/self.vehicleState.groundspeed *
+#					m.tan(self.vehicleState.attitude.roll * m.cos(self.vehicleState.attitude.pitch))
 #		else: #low speed condition; don't divide by small groundspeed
 #			self.vehicleState.heading.rate = self.vehicle.attitude.yawspeed
 #		if(s>5):
@@ -431,7 +434,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			EulerRates = WToERates(ATT.yaw,ATT.pitch,ATT.roll,omega)
 			self.vehicleState.heading.rate = EulerRates[2].item()
 			self.vehicleState.pitch.rate = EulerRates[1].item()
-
 
 #   	#Velocity orientation acceleration
 		dHeadingRate = self.vehicleState.heading.rate - lastHeadingRate
@@ -464,7 +466,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 #			dq = getRelPos(oldqGPS,newqGPS)
 		else: #still have to set set the timestamp...
 			self.vehicleState.timestamp = self.fcTime()
-
 
 	def pushStateToTxQueue(self):
 		msg=Message()
@@ -627,7 +628,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				THIS.command.thetaDDot = 0.0
 				self.releaseControl()
 
-
 		elif (self.vehicle.channels['10'] < 1700): #Heading
 			self.pm.p('Programmed heading routine')
 			if tRel <18:
@@ -739,11 +739,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		self.speedControl()# sdt is set here
 
-
-
 	def propagateOtherStates(self):
 		for i in self.stateVehicles.keys():
-			if( self.vehicleState.ID != i and (self.fcTime() - self.vehicleState.timeout.peerLastRX[i]) <= self.vehicleState.parameters.config['maxPropagateSeconds']):
+			if( self.vehicleState.ID != i and
+				(self.fcTime() - self.vehicleState.timeout.peerLastRX[i]) <= self.vehicleState.parameters.config['maxPropagateSeconds']):
 				propagateVehicleState(self.stateVehicles[i], self.fcTime()-self.stateVehicles[i].timestamp)
 #				self.stateVehicles[i].timestamp=self.fcTime()
 			# will propagate from when we received. Other agent propagates forward from
@@ -868,8 +867,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.pm.p('Formation FFTerm: ' + str(np.linalg.norm(CS.pgTerm+CS.rotFFTerm) ))
 
 ##Compute intermediates
-
-
 	#Saturate sdi (and deal with sdiDot and bdiDot)
 		sdi = np.linalg.norm(pdi,2)
 
@@ -905,7 +902,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS.command.thetaD = -m.asin(bdi[2])
 		THIS.command.thetaDDot = velAndAccelToPitchRate(pdi, pdiDot)
 
-
 		#Heading/Roll
 		THIS.command.psiD = m.atan2(bdi[1],bdi[0])
 		THIS.command.psiDDot = velAndAccelToHeadingRate(pdi,pdiDot)
@@ -927,11 +923,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS = THIS.controlState
 
 		headwind = (THIS.airspeed - THIS.groundspeed)
-		vMin = GAINS['vMin'] - headwind  # Subtract headwind to allow slower (safe) flight in strong winds
+		vMin = GAINS['vMin'] - headwind  # Subtract headwind to allow slower and faster (safe) flight in strong winds
 		vMax = GAINS['vMax'] - headwind
 
 		si = THIS.groundspeed
-		si = THIS.airspeed
+#		si = THIS.airspeed #Hack for flying in high winds, saturation below should deal with it
 		sdt, didSatSd = saturate(THIS.command.sdi, vMin, vMax)
 		sdiDot = THIS.command.sdiDot
 		siTilde = si - sdt
@@ -941,7 +937,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		gSpeed = getSpeedG(THIS)
 
 		CS.fSpeed = fSpeed
-		CS.gSpeed=fSpeed
+		CS.gSpeed=gSpeed
 
 		if (THIS.parameters.config['uiBarrier']):
 			print  THIS.parameters.config['uiBarrier']
@@ -978,19 +974,18 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.pitchTerms.extraKI = speedIFactor
 
 		switchStateDot = self.switchFunction(-siTilde * sdiDot)
-		switchStateInt = self.switchFunction(siTilde * CS.accSpeedError)
+		switchStateInt = self.switchFunction(.001*siTilde * CS.accSpeedError)
 
-		CS.speedCancelTerm = (-1.0 / fSpeed) * gSpeed
+		CS.speedCancelTerm = (-1.0 / gSpeed) * fSpeed
 		CS.speedTerms.p = (-1.0 / gSpeed) * GAINS['a1'] * speedPFactor * siTilde * h / mu
 		CS.speedTerms.i= (-1.0 / gSpeed) * GAINS['a2'] * speedIFactor * switchStateInt*CS.accSpeedError * h / mu
-		CS.speedTerms.ff = (1.0/ gSpeed) * (switchStateDot * sdiDot / mu) * (siTilde * phpsd - h)
+		CS.speedTerms.ff = (-1.0/ gSpeed) * (switchStateDot * sdiDot / mu) * (siTilde * phpsd - h)
 
 		CS.h = h
 		CS.phps = phps
 		CS.phpsd = phpsd
 		CS.mu = mu
 		CS.accSpeedError = CS.accSpeedError + self.thisTS * siTilde
-
 
 		uiOld = (-1.0 / gSpeed * (
 			fSpeed + GAINS['a1'] * siTilde * h / mu
@@ -1034,11 +1029,18 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.rollTerms.i = -GAINS['b2'] * rollIFactor* CS.accHeadingError * self.switchFunction(ePsi * CS.accHeadingError)
 		CS.rollTerms.ff = psiDDot * self.switchFunction(-ePsi * cmd.psiDDot)
 
-		cmd.rollCMD = CS.rollTerms.p + CS.rollTerms.i + CS.rollTerms.ff
-		cmd.rollCMD = m.atan(cmd.rollCMD * THIS.groundspeed / 9.81 * m.cos(THIS.pitch.value))  # unclear if pitch angle should be included.
+		CS.rollTerms.unsaturatedOutput = CS.rollTerms.p + CS.rollTerms.i + CS.rollTerms.ff
+		CS.rollTerms.unsaturatedOutput = m.atan(CS.rollTerms.unsaturatedOutput* THIS.groundspeed / 9.81 * m.cos(THIS.pitch.value))  # unclear if pitch angle should be included.
 																	# It might project speed into the horizontal plane
+		vp = self.vehicle.parameters
+		cmd.rollCMD,ignored = saturate(CS.rollTerms.unsaturatedOutput, -vp['LIM_ROLL_CD']/100 /(180/m.pi), vp['LIM_ROLL_CD']/100 /(180/m.pi) )
+		#antiwindup
+		delta = cmd.rollCMD - CS.rollTerms.unsaturatedOutput
+		if (delta < 0 and ePsi<0 )   or  (delta>0 and ePsi>0):
+			pass #Don't change integrator state because output is saturated
+		else:
+			CS.accHeadingError += self.thisTS * ePsi
 
-		CS.accHeadingError += self.thisTS * ePsi
 		cmd.timestamp = self.fcTime()
 		self.pm.p("Commanded heading rate (rllctrl): " + str(THIS.command.psiDDot))
 		self.pm.p("Heading Error: " + str(ePsi) )
@@ -1049,8 +1051,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS = THIS.controlState
 		cmd = THIS.command
 		gains = THIS.parameters.gains
-
-		rollAngle = THIS.attitude.roll
 
 		vp = self.vehicle.parameters
 		gsTarget = cmd.gsTarget
@@ -1115,7 +1115,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		#unity gain low pass in pitch
 		aPitch = 1.0/self.vehicle.parameters['PTCH2SRV_TCONST']
-		fPitch = -aPitch * THIS.pitch.value
+		fPitch = -aPitch * THIS.attitude.pitch
 		gPitch = aPitch
 		ePitch = THIS.pitch.value - THIS.command.thetaD
 
@@ -1158,7 +1158,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	####### RC Input Calibration#####
 	#ROLL
-		params.rollGain = (vp['RC1_MAX'] - vp['RC1_MIN']) / 2 / (vp['LIM_ROLL_CD']/100 /(180/m.pi))  #TODO: update to include out of perfect RC input trim
+		params.rollGain = (vp['RC1_MAX'] - vp['RC1_MIN']) / 2 / (vp['LIM_ROLL_CD']/100 /(180/m.pi))
+					#TODO: update to include out of perfect RC input trim
 		if(vp['RC1_REVERSED'] == 1):
 			params.rollGain = - params.rollGain
 		params.rollOffset = vp['RC1_TRIM']
@@ -1261,8 +1262,10 @@ def propagateVehicleState(state, dtPos): #assumes velocity is constant (single i
 	state.isPropagated = 1
 
 def eul2rotm(psi,theta,phi):
-	R = np.matrix([[m.cos(theta) * m.cos(psi),  m.sin(phi)* m.sin(theta)*m.cos(psi) - m.cos(phi)*m.sin(psi), m.cos(phi)*m.sin(theta)*m.cos(psi) + m.sin(phi)*m.sin(psi)],
-				  [m.cos(theta)*m.sin(psi), m.sin(phi)*m.sin(theta)*m.sin(psi) + m.cos(phi)*m.cos(psi), m.cos(phi)*m.sin(theta)*m.sin(psi) - m.sin(phi)*m.cos(psi)],
+	R = np.matrix([[m.cos(theta) * m.cos(psi),  m.sin(phi)* m.sin(theta)*m.cos(psi) - m.cos(phi)*m.sin(psi),
+						m.cos(phi)*m.sin(theta)*m.cos(psi) + m.sin(phi)*m.sin(psi)],
+				  [m.cos(theta)*m.sin(psi), m.sin(phi)*m.sin(theta)*m.sin(psi) + m.cos(phi)*m.cos(psi),
+				   		m.cos(phi)*m.sin(theta)*m.sin(psi) - m.sin(phi)*m.cos(psi)],
 				  [-m.sin(theta), m.sin(phi)*m.cos(theta), m.cos(phi)*m.cos(theta)]])
 	return R
 def computeQ(psi, theta, phi):
@@ -1363,24 +1366,20 @@ def swp(value):
 def getSpeedF(vs):
 	param=vs.parameters
 	sp = param.config['spdParam']
-	cd0 = sp['cd0']
 	if(vs.airspeed<3.0):
-		out = -9.81 * m.sin(vs.pitch.value)  # out has units force, returns acceleration by dividing by mass
+		out = -9.81 * m.sin(vs.pitch.value)*param.config['mass']  # out has units force, returns acceleration by dividing by mass
 	else:
-		out = (-9.81 * m.sin(vs.pitch.value)  # out has units force, returns acceleration by dividing by mass
+		out = (-9.81 * m.sin(vs.pitch.value) *param.config['mass'] # out has units force, returns acceleration by dividing by mass
 		- vs.airspeed ** 2 * (sp['cd0'] + sp['cd_ail'] * abs(linearToLinear(vs.servoOut['1'],982.0, 2006.0,2.0)-1.0)
-		+ sp['cd_ele'] * abs(linearToLinear(vs.servoOut['2'],982.0, 2006.0,2.0)-1.0))
-		- sp['cdl'] * vs.imuAccel.z ** 2 * param.config['mass'] ** 2 / vs.airspeed ** 2)
+		+ sp['cd_ele'] * abs(linearToLinear(vs.servoOut['2'],982.0, 2006.0,2.0)-1.0) )
+		- sp['cdl'] * (vs.imuAccel.z * param.config['mass']) ** 2 / vs.airspeed ** 2)
 
-	return out / param.config['mass']
+	return out / param.config['mass'] #convert force to m/s^2
 
 def getSpeedG(vs):
 	return ((1.0 / vs.parameters.config['mass']) * (m.sin(vs.pitch.value)*m.sin(vs.pitch.value)
 		+ m.cos(vs.pitch.value)*m.cos(vs.attitude.yaw)*m.cos(vs.heading.value)*m.cos(vs.pitch.value)
 		+ m.cos(vs.pitch.value)*m.cos(vs.pitch.value)*m.sin(vs.attitude.yaw)*m.sin(vs.heading.value) )  )
-
-# def c2normalized(minValue, maxValue, value):
-# 	return value - ((maxValue + minValue) / 2.0) / (maxValue - minValue)
 
 def propellerToThrustAndTorque(params,thrust, airspeed):
 	rpm = (params.config['spdParam']['thrustInterpLin'](thrust,airspeed)).item()

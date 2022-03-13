@@ -35,7 +35,7 @@ broadcastIP= os.environ["BROADCASTIP"]
 try:
 	SITLFlag = os.environ["SITL"]
 except KeyError:
-	SITLFlag =False
+	SITLFlag =True
 	print "No environmental variable in flightProgram.py defaulting to SITL = " + str(SITLFlag)
 
 import defaultConfig
