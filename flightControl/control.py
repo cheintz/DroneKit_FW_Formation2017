@@ -970,8 +970,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		self.pm.p("SpeedPFactor: " + str(speedPFactor))
 		self.pm.p("SpeedIFactor: " + str(speedIFactor))
-		CS.pitchTerms.extraKP = speedPFactor
-		CS.pitchTerms.extraKI = speedIFactor
+		CS.speedTerms.extraKP = speedPFactor
+		CS.speedTerms.extraKI = speedIFactor
 
 		switchStateDot = self.switchFunction(-siTilde * sdiDot)
 		switchStateInt = self.switchFunction(.001*siTilde * CS.accSpeedError)
