@@ -1,15 +1,13 @@
 from recordtype import recordtype
 import numpy as np
 from collections import OrderedDict
-import time
 import dronekit
 
 zeroVect = np.matrix([[0],[0],[0]])
 
-
 KPID = recordtype('KPID', ['kp','ki','kd'])
 
-PIDTerms = recordtype('PIDTerms',['p','i','d','ff','unsaturatedOutput','extraKP','extraKI','extraKD'],default = 0.0)
+PIDTerms = recordtype('PIDTerms',['p','i','ff','unsaturatedOutput','extraKP','extraKI'], default = 0.0)
 
 Timeout = recordtype('Timeout' , ['GCSTimeoutTime', ('peerTimeoutTime',{}), 'localTimeoutTime', 'GCSLastRx', ('peerLastRX',{})], default = None)
 
@@ -37,7 +35,7 @@ rtTypes = (ControlState,CourseAngle,Command,Parameter,Timeout,PIDTerms,KPID)
 class BasicVehicleState(object):
 	def __init__(self,other=None):
 		self.ID = None
-		self.timestamp = None #time.time()
+		self.timestamp = None
 		self.position = dronekit.LocationGlobalRelative(0,0,0)
 		self.velocity = [0,0,0]
 		self.accel = [0,0,0]
@@ -211,11 +209,14 @@ class FullVehicleState(BasicVehicleState):
 
 def vecToCSV(mat,prefix):
 	outKey = []
-	outValue = []		
-	for j in range(0,len(mat)):
-		outKey.append(prefix+'_'+str(j))
-		outValue.append(mat[j,0])
-	return (outKey,outValue)
+	outValue = []
+	if(len(mat)==1):
+		return ([prefix],[mat.item()])
+	else:
+		for j in range(0,len(mat)):
+			outKey.append(prefix+'_'+str(j))
+			outValue.append(mat[j,0])
+		return (outKey,outValue)
 
 def recordTypeToLists(rt,prefix =''):
 	headers = []

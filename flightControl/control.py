@@ -351,7 +351,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicleState.imuAccel.x*=9.81/10.0
 		self.vehicleState.imuAccel.y *= 9.81/10.0
 		self.vehicleState.imuAccel.z *= 9.81/10.0
-		#print "IMUZ: " + str(self.vehicleState.imuAccel.z)
 		self.vehicleState.isArmable = self.vehicle.is_armable
 		self.vehicleState.mode = self.vehicle.mode
 		self.vehicleState.parameters = self.parameters
@@ -361,7 +360,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		nco = self.vehicle.nav_controller_output
 		self.vehicleState.navOutput = {'navRoll': nco.nav_roll,'navPitch':nco.nav_pitch,'navBearing':nco.nav_bearing}
 		ATT=self.vehicleState.attitude
-#		s = self.vehicleState.groundspeed
 
 		if isFirstLoop:
 			print "initializing fwdAccel"
@@ -937,7 +935,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		gSpeed = getSpeedG(THIS)
 
 		CS.fSpeed = fSpeed
-		CS.gSpeed=gSpeed
+		CS.gSpeed = gSpeed
 
 		if (THIS.parameters.config['uiBarrier']):
 			print  THIS.parameters.config['uiBarrier']
@@ -959,14 +957,12 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.pm.p("sdt: " + str(sdt))
 		self.pm.p("sdi: " + str(THIS.command.sdi))
 		if(self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'All'):
-			speedPFactor = pitchPFactor = self.RCToExpo(9,5.0)
-			speedIFactor  = pitchPFactor
-			self.pm.p('Pitch and Roll turning')
+			speedIFactor = speedPFactor =  self.RCToExpo(9,5.0)
+			self.pm.p('Pitch Roll, and speed turning')
 		elif (self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'Switched' and
 			   self.vehicle.channels['10']<1200 ):
 			speedPFactor = self.RCToExpo(7,5.0)
 			speedIFactor = self.RCToExpo(8,5.0)
-
 			self.pm.p('Switched Speed tuning')
 		else:
 			speedPFactor = speedIFactor  = 1.0
@@ -995,7 +991,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			+ (switchStateDot * sdiDot / mu) * (siTilde * phpsd - h)
 		  	+ GAINS['a2'] * switchStateInt*CS.accSpeedError * h / mu )  )
 
-		ui = CS.speedCancelTerm + CS.speedTerms.p + CS.speedTerms.i + CS.speedTerms.ff
+		CS.speedTerms.unsaturatedOutput = ui = CS.speedCancelTerm + CS.speedTerms.p + CS.speedTerms.i + CS.speedTerms.ff
 		self.pm.p('ui: ' + "{:.3f}".format(ui))
 		THIS.command.ui = ui
 		THIS.command.sdt = sdt
@@ -1014,12 +1010,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		calcTurnRate = THIS.heading.rate
 		if (self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'All'):
-			rollPFactor = self.RCToExpo(8,5.0)
-			rollIFactor = rollPFactor
-			self.pm.p('Pitch and roll tuning')
+			rollIFactor = rollPFactor = self.RCToExpo(8,5.0)
+			self.pm.p('Pitch Roll, and speed turning')
 		elif (self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'Switched' and
 			1200<self.vehicle.channels['10']< 1700 ):
-			rollPFactor = rollPFactor = self.RCToExpo(7,5.0)
+			rollPFactor = self.RCToExpo(7,5.0)
 			rollIFactor = self.RCToExpo(8,5.0)
 			self.pm.p('Switched roll tuning')
 		else:
@@ -1057,51 +1052,25 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		gains = THIS.parameters.gains
 
 		vp = self.vehicle.parameters
-		gsTarget = cmd.gsTarget
-		headwind = (THIS.airspeed-THIS.groundspeed)
-
-		speedError=False
-		oldgsTarget = gsTarget
-
-#		if(THIS.groundspeed < gains['vMin']):
-#			gsTarget = max(gains['vMin'] + headwind+gains['epsD'], gsTarget) #gsTarget already includes the headwind
-#			print "groundspeed below minimum"
-#			speedError=True
-#		elif(THIS.groundspeed>gains['vMax']):
-#			gsTarget = min(gains['vMax'] + headwind-gains['epsD'], gsTarget) #gsTarget does not includes the headwind
-#			print "groundsped above maximum"
-#			speedError = True
-
-		if(THIS.airspeed < vp['ARSPD_FBW_MIN']): #airspeed below minimum
-			gsTarget = max(vp['ARSPD_FBW_MIN'] - headwind, gsTarget - headwind)  #positive headwind means we can go slower
-			cmd.gsTarget=gsTarget
-			print "airspeed below minimum: " + "{:.3f}".format(THIS.airspeed)
-			speedError = True
-		eSpeed = THIS.groundspeed - gsTarget
-		if speedError:
-			print "gsTarget: " + "{:.3f}".format(gsTarget) + " was " + "{:.3f}".format(oldgsTarget)
 
 		[rpmDesired, torqueRequired] = propellerToThrustAndTorque(THIS.parameters,THIS.command.ui, THIS.airspeed)
 		cmd.rpmTarget = rpmDesired
 		cmd.torqueRequired = torqueRequired
 		spdParams = THIS.parameters.config['spdParam']
-		if(spdParams['useBatVolt'] and THIS.batteryV>15.0 ):
-			cmd.throttleCMD = 100.0* (spdParams['motork1'] *rpmDesired + spdParams['motork2']*torqueRequired ) / THIS.batteryV
+		if(spdParams['useBatVolt']):
+			cmd.throttleCMD = 100.0* (spdParams['motork1'] *rpmDesired + spdParams['motork2']*torqueRequired ) / max(THIS.batteryV,15.0)
 		else:
 			cmd.throttleCMD = 100.0* (spdParams['motork1'] *rpmDesired + spdParams['motork2']*torqueRequired )
 		cmd.timestamp = self.fcTime()
 
-		# antiwindup, should probably be in speed control
+		# anti-windup, should probably be in speed control, but that's hard.
 		eSpeed = THIS.groundspeed - cmd.sdt
-		delta = cmd.pitchCMD - CS.pitchTerms.unsaturatedOutput
-		if (delta < 0 and eSpeed < 0) or (delta > 0 and eSpeed > 0):
+		if (cmd.throttleCMD>=100 and eSpeed < 0) or (cmd.ui<=0 and eSpeed > 0):
 			CS.accSpeedError -= self.thisTS * eSpeed #undo the integrator for anti-windup reasons
 
 		self.pm.p('eGroundSpeed: ' + str(eSpeed))
-		self.pm.p('GSTarget: ' + str(gsTarget))
 		self.pm.p('ESpeed: ' + str(CS.accSpeedError))
 
-	#pitch control
 	def pitchControl(self):
 		THIS = self.vehicleState
 		cmd = THIS.command
@@ -1110,14 +1079,12 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		GAINS = THIS.parameters.gains
 		eTheta = (self.vehicleState.pitch.value- cmd.thetaD)
 		if(self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'All'):
-			pitchPFactor = pitchPFactor = self.RCToExpo(7,5.0)
-			pitchIFactor  = pitchPFactor
-			self.pm.p('Pitch and Roll turning')
+			pitchIFactor = pitchPFactor = self.RCToExpo(7,5.0)
+			self.pm.p('Pitch Roll, and speed turning')
 		elif (self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'Switched' and
 			  1700 < self.vehicle.channels['10'] ):
 			pitchPFactor = self.RCToExpo(7,5.0)
 			pitchIFactor = self.RCToExpo(8,5.0)
-			pitchDFactor = 1.0
 			self.pm.p('Switched Pitch tuning')
 		else:
 			pitchPFactor = pitchIFactor  = 1.0
@@ -1126,12 +1093,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		#unity gain low pass in pitch
 		aPitch = 1.0/self.vehicle.parameters['PTCH2SRV_TCONST']
-		fPitch = -aPitch * THIS.attitude.pitch
-		gPitch = aPitch
+		CS.fPitch = fPitch = -aPitch * THIS.attitude.pitch
+		CS.gPitch = gPitch = aPitch
 		ePitch = THIS.pitch.value - THIS.command.thetaD
 
-		CS.fPitch = fPitch
-		CS.gPitch = gPitch
 		CS.pitchCancelTerm = -fPitch / gPitch #Add some filtered offset of pitch minus desired pitch here maybe
 		CS.pitchTerms.p = -GAINS['c1'] * pitchPFactor * ePitch / gPitch
 		CS.pitchTerms.i = -GAINS['c2'] * pitchIFactor * CS.accPitchError * self.switchFunction(CS.accPitchError * eTheta) / gPitch
@@ -1357,12 +1322,12 @@ def deadzone(value, width):
 
 def velAndAccelToHeadingRate(v,a):
 	inPlaneVelocity = m.sqrt(v[0] ** 2 + v[1] ** 2)
-	return  (v[0] * a[1] - v[1] * a[0]) / inPlaneVelocity ** 2
+	return  (v[0] * a[1] - v[1] * a[0]).item() / inPlaneVelocity ** 2 #TODO call item
 
 def velAndAccelToPitchRate(v, a):
 	inPlaneVelocity = m.sqrt(v[0] ** 2 + v[1] ** 2)
 	s = m.sqrt(v[0] ** 2 + v[1] ** 2+ v[2] ** 2)
-	return (   (v[0] * a[0] + v[1] * a[1])   * v[2] / inPlaneVelocity - a[2] * inPlaneVelocity) / s ** 2
+	return (   (v[0] * a[0] + v[1] * a[1])   * v[2] / inPlaneVelocity - a[2] * inPlaneVelocity).item() / s ** 2 #TODO call item
 
 def linearToExponential(value,min,max,factor):
 	normalized = (value-min)/(max-min) #0 to 1

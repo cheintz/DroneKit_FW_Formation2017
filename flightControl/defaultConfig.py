@@ -20,10 +20,10 @@ def getParams():
 #	defaultParams.desiredPosition = np.array([[[-5,5,2]],[[-5,5,-80]]])
 	#aFiltAccel to 1 for no filtering
 
-	defaultParams.gains = {'kl':0.3*np.diag([1,1,0.3]) , 'ka': 0.0*np.diag([1,1,1+0*0.3])
+	defaultParams.gains = {'kl':0.3*np.diag([1,1,1]) , 'ka': 0.0*np.diag([1,1,1+0*0.3])
 		,'vMin': 16,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941
 		,'rollLimit':50/(180/m.pi),'kPitch':KPID(.5, 0.2,0.0),'kAlt':KPID(.026, .0017,.0105),'pitchLimit':20/(180/m.pi)
-		,'maxEHeading':50,'maxEPitch':50,'maxESpeed':500,'a1':4.0,'a2':0.15,'b1':3.0,'b2':0.3,'c1':3.0,'c2':0.2 #a for speed, b for heading, c for pitch
+		,'maxEHeading':50,'maxEPitch':50,'maxESpeed':500,'a1':2.0,'a2':0.10,'b1':2.0,'b2':0.2,'c1':1.5,'c2':0.2 #a for speed, b for heading, c for pitch
 		,'maxEAlt':50,'epsD':0.2,'ki':4,'pBarrier':1/255.0}
 	defaultParams.config = {'printEvery':50,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
 		,'acceptableEngageMode': (VehicleMode('FBWA'),), 'dimensions': 3, 'maxPropagateSeconds': 5,'mass':6.766

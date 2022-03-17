@@ -7,30 +7,24 @@ os.environ["OMP_NUM_THREADS"]="1" #Limit numpy to one thread
 from dronekit import connect, VehicleMode
 import time
 startTime=time.time() #This early helps the filename match the console log.
-import socket
 
-import Queue
 import multiprocessing
 import transmit, control, receive, log
 import vehicleState
 
-import numpy as np
 import argparse
-from datetime import datetime
 from servovehicle import ServoVehicle
 
-#get enviromental variables
+#get environmental variables
 AdHocIP = os.environ['ADHOCIP']
 
 #AdHocIP = "127.0.0.1"
 #AdHocIP = "192.168.0.109" #override if the environmental variable is wrong
+#broadcastIP= "10.0.2.255" #for virtual machine
+#broadcastIP= "192.168.0.255"  #this is for the physical machine
 peerReadPort = int(os.environ['PORT'])
 logPath = os.environ["LOGPATH"]
 broadcastIP= os.environ["BROADCASTIP"]
-
-# SITL for desktop on campus
-# AdHocIP = "10.164.40.51"
-# broadcastIP = "10.164.43.255"
 
 try:
 	SITLFlag = os.environ["SITL"]
@@ -39,9 +33,6 @@ except KeyError:
 	print "No environmental variable in flightProgram.py defaulting to SITL = " + str(SITLFlag)
 
 import defaultConfig
-
-#broadcastIP= "10.0.2.255" #for virtual machine
-#broadcastIP= "192.168.0.255"  #this is for the physical machine
 
 transmitAddress = (broadcastIP,peerReadPort)
 
