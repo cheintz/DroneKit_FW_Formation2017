@@ -188,9 +188,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicle.channels.overrides = {}
 		self.vehicleState.controlState = ControlState()
 		self.vehicleState.isFlocking = False
-		self.vehicleState.controlState.accPitchError = 0.0
-		self.vehicleState.controlState.accHeadingError = 0.0
-		self.vehicleState.controlState.accSpeedError = 0.0
+		# self.vehicleState.controlState.accPitchError = 0.0
+		# self.vehicleState.controlState.accHeadingError = 0.0
+		# self.vehicleState.controlState.accSpeedError = 0.0
 		self.altitudeController.reset()
 
 	def checkAbort(self): #only call if flocking!!
@@ -958,8 +958,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		self.pm.p("sdt: " + str(sdt))
 		self.pm.p("sdi: " + str(THIS.command.sdi))
-
-		if (self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'Switched' and
+		if(self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'All'):
+			speedPFactor = pitchPFactor = self.RCToExpo(9,5.0)
+			speedIFactor  = pitchPFactor
+			self.pm.p('Pitch and Roll turning')
+		elif (self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'Switched' and
 			   self.vehicle.channels['10']<1200 ):
 			speedPFactor = self.RCToExpo(7,5.0)
 			speedIFactor = self.RCToExpo(8,5.0)
@@ -974,7 +977,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.speedTerms.extraKI = speedIFactor
 
 		switchStateDot = self.switchFunction(-siTilde * sdiDot)
-		switchStateInt = self.switchFunction(.001*siTilde * CS.accSpeedError)
+		switchStateInt = self.switchFunction(.01*siTilde * CS.accSpeedError)
 
 		CS.speedCancelTerm = (-1.0 / gSpeed) * fSpeed
 		CS.speedTerms.p = (-1.0 / gSpeed) * GAINS['a1'] * speedPFactor * siTilde * h / mu
@@ -1010,7 +1013,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.pm.pMsg('Desired heading: ',THIS.command.psiD)
 
 		calcTurnRate = THIS.heading.rate
-		if (self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'Both'):
+		if (self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'All'):
 			rollPFactor = self.RCToExpo(8,5.0)
 			rollIFactor = rollPFactor
 			self.pm.p('Pitch and roll tuning')
@@ -1034,6 +1037,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 																	# It might project speed into the horizontal plane
 		vp = self.vehicle.parameters
 		cmd.rollCMD,ignored = saturate(CS.rollTerms.unsaturatedOutput, -vp['LIM_ROLL_CD']/100 /(180/m.pi), vp['LIM_ROLL_CD']/100 /(180/m.pi) )
+
 		#antiwindup
 		delta = cmd.rollCMD - CS.rollTerms.unsaturatedOutput
 		if (delta < 0 and ePsi<0 )   or  (delta>0 and ePsi>0):
@@ -1081,11 +1085,18 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		cmd.rpmTarget = rpmDesired
 		cmd.torqueRequired = torqueRequired
 		spdParams = THIS.parameters.config['spdParam']
-		if(spdParams['useBatVolt']):
+		if(spdParams['useBatVolt'] and THIS.batteryV>15.0 ):
 			cmd.throttleCMD = 100.0* (spdParams['motork1'] *rpmDesired + spdParams['motork2']*torqueRequired ) / THIS.batteryV
 		else:
 			cmd.throttleCMD = 100.0* (spdParams['motork1'] *rpmDesired + spdParams['motork2']*torqueRequired )
 		cmd.timestamp = self.fcTime()
+
+		# antiwindup, should probably be in speed control
+		eSpeed = THIS.groundspeed - cmd.sdt
+		delta = cmd.pitchCMD - CS.pitchTerms.unsaturatedOutput
+		if (delta < 0 and eSpeed < 0) or (delta > 0 and eSpeed > 0):
+			CS.accSpeedError -= self.thisTS * eSpeed #undo the integrator for anti-windup reasons
+
 		self.pm.p('eGroundSpeed: ' + str(eSpeed))
 		self.pm.p('GSTarget: ' + str(gsTarget))
 		self.pm.p('ESpeed: ' + str(CS.accSpeedError))
@@ -1098,7 +1109,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		vp = self.vehicle.parameters
 		GAINS = THIS.parameters.gains
 		eTheta = (self.vehicleState.pitch.value- cmd.thetaD)
-		if(self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'Both'):
+		if(self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'All'):
 			pitchPFactor = pitchPFactor = self.RCToExpo(7,5.0)
 			pitchIFactor  = pitchPFactor
 			self.pm.p('Pitch and Roll turning')
@@ -1128,10 +1139,18 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.pitchTerms.extraKP = pitchPFactor
 		CS.pitchTerms.extraKI = pitchIFactor
 
-		CS.accPitchError += self.thisTS * ePitch
-		cmd.pitchCMD = CS.pitchCancelTerm + CS.pitchTerms.p + CS.pitchTerms.i + CS.pitchTerms.ff
-
+		CS.pitchTerms.unsaturatedOutput = CS.pitchCancelTerm + CS.pitchTerms.p + CS.pitchTerms.i + CS.pitchTerms.ff
+		cmd.pitchCMD, ignored = saturate(CS.pitchTerms.unsaturatedOutput, vp['LIM_PITCH_MIN'] / 100 / (180 / m.pi),
+										vp['LIM_PITCH_MAX'] / 100 / (180 / m.pi))
 		cmd.timestamp = self.fcTime()
+
+		#antiwindup
+		delta = cmd.pitchCMD - CS.pitchTerms.unsaturatedOutput
+		if (delta < 0 and ePitch<0 )   or  (delta>0 and ePitch>0):
+			pass #Don't change integrator state because output is saturated
+		else:
+			CS.accPitchError += self.thisTS * ePitch
+
 		self.pm.p('Desired Pitch: ' + str(cmd.thetaD))
 		self.pm.p('Pitch Error: ' + str(eTheta))
 		self.pm.p('Acc Pitch Error: ' + str(CS.accPitchError))
@@ -1385,8 +1404,8 @@ def propellerToThrustAndTorque(params,thrust, airspeed):
 	rpm = (params.config['spdParam']['thrustInterpLin'](thrust,airspeed)).item()
 	if np.isnan(rpm):
 		rpm = (params.config['spdParam']['thrustInterpNear'](thrust, airspeed)).item()
-	if thrust < 0.0:
-		rpm = 0.0
+	# if thrust < 0.0:
+	# 	rpm = 0.0
 
 	torque = (params.config['spdParam']['torqueInterpLin'](thrust, airspeed)).item()
 	if np.isnan(torque):

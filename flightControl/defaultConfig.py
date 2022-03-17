@@ -23,17 +23,17 @@ def getParams():
 	defaultParams.gains = {'kl':0.3*np.diag([1,1,0.3]) , 'ka': 0.0*np.diag([1,1,1+0*0.3])
 		,'vMin': 16,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941
 		,'rollLimit':50/(180/m.pi),'kPitch':KPID(.5, 0.2,0.0),'kAlt':KPID(.026, .0017,.0105),'pitchLimit':20/(180/m.pi)
-		,'maxEHeading':50,'maxEPitch':50,'maxESpeed':500,'a1':4.0,'a2':0.1,'b1':1.0,'b2':0.1,'c1':1.50,'c2':0.2 #a for speed, b for heading, c for pitch
+		,'maxEHeading':50,'maxEPitch':50,'maxESpeed':500,'a1':4.0,'a2':0.15,'b1':3.0,'b2':0.3,'c1':3.0,'c2':0.2 #a for speed, b for heading, c for pitch
 		,'maxEAlt':50,'epsD':0.2,'ki':4,'pBarrier':1/255.0}
 	defaultParams.config = {'printEvery':50,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
 		,'acceptableEngageMode': (VehicleMode('FBWA'),), 'dimensions': 3, 'maxPropagateSeconds': 5,'mass':6.766
 		,'spdParam':{'cd0':0.0139,'cd_ail':0.0,'cd_ele':0.0195,'cdl':0.0875,'spdThrustScl': 1.04
 			,'thrustScale':1.0,'motork1':0.0023,'motork2': 0.015164,'useBatVolt':True}
-		,'mode':'ProgrammedMiddleLoop'  # PilotMiddleLoop ProgrammedMiddleLoop Formation
+		,'mode':'Formation'  # PilotMiddleLoop ProgrammedMiddleLoop Formation
 		,'LeaderAccelSource':'Accel' #Model, Accel
 		,'LeaderRotationSource':'Gyro' #Gyro, Accel
 		,'OrientationRateMethod':'OmegaI' #OmegaI, Direct
-		,'enableRCMiddleLoopGainAdjust': 'Switched' #Both, #Switched, false
+		,'enableRCMiddleLoopGainAdjust': 'All' #All, #Switched, false
 		,'SwitchedSpeedControl':'Continuous' #Continuous, Pure, None
 		,'uiBarrier':False}
 	defaultParams.GCSTimeout = 5 #seconds
