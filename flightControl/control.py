@@ -723,7 +723,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.pdiDot = pdiDot
 
 		si=THIS.groundspeed
-		si,didSatS = saturate(si,sMin,sMax)
+		# si,didSatS = saturate(si,sMin,sMax)
 		siTilde = si - sdt
 
 	# Compute angular velocity control
@@ -733,7 +733,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		omega = omegaFF + omegaFB
 		self.pm.p("OmegaFF_Z : " + str(omegaFF[2]))
-		self.pm.p("OmegaFB_Z : " + str(omegaFB[1]))
+		self.pm.p("OmegaFB_Z : " + str(omegaFB[2]))
 #		self.pm.p("OmegaNet : " + str(OmegaFF[1, 0]+OmegaFB[1, 0]))
 #		self.pm.p("OmegaDifference : " + str(OmegaFF[1, 0]+OmegaFB[1, 0] - Omega[1,0]))
 		THIS.command.omega=omega
@@ -889,7 +889,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.pm.p("PitchFactor: " + str(pitchFactor))
 		self.pm.pMsg("pitch dt ", self.thisTS)
 		(cmd.pitchCMD , CS.pitchTerms) = self.pitchController.update(eTheta, THIS.pitch.rate - cmd.thetaDDot ,self.thisTS,
-				 (THIS.attitude.pitch-THIS.pitch.value) +  cmd.thetaD,pitchFactor) #Feedforward is desired pitch plus difference between velocity and body pitch
+				 (THIS.attitude.pitch-THIS.pitch.value)*0 +  cmd.thetaD,pitchFactor) #Feedforward is desired pitch plus difference between velocity and body pitch
 		CS.accPitchError  = self.pitchController.integrator
 		cmd.timestamp = self.fcTime()
 		self.pm.p('Desired Pitch: ' + str(cmd.thetaD))
@@ -1050,7 +1050,7 @@ def skew(omega):
 					   [-omega.item(1),omega.item(0),0.0]])
 	return Omega
 
-nu1=1
+nu1=50.0
 nu2=1.0
 def sigma(x):
 	#return 1.0
