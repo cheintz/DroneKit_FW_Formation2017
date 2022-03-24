@@ -52,7 +52,6 @@ def getParams():
 	# temp[3][1]=temp[1][3]=0
 	# temp[1][4]=temp[4][1]=0
 	# temp[1][0]=1  #Leader and agent 1
-	# temp[2][0]=1  #Leader and agent 2
 
 #tree
 	# temp[2][1]=1 #note: this indexed by mavid-1, where the first follower has mavid 2 and index 1
