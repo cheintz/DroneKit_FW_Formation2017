@@ -20,7 +20,7 @@ def getParams():
 #	defaultParams.desiredPosition = np.array([[[-5,5,2]],[[-5,5,-80]]])
 	#aFiltAccel to 1 for no filtering
 
-	defaultParams.gains = {'kl':0.3*np.diag([1,1,1]) , 'ka': 0.0*np.diag([1,1,1+0*0.3])
+	defaultParams.gains = {'kl':1*np.diag([1,1,1]) , 'ka': 0.5*np.diag([1,1,1+0*0.3])
 		,'vMin': 16,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941
 		,'rollLimit':50/(180/m.pi),'kPitch':KPID(.5, 0.2,0.0),'kAlt':KPID(.026, .0017,.0105),'pitchLimit':20/(180/m.pi)
 		,'maxEHeading':50,'maxEPitch':50,'maxESpeed':500,'a1':2.0,'a2':0.10,'b1':2.0,'b2':0.2,'c1':1.5,'c2':0.2 #a for speed, b for heading, c for pitch
@@ -40,8 +40,11 @@ def getParams():
 	defaultParams.peerTimeout = 5 #seconds
 	defaultParams.localTimeout = 1  # seconds
 	defaultParams.leaderID = 1   #MAV ID of leader
-	defaultParams.expectedMAVs = 2 #2 MAVs would be 1 agent, plus the leader
+	defaultParams.expectedMAVs = 4 #2 MAVs would be 1 agent, plus the leader
 	temp=np.zeros([5,5])
+	#AlltoAll
+	temp =np.ones([5,5])
+
 #cycle
 #	temp[1][2]=temp[2][1]=1 #note: this indexed by mavid-1, where the first follower has mavid 2 and index 1
 #	temp[2][3]=temp[3][2]=1
