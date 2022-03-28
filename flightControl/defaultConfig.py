@@ -16,7 +16,7 @@ def getParams():
 	defaultParams = Parameter()
 	defaultParams.receivedTime = time.time()     #Note: negative Z = up
 	defaultParams.desiredPosition=np.array([[-10,0,-15],[-10,0,15],
-		[-5,-5,2],[-0.5,-0.5,-120] ])  #Agent, amount forward, amount right, absolute altitude, meters
+		[-20,0,30],[-0.5,-0.5,-120] ])  #Agent, amount forward, amount right, absolute altitude, meters
 #	defaultParams.desiredPosition = np.array([[[-5,5,2]],[[-5,5,-80]]])
 	#aFiltAccel to 1 for no filtering
 
