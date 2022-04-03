@@ -973,7 +973,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.speedTerms.extraKI = speedIFactor
 
 		switchStateDot = self.switchFunction(-siTilde * sdiDot)
-		switchStateInt = self.switchFunction(.01*siTilde * CS.accSpeedError)
+		switchStateInt = self.switchFunction(siTilde * CS.accSpeedError)
 
 		CS.speedCancelTerm = (-1.0 / gSpeed) * fSpeed
 		CS.speedTerms.p = (-1.0 / gSpeed) * GAINS['a1'] * speedPFactor * siTilde * h / mu
