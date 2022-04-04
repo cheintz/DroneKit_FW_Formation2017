@@ -17,7 +17,7 @@ def getParams():
 	defaultParams.receivedTime = time.time()     #Note: negative Z = up
 	# defaultParams.desiredPosition=np.array([[-10,0,-15],[-10,0,15],
 	# 	[-20,0,30] ])  #Agent, amount forward, amount right, absolute altitude, meters
-	defaultParams.desiredPosition = np.array([[-5, 5, 0], [-5, -5, -2],[-5, -5, 2]]) #for SITL
+	defaultParams.desiredPosition = np.array([[-10, 0, 0], [-5, -5, -2],[-5, -5, 2]]) #for SITL
 #	defaultParams.desiredPosition = np.array([[[-5,5,2]],[[-5,5,-80]]])
 	#aFiltAccel to 1 for no filtering
 
@@ -25,7 +25,8 @@ def getParams():
 		,'vMin': 16,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941
 		,'rollLimit':50/(180/m.pi),'kPitch':KPID(.5, 0.2,0.0),'kAlt':KPID(.026, .0017,.0105),'pitchLimit':20/(180/m.pi)
 		,'maxEHeading':50,'maxEPitch':50,'maxESpeed':500,'a1':2.0,'a2':0.10,'b1':2.0,'b2':0.2,'c1':1.5,'c2':0.2 #a for speed, b for heading, c for pitch
-		,'maxEAlt':50,'epsD':0.2,'ki':3,'pBarrier':1/255.0}
+		,'maxEAlt':50,'epsD':0.2,'ki':3,'pBarrier':1/255.0
+	    ,'hQP': 1e6, 'deltaC':5.0, 'alphaQ':1, 'alphaS':1}
 	defaultParams.config = {'printEvery':50,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
 		,'acceptableEngageMode': (VehicleMode('FBWA'),), 'dimensions': 3, 'maxPropagateSeconds': 5,'mass':6.766
 		,'spdParam':{'cd0':0.0139,'cd_ail':0.0,'cd_ele':0.0195,'cdl':0.0875,'spdThrustScl': 1.04
@@ -41,7 +42,7 @@ def getParams():
 	defaultParams.peerTimeout = 5 #seconds
 	defaultParams.localTimeout = 1  # seconds
 	defaultParams.leaderID = 1   #MAV ID of leader
-	defaultParams.expectedMAVs = 4 #2 MAVs would be 1 agent, plus the leader
+	defaultParams.expectedMAVs = 2 #2 MAVs would be 1 agent, plus the leader
 	temp=np.zeros([5,5])
 	#AlltoAll
 	# temp =np.ones([5,5])

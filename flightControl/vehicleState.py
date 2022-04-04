@@ -26,7 +26,7 @@ ControlState = recordtype('ControlState',[('pgTerm',zeroVect),('rotFFTerm',zeroV
   	,'accHeadingError',('rollTerms',PIDTerms()),'accSpeedError'
 	,'accPitchError',('pitchTerms',PIDTerms()),'accAltError','fPitch','gPitch','pitchCancelTerm'
 	,('speedTerms',PIDTerms()),'speedCancelTerm','fSpeed','gSpeed'
-	,'h','phps','phpsd','mu'], default = 0.0)
+	,'h','phps','phpsd','mu',('QPActive',False)], default = 0.0)
 
 Message = recordtype('Message','msgType,sendTime,content', default = None)
 

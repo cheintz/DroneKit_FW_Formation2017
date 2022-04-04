@@ -16,6 +16,7 @@ import copy
 from pid import PIDController
 from curtsies import Input
 from mutil import *
+import quadprog
 
 import defaultConfig
 
@@ -797,7 +798,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else:
 			self.pm.p("Formation 3D")
 
-		qil = getRelPos(ql_gps, qi_gps)
+		zi = getRelPos(ql_gps, qi_gps)
 
 		Rg = eul2rotm(psiG,thetaG,phiG)
 		OmegaG = skew(ERatesToW(psiG,thetaG,phiG,LEADER.heading.rate,thetaGDot,LEADER.roll.rate))
@@ -815,15 +816,15 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		self.pm.p( 'Time: = ' + str(THIS.timestamp))
 	#Compute from leader
-		zetai = qil - Rg* di
+		zetai = zi - Rg* di
 		zetaiDot = (qiDot-pg-RgDot*di)
 
 		if (THIS.parameters.config['dimensions'] == 2):
 			zetai[2] = 0
 			zetaiDot[2]=0
 
-		self.pm.p("qil Inertial: " + str(qil))
-		self.pm.p("qil Leader: " + str(Rg.transpose()*qil))
+		self.pm.p("qil Inertial: " + str(zi))
+		self.pm.p("qil Leader: " + str(Rg.transpose()*zi))
 
 		CS.pgTerm = pg
 		self.pm.p('pgTerm: ' + str(CS.pgTerm))
@@ -900,7 +901,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS.command.thetaD = -m.asin(bdi[2])
 		THIS.command.thetaDDot = velAndAccelToPitchRate(pdi, pdiDot)
 
-		#Heading/Roll
+		#Heading
 		THIS.command.psiD = m.atan2(bdi[1],bdi[0])
 		THIS.command.psiDDot = velAndAccelToHeadingRate(pdi,pdiDot)
 
@@ -909,8 +910,76 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.pitchControl()
 		self.rollControl()
 
-		# Do QP here
+		# Make desired virtual control
+		cmd = THIS.command
 		si = THIS.groundspeed
+		sigmaDotCMD = m.tan(cmd.rollCMD) * 9.81 / (si*m.cos(THIS.pitch.value))
+		fPitch, gPitch = self.getPitchDynamics()
+		gammaDotCMD = fPitch + gPitch * cmd.pitchCMD
+		fSpeed = getSpeedF(THIS)
+		gSpeed = getSpeedG(THIS)
+		sDotCMD = fSpeed + gSpeed * cmd.ui
+		UBar = np.matrix([[sigmaDotCMD],[gammaDotCMD],[sDotCMD]])
+		ziDot = qiDot-pg
+
+		alphaQ = GAINS['alphaQ']
+		alphaS = GAINS['alphaS']
+		deltaC = GAINS['deltaC']
+
+		#formulate the QP barrier functions
+		expConst = 1e-4
+		expFactor = m.exp(-0.5*expConst*qiDot.T*qiDot)
+		Fi = computeF(THIS.heading.value, THIS.heading.value,si)
+
+		#Make leader row (standard form is is Gx<=h, quadprog takes Gx>=h)
+		G =-alphaQ * (zi.T*zi - deltaC**2).item() * qiDot.T * expConst * Fi  # 1x3
+		h = -0.5 *zi.T*zi + 0.5*deltaC**2 - alphaQ * ziDot.T*zi
+
+		#Add agent rows
+		for j in range(1,n+1): #This loops over mav IDs, not indices in any arrays
+			if(ID != j and j !=THIS.parameters.leaderID):
+				self.pm.p( "Collision avoidance with mav ID: "+ str(j))
+				JPLANE = self.stateVehicles[(j)]
+				qj_gps = np.matrix([[JPLANE.position.lat], [JPLANE.position.lon],[-JPLANE.position.alt]])
+				zij = getRelPos(qj_gps,qi_gps)
+				qjDot = np.matrix([[JPLANE.velocity[0]],[JPLANE.velocity[1]],[JPLANE.velocity[2]]])
+				zijDot = qiDot - qjDot
+
+				G = np.block([[G],[-alphaQ * (zij.T*zij - deltaC**2).item() * qiDot.T * expConst*Fi    ]]) #vertcats a 1x3
+				h = np.block([[h],[-0.5*zij.T*zij + 0.5*deltaC**2 - alphaQ*  zijDot.T*zij ]]) #vertcats a scalar
+		#Add speed rows
+		G = np.block([[G], [ np.matrix([[0,0,-1],[0,0,1]])]   ]) # vertcats a 2x3
+		h = np.block([[h],[ np.matrix([[-alphaS*(sMax-si)], [-alphaS*(si-sMin)] ])  ] ]) #vertcats a 2x1
+
+		#Add slack columns
+		G = np.hstack([G, np.vstack([-np.eye(n-1)/expFactor, -np.zeros([2,n-1])]) ])   #horzcat the collision slack parameter "help"
+		G = np.hstack([G, np.vstack([np.zeros(n-1), np.ones([2,1])] )]) #horzcats the speed slack parameter "help"
+
+		#build objective matrix functions 0.5 x' * P*x + q' * x
+		A = 2* np.diag( np.hstack([np.ones(3), GAINS['hQP']*np.ones(n-1+1)])  ) #make row and then make diagonal
+
+		b = np.hstack([-UBar.T, np.zeros([1,n-1+1]) ])
+
+		#Solve QP
+		#quadprog calls these G, C, A, b. last arg zero is because no equality constraints
+		temp = quadprog.solve_qp(0.5*A,-np.array(b.T).squeeze(), G.T,np.array(h.T).squeeze(),0 )
+		# temp = quadprog.solve_qp(0.5*A, -np.array(b.T).squeeze()) #unconstrainted for testing
+		U = temp[0][0:3]
+		J = temp[1] #minimum is not zero because we drop the UBar' * UBar term.
+		# print(U)
+		# print UBar
+
+		#Make actual control if changed
+		CS.QPActive = (np.linalg.norm(U - UBar.T ) > 1e-8)
+		if(CS.QPActive ):
+			print "QP active!"
+			cmd.rollCMD = m.atan(U.item(0) * si * THIS.pitch.value / 9.81)
+			cmd.pitchCMD = (U.item(1) - fPitch)  / gPitch
+			cmd.ui =  (U.item(2) - fSpeed ) / gSpeed
+
+
+
+	#TODO: do not change integrator state if QP is active
 
 
 
@@ -1093,14 +1162,13 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		#unity gain low pass in pitch
 		aPitch = 1.0/self.vehicle.parameters['PTCH2SRV_TCONST']
-		CS.fPitch = fPitch = -aPitch * THIS.attitude.pitch
-		CS.gPitch = gPitch = aPitch
+		CS.fPitch,CS.gPitch =self.getPitchDynamics()
 		ePitch = THIS.pitch.value - THIS.command.thetaD
 
-		CS.pitchCancelTerm = -fPitch / gPitch #Add some filtered offset of pitch minus desired pitch here maybe
-		CS.pitchTerms.p = -GAINS['c1'] * pitchPFactor * ePitch / gPitch
-		CS.pitchTerms.i = -GAINS['c2'] * pitchIFactor * CS.accPitchError * self.switchFunction(CS.accPitchError * eTheta) / gPitch
-		CS.pitchTerms.ff =  self.switchFunction(-cmd.thetaDDot * eTheta) * cmd.thetaDDot / gPitch
+		CS.pitchCancelTerm = -CS.fPitch / CS.gPitch #Add some filtered offset of pitch minus desired pitch here maybe
+		CS.pitchTerms.p = -GAINS['c1'] * pitchPFactor * ePitch / CS.gPitch
+		CS.pitchTerms.i = -GAINS['c2'] * pitchIFactor * CS.accPitchError * self.switchFunction(CS.accPitchError * eTheta) / CS.gPitch
+		CS.pitchTerms.ff =  self.switchFunction(-cmd.thetaDDot * eTheta) * cmd.thetaDDot / CS.gPitch
 		CS.pitchTerms.extraKP = pitchPFactor
 		CS.pitchTerms.extraKI = pitchIFactor
 
@@ -1186,6 +1254,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		out = linearToExponential(self.vehicle.channels[channel],
 			float(self.vehicle.parameters[prefix+'_MIN']), float(self.vehicle.parameters[prefix+'_MAX']), factor)
 		return out
+	def getPitchDynamics(self):
+		aPitch = 1.0 / self.vehicle.parameters['PTCH2SRV_TCONST']
+		fPitch = -aPitch * self.vehicleState.attitude.pitch
+		gPitch = aPitch
+		return fPitch, gPitch
 
 def wrapToPi(value):
 	# type: (float) -> float
@@ -1378,3 +1451,14 @@ def propellerToThrustAndTorque(params,thrust, airspeed):
 	if torque<0.0:
 		torque = 0.0
 	return rpm, torque
+def computeF (sigmai, gammai,si):
+	ss = m.sin(sigmai)
+	cs = m.cos(sigmai)
+	sg = m.sin(gammai)
+	cg = m.cos(gammai)
+
+	F = np.matrix([[ -si *ss * cg,   si*cs*cg, cs*cg],
+					[ si * cs * cg, si * ss * cg ,   ss * cg],
+					[ 0, -si * cg, -cg]  ] )
+
+	return F
