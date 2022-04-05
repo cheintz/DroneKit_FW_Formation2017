@@ -46,7 +46,8 @@ class BasicVehicleState(object):
 		self.counter = 0
 		self.isFlocking = False	
 		self.timeToWait = 0	
-		self.qdIndex = 0
+		self.qdIndex = 0   #255 if not flocking
+		self.qdScale = 1.0
 		if other is not None:
 #			print "Calling basic copy constructor"
 			for k in self.__dict__.keys():
@@ -86,7 +87,8 @@ class BasicVehicleState(object):
 		headers += ['cRoll', 'cRollRate', 'cRollAccel']
 		values += [self.roll.value,self.roll.rate,self.roll.accel]
 
-
+		headers += ['qdIndex', 'qdScale']
+		values += [self.qdIndex, self.qdScale]
 
 		out = OrderedDict(zip(headers,values))
 		return out
@@ -102,7 +104,7 @@ class BasicVehicleState(object):
 
 
 
-	def fromCSVList(self,lin): #Probably intended to be used for different data transmission format
+	def fromCSVList(self,lin): #Still used in binary transmission format
 		out= BasicVehicleState()
 		din = out.getCSVLists()
 		din = OrderedDict(zip(din.keys(),lin  ))
@@ -122,6 +124,8 @@ class BasicVehicleState(object):
 		out.heading = CourseAngle(din['cHeading'],din['cHeadingRate'], din['cHeadingAccel'] )
 		out.roll = CourseAngle(din['cRoll'],din['cRollRate'],din['cRollAccel'])
 		out.pitch = CourseAngle(din['cPitch'], din['cPitchRate'], din['cPitchAccel'])
+		out.qdScale = din['qdScale']
+		out.qdIndex = din['qdIndex']
 		return out
 	
 class FullVehicleState(BasicVehicleState):

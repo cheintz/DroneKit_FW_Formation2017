@@ -15,18 +15,20 @@ except KeyError:
 def getParams():
 	defaultParams = Parameter()
 	defaultParams.receivedTime = time.time()     #Note: negative Z = up
-	# defaultParams.desiredPosition=np.array([[-10,0,-15],[-10,0,15],
+	# defaultParams.desiredPosition=np.array([[-10,0,-15],[-10,0,15], # for flight
 	# 	[-20,0,30] ])  #Agent, amount forward, amount right, absolute altitude, meters
-	defaultParams.desiredPosition = np.array([[-10, 0, 0], [-5, -5, -2],[-5, -5, 2]]) #for SITL
-#	defaultParams.desiredPosition = np.array([[[-5,5,2]],[[-5,5,-80]]])
+	# defaultParams.desiredPosition = np.array([[[-5, 5, 0], [-5, -5, 0],[7, 0, 0]] ,
+	# 										 [[5, -5, 0], [5, 5, 0],[-7, 0, 0]]]) #for QP
+	defaultParams.desiredPosition = np.array([[[-10, 0, 0], [-10, -5, 0],[7, 0, 0]] ,
+											 [[10, 0, 0], [-10, 5, 0],[-7, 0, 0]]]) #for QP test
 	#aFiltAccel to 1 for no filtering
 
-	defaultParams.gains = {'kl':1*np.diag([1,1,1]) , 'ka': 0.5*np.diag([1,1,1+0*0.3])
+	defaultParams.gains = {'kl':1*np.diag([1,1,1]) , 'ka': 0*0.5*np.diag([1,1,1+0*0.3])
 		,'vMin': 16,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941
 		,'rollLimit':50/(180/m.pi),'kPitch':KPID(.5, 0.2,0.0),'kAlt':KPID(.026, .0017,.0105),'pitchLimit':20/(180/m.pi)
-		,'maxEHeading':50,'maxEPitch':50,'maxESpeed':500,'a1':2.0,'a2':0.10,'b1':2.0,'b2':0.2,'c1':1.5,'c2':0.2 #a for speed, b for heading, c for pitch
+		,'maxEHeading':50,'maxEPitch':50,'maxESpeed':500,'a1':2.0,'a2':0*0.10,'b1':2.0,'b2':0.2,'c1':1.5,'c2':0.2 #a for speed, b for heading, c for pitch
 		,'maxEAlt':50,'epsD':0.2,'ki':3,'pBarrier':1/255.0
-	    ,'hQP': 1e6, 'deltaC':5.0, 'alphaQ':1, 'alphaS':1}
+	    ,'hQP': 1e6, 'deltaC':5.0, 'alphaQ':5, 'alphaS':1e8}
 	defaultParams.config = {'printEvery':50,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
 		,'acceptableEngageMode': (VehicleMode('FBWA'),), 'dimensions': 3, 'maxPropagateSeconds': 5,'mass':6.766
 		,'spdParam':{'cd0':0.0139,'cd_ail':0.0,'cd_ele':0.0195,'cdl':0.0875,'spdThrustScl': 1.04
@@ -37,7 +39,9 @@ def getParams():
 		,'OrientationRateMethod':'OmegaI' #OmegaI, Direct
 		,'enableRCMiddleLoopGainAdjust': False #All, #Switched, False
 		,'SwitchedSpeedControl':'Continuous' #Continuous, Pure, None
-		,'uiBarrier':False}
+		,'uiBarrier':False
+		,'qdScaleChannel': False #only the leader matters
+		,'qdIndChannel': 7} #Ch7 is usually the middle loop tuning switch, False for none Only the leader matters
 	defaultParams.GCSTimeout = 5 #seconds
 	defaultParams.peerTimeout = 5 #seconds
 	defaultParams.localTimeout = 1  # seconds
@@ -45,7 +49,7 @@ def getParams():
 	defaultParams.expectedMAVs = 2 #2 MAVs would be 1 agent, plus the leader
 	temp=np.zeros([5,5])
 	#AlltoAll
-	# temp =np.ones([5,5])
+	temp =np.ones([5,5])
 
 #cycle
 	# temp[2][1]=1 #note: this indexed by mavid-1, where the first follower has mavid 2 and index 1

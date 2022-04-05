@@ -130,7 +130,8 @@ binFormat = ('d I '  # sendtime, type,
 			' f f f '  #latAccel,lonAccel,altAccel
 			'f f f '  #heading value, rate, accel
 			'f f f '  #pitch value, rate, accel
-			'f f f') #Roll value, rate, accel
+			'f f f' #Roll value, rate, accel
+			'b' 'f' ) # Qd Index, QD scale
 messageStruct = struct.Struct(binFormat)
 
 def msgToBinary(msg):

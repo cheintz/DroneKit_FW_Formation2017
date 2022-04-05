@@ -175,6 +175,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.stateVehicles[ID].timestamp = msg.sendTime #update vehicleState with sent time
 			self.vehicleState.timeout.peerLastRX[ID]=msg.sendTime
 
+			if(ID==self.parameters.leaderID): #Copy useful things from the leader. Done this way for data integrity
+				self.vehicleState.qdScale = temp.qdScale
+				self.vehicleState.qdIndex = temp.qdIndex
+
+
 	def scaleAndWriteCommands(self):
 		params = self.parameters
 		xPWM = self.vehicleState.command.rollCMD * self.parameters.rollGain+self.parameters.rollOffset
@@ -277,7 +282,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		if (self.sitl or self.clockOffset == 0 or abs(self.clockOffset - candidateClockOffset) < 0.02 or
 			abs(self.clockOffset - candidateClockOffset) >1): #Once clock offset is calculated, reject moderate jumps in clock offset
 																	# to reject delayed processing of timestamp messages by PyMAVLink
-#			print "Clock offset shifted by " + str(self.clockOffset - candidateClockOffset)
 			self.clockOffset = candidateClockOffset
 		self.pm.pMsg("Clock offset: ", self.clockOffset)
 		self.pm.pMsg("candidate offset: ", candidateClockOffset)
@@ -297,7 +301,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		if (lastPositionTime>self.vehicleState.timestamp):  #if new position is available
 			self.pm.p("posTime: " + str(self.vehicleState.timestamp))
-			#print "got a new position"
 			self.vehicleState.isPropagated = False
 			self.vehicleState.position = self.vehicle.location.global_relative_frame
 			self.vehicleState.velocity = self.vehicle.velocity
@@ -310,10 +313,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		if self.lastLoopTime is None: #startup calculation of Ts
 			print "first loop"
 			Ts = self.parameters.Ts
-			isFirstLoop = True
 		else:
 			Ts = time.time() - self.lastLoopTime
-			isFirstLoop=False
 
 		#Record sample time
 		self.vehicleState.counter+=1
@@ -362,10 +363,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicleState.navOutput = {'navRoll': nco.nav_roll,'navPitch':nco.nav_pitch,'navBearing':nco.nav_bearing}
 		ATT=self.vehicleState.attitude
 
-		if isFirstLoop:
-			print "initializing fwdAccel"
-			lastSpeed=self.vehicleState.groundspeed
-			self.vehicleState.fwdAccel = 0
 
 		#Earth frame Acceleration from accelerometers
 		R = eul2rotm(ATT.yaw,ATT.pitch,ATT.roll)
@@ -377,43 +374,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		aAccelVert = self.parameters.gains['aFiltAccelVert']
 		aAccelHoriz = self.parameters.gains['aFiltAccelHoriz']
 		earthAccelFiltered=list()
-		earthAccelFiltered.append(aAccelHoriz * earthAccel[0] + (1.0-aAccelHoriz) *lastEarthAccel[0])
+		earthAccelFiltered.append(aAccelHoriz * earthAccel[0] + (1.0 - aAccelHoriz) * lastEarthAccel[0])
 		earthAccelFiltered.append(aAccelHoriz * earthAccel[1] + (1.0 - aAccelHoriz) * lastEarthAccel[1])
-		earthAccelFiltered.append(aAccelVert * earthAccel[2] + (1.0 - aAccelVert) * lastEarthAccel[2])
-
-#		print "EarthAccel Raw:" + str(earthAccel[0]) + "\tfiltered: " + str(earthAccelFiltered[0])
-#		earthAccelFiltered = earthAccel
+		earthAccelFiltered.append(aAccelVert  * earthAccel[2] + (1.0 - aAccelVert ) * lastEarthAccel[2])
 		self.vehicleState.accel=earthAccelFiltered
-		#print(earthAccelFiltered)
-
-	#"Attitude" Rates
-
-	#Filtered differentiation startup handling
-#		if self.vehicleState.heading.rate is None:
-#			lastHeading = self.vehicleState.heading.value
-#			self.vehicleState.heading.rate = 0
-#			lastHeadingRate = 0
-#			self.vehicleState.heading.accel = 0
-#			lastHeadingAccel = 0
-#
-#		aHdg = self.parameters.gains['aFilterHdg']
-#		deltaHeading = wrapToPi(self.vehicleState.heading.value -lastHeading)
-		#self.vehicleState.heading.rate = (1- aHdg) * lastHeadingRate +aHdg/Ts * (deltaHeading)
-		#self.vehicleState.heading.accel = (1- aHdg) * lastHeadingAccel + aHdg/Ts * (
-		#self.vehicleState.heading.rate -lastHeadingRate) 	 #Use filter for heading accel
-
-	#Roll-based heading rate
-#		if(self.vehicleState.groundspeed >5):
-#			self.vehicleState.heading.rate = 9.81/self.vehicleState.groundspeed *
-#					m.tan(self.vehicleState.attitude.roll * m.cos(self.vehicleState.attitude.pitch))
-#		else: #low speed condition; don't divide by small groundspeed
-#			self.vehicleState.heading.rate = self.vehicle.attitude.yawspeed
-#		if(s>5):
-#			self.vehicleState.heading.accel = -(np.asscalar( 9.81/ s**2 *(s*ATT.pitchspeed*m.sin(ATT.pitch)*m.tan(ATT.roll)
-#				-s*m.cos(ATT.pitch)*ATT.rollspeed*1/(m.cos(ATT.roll)**2)
-#				+ m.cos(ATT.pitch)*m.tan(ATT.roll)*self.vehicleState.fwdAccel) ))#use heuristic for heading acceleration
-#		else:
-#			self.vehicleState.heading.accel = 0
 
 	#Accelerometer-based Attitude Rates
 		if(VS.groundspeed>3):
@@ -443,12 +407,18 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicleState.heading.accel =  deadzone(dHeadingRate / Ts,0.15)
 		self.vehicleState.pitch.accel =  deadzone(dPitchRate / Ts,0.7)
 
-		if(True or self.vehicle.channels['8'] < 1200): #currently hard-coded to the first desired relative position
-			self.vehicleState.qdIndex = 0
-		elif(self.vehicle.channels['8'] < 1700):
-			self.vehicleState.qdIndex = 1
-		else:
-			self.vehicleState.qdIndex = 2
+		if(self.parameters.leaderID == self.vehicleState.ID):
+			qdic = self.parameters.config['qdIndChannel']
+			if( 5 < qdic <10 ):
+				self.vehicleState.qdIndex = PWMTo3Pos(self.vehicle.channels[qdic])
+			else:
+				self.vehicleState.qdIndex = 0
+
+			qdsc =self.parameters.config['qdScaleChannel']
+			if( 5< qdsc< 10):
+				self.vehicleState.qdScale = linearToLinear(self.vehicle.channels[qdsc],1100,1900,3 ) #TODO: use actual channel range
+			else:
+				self.vehicleState.qdScale = 1.0
 
 		if(self.parameters.config['propagateStates']):
 			oldPos = self.vehicleState.position
@@ -777,7 +747,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else: #only 1 desired position
 			qd = np.asmatrix(THIS.parameters.desiredPosition)
 
-		di=qd[ID-2,np.matrix([0,1,2])]
+		di= THIS.qdScale*  qd[ID-2,np.matrix([0,1,2])]
 		self.pm.pMsg('Qd: ', di)
 		di.shape=(3,1)
 		self.vehicleState.command.qd = di
@@ -844,7 +814,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				JPLANE = self.stateVehicles[(j)]
 				qj_gps = np.matrix([[JPLANE.position.lat], [JPLANE.position.lon],[-JPLANE.position.alt]])
 				qij = getRelPos(qj_gps,qi_gps)
-				qdjl = qd[j-2,0:3]
+				qdjl = THIS.qdScale* qd[j-2,0:3]
 				qdjl.shape=(3,1)
 				pj = np.matrix([[JPLANE.velocity[0]],[JPLANE.velocity[1]],[JPLANE.velocity[2]]])
 				dij = (di-qdjl )
@@ -927,12 +897,14 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		deltaC = GAINS['deltaC']
 
 		#formulate the QP barrier functions
-		expConst = 1e-4
-		expFactor = m.exp(-0.5*expConst*qiDot.T*qiDot)
-		Fi = computeF(THIS.heading.value, THIS.heading.value,si)
+		expConst = 1e-2# 1e-4
+		expFactor = m.exp(-expConst*qiDot.T*qiDot)
+		expFactor = 1.0
+
+		Fi = computeF(THIS.heading.value, THIS.pitch.value,si)
 
 		#Make leader row (standard form is is Gx<=h, quadprog takes Gx>=h)
-		G =-alphaQ * (zi.T*zi - deltaC**2).item() * qiDot.T * expConst * Fi  # 1x3
+		G =-alphaQ * expConst * (zi.T*zi - deltaC**2).item() * qiDot.T *  Fi  # 1x3
 		h = -0.5 *zi.T*zi + 0.5*deltaC**2 - alphaQ * ziDot.T*zi
 
 		#Add agent rows
@@ -953,11 +925,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		#Add slack columns
 		G = np.hstack([G, np.vstack([-np.eye(n-1)/expFactor, -np.zeros([2,n-1])]) ])   #horzcat the collision slack parameter "help"
-		G = np.hstack([G, np.vstack([np.zeros(n-1), np.ones([2,1])] )]) #horzcats the speed slack parameter "help"
+		G = np.hstack([G, np.vstack([np.zeros([n-1,1]), np.ones([2,1])] )]) #horzcats the speed slack parameter "help"
 
 		#build objective matrix functions 0.5 x' * P*x + q' * x
-		A = 2* np.diag( np.hstack([np.ones(3), GAINS['hQP']*np.ones(n-1+1)])  ) #make row and then make diagonal
-
+		A = 2* np.diag( np.hstack([np.ones(3), GAINS['hQP']*np.ones(n-1+1)])  ) #Cost is diagonal in 3 controls,  then n slack vars
+	# 	A = 2 * np.diag(np.hstack([np.ones(3), np.array([1000000,.00000001])]))  #Cost is diagonal in 3 controls, some number of slack vars
 		b = np.hstack([-UBar.T, np.zeros([1,n-1+1]) ])
 
 		#Solve QP
@@ -965,15 +937,17 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		temp = quadprog.solve_qp(0.5*A,-np.array(b.T).squeeze(), G.T,np.array(h.T).squeeze(),0 )
 		# temp = quadprog.solve_qp(0.5*A, -np.array(b.T).squeeze()) #unconstrainted for testing
 		U = temp[0][0:3]
-		J = temp[1] #minimum is not zero because we drop the UBar' * UBar term.
+		slack = temp[0][3:]
+		J = temp[1] #minimum cost is not zero because we drop the UBar' * UBar term.
 		# print(U)
 		# print UBar
 
 		#Make actual control if changed
+		temp2 = U - UBar.T
 		CS.QPActive = (np.linalg.norm(U - UBar.T ) > 1e-8)
 		if(CS.QPActive ):
-			print "QP active!"
-			cmd.rollCMD = m.atan(U.item(0) * si * THIS.pitch.value / 9.81)
+			print "QP active!" + str(temp2)
+			cmd.rollCMD = m.atan(U.item(0) * si * m.cos(THIS.pitch.value) / 9.81)
 			cmd.pitchCMD = (U.item(1) - fPitch)  / gPitch
 			cmd.ui =  (U.item(2) - fSpeed ) / gSpeed
 
@@ -1406,6 +1380,7 @@ def linearToExponential(value,min,max,factor):
 	normalized = (value-min)/(max-min) #0 to 1
 	normalized = normalized*2.0-1.0 #-1 to 1
 	return factor**normalized   # Example, factor =2, returns 1/2 for -1 and 2 for 1. 1 for 0.
+
 def linearToLinear(value,min,max,factor):
 	normalized = (value-min)/(max-min) #0 to 1
 	return factor * normalized #returns 0 to factor
@@ -1457,8 +1432,15 @@ def computeF (sigmai, gammai,si):
 	sg = m.sin(gammai)
 	cg = m.cos(gammai)
 
-	F = np.matrix([[ -si *ss * cg,   si*cs*cg, cs*cg],
-					[ si * cs * cg, si * ss * cg ,   ss * cg],
-					[ 0, -si * cg, -cg]  ] )
-
+	F = np.matrix([[ -si *ss * cg,	-si * cs *sg	, cs*cg],
+					[ si * cs * cg, -si * ss * sg 	, ss * cg],
+					[ 0, 			-si * cg		, -sg]  ] )
 	return F
+
+def PWMTo3Pos(value, lowThresh=1200, highThresh=1700):
+	if value < lowThresh:
+		return 0
+	elif value < highThresh:
+		return 1
+	else:
+		return 2
