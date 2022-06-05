@@ -758,7 +758,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		denom = h + (sdt-si) * phps
 		CS.speedCancelTerm = (1.0 / littleg) * -littlef
 		if (sMin<= si <= sMax): #If in Si
-			CS.speedRateTerm =  (-1.0/littleg) * sdiDot * h / denom
+			CS.speedRateTerm =  (1.0/littleg) * sdiDot * h / denom
 			CS.speedErrorTerm = (1.0/littleg) * GAINS['aSpeed']  *(sdt-si)*h/denom
 			CS.speedErrorCubeTerm = (1.0/littleg) * GAINS['bSpeed']  * (sdt-si)**3 / denom
 			CS.speedOutTerm = 0.0
@@ -889,7 +889,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.pm.p("PitchFactor: " + str(pitchFactor))
 		self.pm.pMsg("pitch dt ", self.thisTS)
 		(cmd.pitchCMD , CS.pitchTerms) = self.pitchController.update(eTheta, THIS.pitch.rate - cmd.thetaDDot ,self.thisTS,
-				 (THIS.attitude.pitch-THIS.pitch.value)*0 +  cmd.thetaD,pitchFactor) #Feedforward is desired pitch plus difference between velocity and body pitch
+				 (THIS.attitude.pitch-THIS.pitch.value) +  cmd.thetaD,pitchFactor) #Feedforward is desired pitch plus difference between velocity and body pitch
 		CS.accPitchError  = self.pitchController.integrator
 		cmd.timestamp = self.fcTime()
 		self.pm.p('Desired Pitch: ' + str(cmd.thetaD))
@@ -1050,7 +1050,7 @@ def skew(omega):
 					   [-omega.item(1),omega.item(0),0.0]])
 	return Omega
 
-nu1=50.0
+nu1=1
 nu2=1.0
 def sigma(x):
 	#return 1.0
@@ -1058,7 +1058,7 @@ def sigma(x):
 
 def sigmaDot(x):
 	#return np.matrix(np.zeros((3,1)))
-	return -1.0*x/((nu1+nu2*x.T*x).item()**(3.0/2.0))
+	return -nu2*x/((nu1+nu2*x.T*x).item()**(3.0/2.0))
 
 def F(x):
 	return 1.0
