@@ -416,10 +416,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 			qdsc =self.parameters.config['qdScaleChannel']
 			if( 5< qdsc< 10):
-				self.vehicleState.qdScale = linearToLinear(self.vehicle.channels[qdsc],1100,1900,3 ) #TODO: use actual channel range
+				self.vehicleState.qdScale = self.RCToExpo(qdsc,2 )
 			else:
 				self.vehicleState.qdScale = 1.0
-
+			self.pm.p('Formation Scale:' + str(self.vehicleState.qdScale))
 		if(self.parameters.config['propagateStates']):
 			oldPos = self.vehicleState.position
 			oldqGPS = np.matrix([[oldPos.lat], [oldPos.lon], [-oldPos.alt]])
@@ -892,20 +892,16 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		UBar = np.matrix([[sigmaDotCMD],[gammaDotCMD],[sDotCMD]])
 		ziDot = qiDot-pg
 
-		alphaQ = GAINS['alphaQ']
-		alphaS = GAINS['alphaS']
+		l0q = GAINS['l0q']
+		l1q = GAINS['l1q']
+		ls = GAINS['ls']
 		deltaC = GAINS['deltaC']
-
-		#formulate the QP barrier functions
-		expConst = 1e-2# 1e-4
-		expFactor = m.exp(-expConst*qiDot.T*qiDot)
-		expFactor = 1.0
 
 		Fi = computeF(THIS.heading.value, THIS.pitch.value,si)
 
-		#Make leader row (standard form is is Gx<=h, quadprog takes Gx>=h)
-		G =-alphaQ * expConst * (zi.T*zi - deltaC**2).item() * qiDot.T *  Fi  # 1x3
-		h = -0.5 *zi.T*zi + 0.5*deltaC**2 - alphaQ * ziDot.T*zi
+		#Make leader row (standard form is Gx<=h, quadprog takes Gx>=h)
+		G = 2 * zi.T * Fi  # 1x3
+		h = 2*zi.T* np.matrix(LEADER.accel).T - 2*ziDot.T*ziDot - 2 * l1q * zi.T*ziDot - l0q * (zi.T*zi - deltaC**2) #1x1
 
 		#Add agent rows
 		for j in range(1,n+1): #This loops over mav IDs, not indices in any arrays
@@ -917,15 +913,16 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				qjDot = np.matrix([[JPLANE.velocity[0]],[JPLANE.velocity[1]],[JPLANE.velocity[2]]])
 				zijDot = qiDot - qjDot
 
-				G = np.block([[G],[-alphaQ * (zij.T*zij - deltaC**2).item() * qiDot.T * expConst*Fi    ]]) #vertcats a 1x3
-				h = np.block([[h],[-0.5*zij.T*zij + 0.5*deltaC**2 - alphaQ*  zijDot.T*zij ]]) #vertcats a scalar
+				G = np.block([[G],[2*zij.T*Fi]]) #vertcats a 1x3
+				h = np.block([[h],[2*zij.T*np.matrix(JPLANE.accel).T - 2*zijDot.T*zijDot - 2*l1q*zij.T*zijDot - l0q * (zij.T*zij - deltaC**2)  ]]) #vertcats a scalar
 		#Add speed rows
-		G = np.block([[G], [ np.matrix([[0,0,-1],[0,0,1]])]   ]) # vertcats a 2x3
-		h = np.block([[h],[ np.matrix([[-alphaS*(sMax-si)], [-alphaS*(si-sMin)] ])  ] ]) #vertcats a 2x1
+		hSpeed = (sMax-si)*(si-sMin)
+		G = np.vstack([G, np.matrix([0,0,-2*si + sMax + sMin]) ]) # vertcats a 1x3 (for speed)
+		h = np.vstack([h,-ls*hSpeed]) #vertcats a 1x1
 
 		#Add slack columns
-		G = np.hstack([G, np.vstack([-np.eye(n-1)/expFactor, -np.zeros([2,n-1])]) ])   #horzcat the collision slack parameter "help"
-		G = np.hstack([G, np.vstack([np.zeros([n-1,1]), np.ones([2,1])] )]) #horzcats the speed slack parameter "help"
+		G = np.hstack([G, np.vstack([-np.eye(n-1), -np.zeros([1,n-1])]) ])   #horzcat the collision slack parameter "help"
+		G = np.hstack([G, np.vstack([np.zeros([n-1,1]), np.ones([1,1])] )]) #horzcats the speed slack parameter "help"
 
 		#build objective matrix functions 0.5 x' * P*x + q' * x
 		A = 2* np.diag( np.hstack([np.ones(3), GAINS['hQP']*np.ones(n-1+1)])  ) #Cost is diagonal in 3 controls,  then n slack vars
