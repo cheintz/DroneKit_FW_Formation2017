@@ -15,8 +15,9 @@ except KeyError:
 def getParams():
 	defaultParams = Parameter()
 	defaultParams.receivedTime = time.time()     #Note: negative Z = up
-	defaultParams.desiredPosition=np.array([[-10,0,-15],[-10,0,15], # for flight
-		[-20,0,30] ])  #Agent, amount forward, amount right, absolute altitude, meters
+	defaultParams.desiredPosition=np.array( [[[-10,0,-15],[-10,0,15],	[-20,0,30] ],
+						[[0,0,-15], [-10,0,15],[-20,0,30]],
+						[[0,0,-15],[-10,0,15],[-20,0,30]]] )  #Agent, amount forward, amount right, absolute altitude, meters
 	# defaultParams.desiredPosition = np.array([[[-5, 5, 0], [-5, -5, 0],[7, 0, 0]] ,
 	# 										 [[5, -5, 0], [5, 5, 0],[-7, 0, 0]]]) #for QP
 	# defaultParams.desiredPosition = np.array([[[10, 0, 0], [-7, -7, 0],[-7, 7, 0]] ,
@@ -41,7 +42,7 @@ def getParams():
 		,'SwitchedSpeedControl':'Continuous' #Continuous, Pure, None
 		,'uiBarrier':False
 		,'qdScaleChannel': 7 #only the leader matters
-		,'qdIndChannel': False} #Ch7 is usually the middle loop tuning switch, False for none Only the leader matters
+		,'qdIndChannel': 10} #Ch7 is usually the middle loop tuning switch, False for none Only the leader matters
 	defaultParams.GCSTimeout = 5 #seconds
 	defaultParams.peerTimeout = 5 #seconds
 	defaultParams.localTimeout = 1  # seconds
