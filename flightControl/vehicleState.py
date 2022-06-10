@@ -9,7 +9,7 @@ KPID = recordtype('KPID', ['kp','ki','kd'])
 
 PIDTerms = recordtype('PIDTerms',['p','i','ff','unsaturatedOutput','extraKP','extraKI'], default = 0.0)
 
-Timeout = recordtype('Timeout' , ['GCSTimeoutTime', ('peerTimeoutTime',{}), 'localTimeoutTime', 'GCSLastRx', ('peerLastRX',{})], default = None)
+Timeout = recordtype('Timeout' , ['GCSTimeoutTime', ('peerTimeoutTime',{}), 'GCSLastRx', ('peerLastRX',{})], default = None)
 
 Parameter = recordtype('Parameter',['receivedTime','desiredPosition','gains', 'Ts', 'GCSTimeout', 'peerTimeout', 'localTimeout', 'leaderID'
 	,'expectedMAVs', 'rollGain', 'config', 'rollOffset', 'pitchGain', 'pitchOffset', 'throttleGain', 'throttleMin'

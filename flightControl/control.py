@@ -100,7 +100,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 					#only transmit if still receiving positions from the flight controller
 					self.pushStateToTxQueue() #sends the state to the UDP sending threading
 				else:
-					print ("Local timeout: "  + str(self.fcTime()-self.vehicleState.position.time) + "seconds")
+					print ("Local timeout: "  + str(self.fcTime()-self.vehicleState.position.time) + " seconds")
 				self.pushStateToLoggingQueue()
 				self.pm.p('\n\n')
 
@@ -297,7 +297,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			lastPositionTime = lastPositionTime +self.clockOffset #use the companion computer's time instead
 
 		self.vehicleState.timeout.peerLastRX[self.vehicleState.ID]=lastPositionTime
-		self.vehicleState.timeout.localTimeoutTime=lastPositionTime
 
 		if (lastPositionTime>self.vehicleState.timestamp):  #if new position is available
 			self.pm.p("posTime: " + str(self.vehicleState.timestamp))
@@ -460,9 +459,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	def checkTimeouts(self):
 		didTimeOut = False
-		if(self.fcTime() - self.vehicleState.timeout.localTimeoutTime > self.parameters.localTimeout):
+		if(self.fcTime()-self.vehicleState.position.time > self.parameters.localTimeout):
 			didTimeOut=True
-			self.pm.p("Timeout with local Pixhawk, last received " + "{:.4f}".format(self.fcTime()-self.vehicleState.timeout.localTimeoutTime) + "s ago")
+			self.pm.p("Timeout with local Pixhawk, last received " + "{:.4f}".format(self.fcTime()-self.vehicleState.position.time ) + "s ago")
 		if(self.fcTime() -  self.lastGCSContact<self.fcTime()- self.parameters.GCSTimeout ):
 			self.pm.p( "GCS Timeout - Overridden")
 		#if(True):
