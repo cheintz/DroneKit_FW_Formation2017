@@ -741,7 +741,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				qd = THIS.parameters.desiredPosition[self.vehicleState.qdIndex] # qd1 ; qd2 ; qd3 ...
 			except IndexError as ex:
 				qd = THIS.parameters.desiredPosition[0]
-				print ex
+				self.pm.p("Exception: " + str(ex))
 			qd = np.asmatrix(qd)
 		else: #only 1 desired position
 			qd = np.asmatrix(THIS.parameters.desiredPosition)
@@ -879,7 +879,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.pitchControl()
 		self.rollControl()
 
-		# Make desired virtual control
+		# Make the desired virtual control
 		cmd = THIS.command
 		si = THIS.groundspeed
 		sigmaDotCMD = m.tan(cmd.rollCMD) * 9.81 / (si*m.cos(THIS.pitch.value))
@@ -915,8 +915,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				G = np.block([[G],[2*zij.T*Fi]]) #vertcats a 1x3
 				h = np.block([[h],[2*zij.T*np.matrix(JPLANE.accel).T - 2*zijDot.T*zijDot - 2*l1q*zij.T*zijDot - l0q * (zij.T*zij - deltaC**2)  ]]) #vertcats a scalar
 		#Add speed rows
-		hSpeed = (sMax-si)*(si-sMin)
-		G = np.vstack([G, np.matrix([0,0,-2*si + sMax + sMin]) ]) # vertcats a 1x3 (for speed)
+		hSpeed = (vMax-si)*(si-vMin)
+		G = np.vstack([G, np.matrix([0,0,-2*si + vMax + vMin]) ]) # vertcats a 1x3 (for speed)
 		h = np.vstack([h,-ls*hSpeed]) #vertcats a 1x1
 
 		#Add slack columns
@@ -949,10 +949,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 
 
-	#TODO: do not change integrator state if QP is active
-
-
-
+	#TODO: do not change integrator state if QP is active. Is this the desired behavior, even??
 
 	def speedControl(self):
 		THIS = self.vehicleState
@@ -1011,8 +1008,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.speedTerms.extraKP = speedPFactor
 		CS.speedTerms.extraKI = speedIFactor
 
-		switchStateDot = self.switchFunction(-siTilde * sdiDot)
-		switchStateInt = self.switchFunction(siTilde * CS.accSpeedError)
+		switchStateDot = self.switchFunction1(-siTilde * sdiDot)
+		switchStateInt = self.switchFunction2(siTilde * CS.accSpeedError)
 
 		CS.speedCancelTerm = (-1.0 / gSpeed) * fSpeed
 		CS.speedTerms.p = (-1.0 / gSpeed) * GAINS['a1'] * speedPFactor * siTilde * h / mu
@@ -1023,6 +1020,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.phps = phps
 		CS.phpsd = phpsd
 		CS.mu = mu
+
+		#Speed anti-windup handled in throttle, including if QP should stop the integrator
 		CS.accSpeedError = CS.accSpeedError + self.thisTS * siTilde
 
 		uiOld = (-1.0 / gSpeed * (
@@ -1063,8 +1062,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.rollTerms.extraKI = rollIFactor
 
 		CS.rollTerms.p = -GAINS['b1'] * rollPFactor* ePsi
-		CS.rollTerms.i = -GAINS['b2'] * rollIFactor* CS.accHeadingError * self.switchFunction(ePsi * CS.accHeadingError)
-		CS.rollTerms.ff = psiDDot * self.switchFunction(-ePsi * cmd.psiDDot)
+		CS.rollTerms.i = -GAINS['b2'] * rollIFactor* CS.accHeadingError * self.switchFunction2(ePsi * CS.accHeadingError)
+		CS.rollTerms.ff = psiDDot * self.switchFunction1(-ePsi * cmd.psiDDot)
 
 		CS.rollTerms.unsaturatedOutput = CS.rollTerms.p + CS.rollTerms.i + CS.rollTerms.ff
 		CS.rollTerms.unsaturatedOutput = m.atan(CS.rollTerms.unsaturatedOutput* THIS.groundspeed / 9.81 * m.cos(THIS.pitch.value))  # unclear if pitch angle should be included.
@@ -1076,6 +1075,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		delta = cmd.rollCMD - CS.rollTerms.unsaturatedOutput
 		if (delta < 0 and ePsi<0 )   or  (delta>0 and ePsi>0):
 			pass #Don't change integrator state because output is saturated
+	#	elif (CS.QPActive):
+	#		pass #Don't change integrator state if the QP was active last step
 		else:
 			CS.accHeadingError += self.thisTS * ePsi
 
@@ -1104,11 +1105,12 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		# anti-windup, should probably be in speed control, but that's hard.
 		eSpeed = THIS.groundspeed - cmd.sdt
+		# if (cmd.throttleCMD >= 100 and eSpeed < 0) or (cmd.ui <= 0 and eSpeed > 0) or CS.QPActive:
 		if (cmd.throttleCMD>=100 and eSpeed < 0) or (cmd.ui<=0 and eSpeed > 0):
-			CS.accSpeedError -= self.thisTS * eSpeed #undo the integrator for anti-windup reasons
+			CS.accSpeedError -= self.thisTS * eSpeed #undo the integrator for anti-windup reasons, and if the QP is active
 
-		self.pm.p('eGroundSpeed: ' + str(eSpeed))
-		self.pm.p('ESpeed: ' + str(CS.accSpeedError))
+		self.pm.p('Groundspeed Error: ' + str(eSpeed))
+		self.pm.p('Speed Error Integral: ' + str(CS.accSpeedError))
 
 	def pitchControl(self):
 		THIS = self.vehicleState
@@ -1137,8 +1139,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		CS.pitchCancelTerm = -CS.fPitch / CS.gPitch #Add some filtered offset of pitch minus desired pitch here maybe
 		CS.pitchTerms.p = -GAINS['c1'] * pitchPFactor * ePitch / CS.gPitch
-		CS.pitchTerms.i = -GAINS['c2'] * pitchIFactor * CS.accPitchError * self.switchFunction(CS.accPitchError * eTheta) / CS.gPitch
-		CS.pitchTerms.ff =  self.switchFunction(-cmd.thetaDDot * eTheta) * cmd.thetaDDot / CS.gPitch
+		CS.pitchTerms.i = -GAINS['c2'] * pitchIFactor * CS.accPitchError * self.switchFunction2(CS.accPitchError * eTheta) / CS.gPitch
+		CS.pitchTerms.ff = self.switchFunction1(-cmd.thetaDDot * eTheta) * cmd.thetaDDot / CS.gPitch
 		CS.pitchTerms.extraKP = pitchPFactor
 		CS.pitchTerms.extraKI = pitchIFactor
 
@@ -1149,6 +1151,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		#antiwindup
 		delta = cmd.pitchCMD - CS.pitchTerms.unsaturatedOutput
+		# if (delta < 0 and ePitch < 0) or (delta > 0 and ePitch > 0) or CS.QPActive:
 		if (delta < 0 and ePitch<0 )   or  (delta>0 and ePitch>0):
 			pass #Don't change integrator state because output is saturated
 		else:
@@ -1156,7 +1159,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		self.pm.p('Desired Pitch: ' + str(cmd.thetaD))
 		self.pm.p('Pitch Error: ' + str(eTheta))
-		self.pm.p('Acc Pitch Error: ' + str(CS.accPitchError))
 		self.pm.p('Pitch I term: ' + str(CS.pitchTerms.i ))
 
 	#altitude control (2D Case)
@@ -1205,7 +1207,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			return time.time()
 		else:
 			return time.time()-self.clockOffset
-	def switchFunction(self,arg):
+	def switchFunction1(self, arg):
 		# type: (float) -> float
 		config = self.vehicleState.parameters.config
 		if (config['SwitchedSpeedControl'] == 'Continuous'):
@@ -1218,6 +1220,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			out = 1.0
 			# self.pm.p('Using no switch')
 		return out
+	def switchFunction2(self,arg):
+		return 1.0-self.switchFunction1(-arg)
 	def RCToExpo(self,channel, factor):
 		# type: (int, float) -> float
 		prefix = 'RC' + str(channel)

@@ -9,25 +9,25 @@ from scipy.interpolate import LinearNDInterpolator,NearestNDInterpolator
 try:
 	SITLFlag = os.environ["SITL"]
 except KeyError:
-	SITLFlag =False
+	SITLFlag =True
 	print "No SITL flag in defaultConfig; using " + str(SITLFlag)
 
 def getParams():
 	defaultParams = Parameter()
 	defaultParams.receivedTime = time.time()     #Note: negative Z = up
-	defaultParams.desiredPosition=np.array( [[[-10,0,-15],[-10,0,15],	[-20,0,30] ],
-						[[0,0,-15], [-10,0,15],[-20,0,30]],
-						[[0,0,-15],[-10,0,15],[-20,0,30]]] )  #Agent, amount forward, amount right, absolute altitude, meters
+	# defaultParams.desiredPosition=np.array( [[[-10,0,-15],[-10,0,15],	[-20,0,30] ],
+	# 					[[0,0,-15], [-10,0,15],[-20,0,30]],
+	# 					[[0,0,-15],[-10,0,15],[-20,0,30]]] )  #Agent, amount forward, amount right, absolute altitude, meters
 	# defaultParams.desiredPosition = np.array([[[-5, 5, 0], [-5, -5, 0],[7, 0, 0]] ,
 	# 										 [[5, -5, 0], [5, 5, 0],[-7, 0, 0]]]) #for QP
-	# defaultParams.desiredPosition = np.array([[[10, 0, 0], [-7, -7, 0],[-7, 7, 0]] ,
-	# 										 [[-10, 0, 0], [7, 7, 0],[7, -7, 0]]]) #for QP test
+	defaultParams.desiredPosition = np.array([[[10, 0, 0], [-7, -7, 0],[-7, 7, 0]] ,
+											 [[-10, 0, 0], [7, 7, 0],[7, -7, 0]]]) #for QP test
 	#aFiltAccel to 1 for no filtering
 
 	defaultParams.gains = {'kl':1*np.diag([1,1,1]) , 'ka': 0*0.5*np.diag([1,1,1+0*0.3])
 		,'vMin': 16,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941
 		,'rollLimit':50/(180/m.pi),'kPitch':KPID(.5, 0.2,0.0),'kAlt':KPID(.026, .0017,.0105),'pitchLimit':20/(180/m.pi)
-		,'maxEHeading':50,'maxEPitch':50,'maxESpeed':500,'a1':2.0,'a2':0*0.10,'b1':2.0,'b2':0.2,'c1':1.5,'c2':0.2 #a for speed, b for heading, c for pitch
+		,'maxEHeading':50,'maxEPitch':50,'maxESpeed':500,'a1':2.0,'a2':0.10,'b1':2.0,'b2':0.2,'c1':1.5,'c2':0.2 #a for speed, b for heading, c for pitch
 		,'maxEAlt':50,'epsD':0.2,'ki':4,'pBarrier':1/255.0
 	    ,'hQP': 1e6, 'deltaC':5.0, 'l0q':4.0, 'l1q':4.1, 'ls':2}
 	defaultParams.config = {'printEvery':50,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
