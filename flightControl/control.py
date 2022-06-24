@@ -1050,7 +1050,7 @@ def skew(omega):
 					   [-omega.item(1),omega.item(0),0.0]])
 	return Omega
 
-nu1=1
+nu1=50
 nu2=1.0
 def sigma(x):
 	#return 1.0
