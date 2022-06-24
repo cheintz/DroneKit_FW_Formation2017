@@ -941,7 +941,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		#Make actual control if changed
 		temp2 = U - UBar.T
 		CS.QPActive = (np.linalg.norm(U - UBar.T ) > 1e-8)
-		if(CS.QPActive ):
+		if(CS.QPActive):
 			print "QP active!" + str(temp2)
 			cmd.rollCMD = m.atan(U.item(0) * si * m.cos(THIS.pitch.value) / 9.81)
 			cmd.pitchCMD = (U.item(1) - fPitch)  / gPitch
@@ -1139,8 +1139,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		CS.pitchCancelTerm = -CS.fPitch / CS.gPitch #Add some filtered offset of pitch minus desired pitch here maybe
 		CS.pitchTerms.p = -GAINS['c1'] * pitchPFactor * ePitch / CS.gPitch
-		CS.pitchTerms.i = -GAINS['c2'] * pitchIFactor * CS.accPitchError * self.switchFunction2(CS.accPitchError * eTheta) / CS.gPitch
-		CS.pitchTerms.ff = self.switchFunction1(-cmd.thetaDDot * eTheta) * cmd.thetaDDot / CS.gPitch
+		CS.pitchTerms.i = -GAINS['c2'] * pitchIFactor * CS.accPitchError * self.switchFunction2(CS.accPitchError * eTheta*10) / CS.gPitch
+		CS.pitchTerms.ff = self.switchFunction1(-cmd.thetaDDot * eTheta*10) * cmd.thetaDDot / CS.gPitch
 		CS.pitchTerms.extraKP = pitchPFactor
 		CS.pitchTerms.extraKI = pitchIFactor
 
