@@ -33,7 +33,7 @@ rtTypes = (ControlState,CourseAngle,Command,Parameter,Timeout,PIDTerms,KPID)
 class BasicVehicleState(object):
 	def __init__(self,other=None):
 		self.ID = None
-		self.timestamp = None #time.time()
+		self.timestamp = None
 		self.position = dronekit.LocationGlobalRelative(0,0,0)
 		self.velocity = [0,0,0]
 		self.accel = [0,0,0]
@@ -100,7 +100,7 @@ class BasicVehicleState(object):
 
 
 
-	def fromCSVList(self,lin): #Probably intended to be used for different data transmission format
+	def fromCSVList(self,lin): #Still used in binary transmission format
 		out= BasicVehicleState()
 		din = out.getCSVLists()
 		din = OrderedDict(zip(din.keys(),lin  ))
@@ -207,11 +207,14 @@ class FullVehicleState(BasicVehicleState):
 
 def vecToCSV(mat,prefix):
 	outKey = []
-	outValue = []		
-	for j in range(0,len(mat)):
-		outKey.append(prefix+'_'+str(j))
-		outValue.append(mat[j,0])
-	return (outKey,outValue)
+	outValue = []
+	if(len(mat)==1):
+		return ([prefix],[mat.item()])
+	else:
+		for j in range(0,len(mat)):
+			outKey.append(prefix+'_'+str(j))
+			outValue.append(mat[j,0])
+		return (outKey,outValue)
 
 def recordTypeToLists(rt,prefix =''):
 	headers = []

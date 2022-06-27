@@ -88,17 +88,18 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				if(not self.vehicleState.isFlocking): #Should we engage flocking?
 					self.checkEngageFlocking()
 					self.tStart = self.fcTime() #note the time formation flight started
-				if(self.vehicleState.isFlocking and self.vehicleState.ID != self.parameters.leaderID): #):# and self.parameters.leaderID != self.vehicleState.ID):
+				if(self.vehicleState.isFlocking and self.vehicleState.ID != self.parameters.leaderID): #):
 					if( self.vehicleState.ID == self.parameters.leaderID):
 						self.pm.p("Won't engage, I am the leader")
 					if(not self.checkAbort()):
 						self.computeControl() #writes the control values to self.vehicleState
 						self.scaleAndWriteCommands()
 				t4 = time.time()
-				if(self.fcTime()-self.vehicleState.position.time <= self.parameters.localTimeout): #only transmit if still receiving positions from the flight controller
+				if(self.fcTime()-self.vehicleState.position.time <= self.parameters.localTimeout):
+					#only transmit if still receiving positions from the flight controller
 					self.pushStateToTxQueue() #sends the state to the UDP sending threading
 				else:
-					print ("Local timeout: "  + str(self.fcTime()-self.vehicleState.position.time) + "seconds")
+					print ("Local timeout: "  + str(self.fcTime()-self.vehicleState.position.time) + " seconds")
 				self.pushStateToLoggingQueue()
 				self.pm.p('\n\n')
 
@@ -131,7 +132,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				else:
 					print "Did not have time to wait!"
 					now=time.time()
-					print "T1: " +str(t1-loopStartTime) + " T2: " +str(t2-t1) + " T3: " +str(t3-t2) + " T4: " +str(t4-t3) +" T5: " +str(t5-t4) + " T6: " +str(t6-t5)
+					print ("T1: " +str(t1-loopStartTime) + " T2: " +str(t2-t1) + " T3: " +str(t3-t2) + " T4: "
+						   +str(t4-t3) +" T5: " +str(t5-t4) + " T6: " +str(t6-t5))
 			except Exception as ex:
 				print "Failed to use new config"
 				self.parameters=self.backupParams
@@ -238,7 +240,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			return False
 		#check expected number of peers
 		if(self.parameters.config['mode'] == 'Formation' and len(self.stateVehicles) < self.parameters.expectedMAVs-1):
-			self.pm.p( "Won't engage: Not enough MAVs. Expecting " + str(self.parameters.expectedMAVs) + ". Connected to:" + str(self.stateVehicles.keys()))
+			self.pm.p( "Won't engage: Not enough MAVs. Expecting " + str(self.parameters.expectedMAVs) +
+		   		". Connected to:" + str(self.stateVehicles.keys()))
 			self.vehicleState.RCLatch = True
 			return False
 		if (not (self.vehicle.mode in  self.parameters.config['acceptableEngageMode'])): #if switched
@@ -289,11 +292,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			lastPositionTime = lastPositionTime +self.clockOffset #use the companion computer's time instead
 
 		self.vehicleState.timeout.peerLastRX[self.vehicleState.ID]=lastPositionTime
-		self.vehicleState.timeout.localTimeoutTime=lastPositionTime
 
 		if (lastPositionTime>self.vehicleState.timestamp):  #if new position is available
 			self.pm.p("posTime: " + str(self.vehicleState.timestamp))
-			#print "got a new position"
 			self.vehicleState.isPropagated = False
 			self.vehicleState.position = self.vehicle.location.global_relative_frame
 			self.vehicleState.velocity = self.vehicle.velocity
@@ -375,12 +376,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		aAccelVert = self.parameters.gains['aFiltAccelVert']
 		aAccelHoriz = self.parameters.gains['aFiltAccelHoriz']
 		earthAccelFiltered=list()
-		earthAccelFiltered.append(aAccelHoriz * earthAccel[0] + (1.0-aAccelHoriz) *lastEarthAccel[0])
+		earthAccelFiltered.append(aAccelHoriz * earthAccel[0] + (1.0 - aAccelHoriz) * lastEarthAccel[0])
 		earthAccelFiltered.append(aAccelHoriz * earthAccel[1] + (1.0 - aAccelHoriz) * lastEarthAccel[1])
-		earthAccelFiltered.append(aAccelVert * earthAccel[2] + (1.0 - aAccelVert) * lastEarthAccel[2])
-
-#		print "EarthAccel Raw:" + str(earthAccel[0]) + "\tfiltered: " + str(earthAccelFiltered[0])
-#		earthAccelFiltered = earthAccel
+		earthAccelFiltered.append(aAccelVert  * earthAccel[2] + (1.0 - aAccelVert ) * lastEarthAccel[2])
 		self.vehicleState.accel=earthAccelFiltered
 		#print(earthAccelFiltered)
 
@@ -490,9 +488,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	def checkTimeouts(self):
 		didTimeOut = False
-		if(self.fcTime() - self.vehicleState.timeout.localTimeoutTime > self.parameters.localTimeout):
+		if(self.fcTime()-self.vehicleState.position.time > self.parameters.localTimeout):
 			didTimeOut=True
-			self.pm.p("Timeout with local Pixhawk, last received " + "{:.4f}".format(self.fcTime()-self.vehicleState.timeout.localTimeoutTime) + "s ago")
+			self.pm.p("Timeout with local Pixhawk, last received " + "{:.4f}".format(self.fcTime()-self.vehicleState.position.time ) + "s ago")
 		if(self.fcTime() -  self.lastGCSContact<self.fcTime()- self.parameters.GCSTimeout ):
 			self.pm.p( "GCS Timeout - Overridden")
 		#if(True):
@@ -571,7 +569,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	def propagateOtherStates(self):
 		for i in self.stateVehicles.keys():
-			if( self.vehicleState.ID != i and (self.fcTime() - self.vehicleState.timeout.peerLastRX[i]) <= self.vehicleState.parameters.config['maxPropagateSeconds']):
+			if( self.vehicleState.ID != i and
+				(self.fcTime() - self.vehicleState.timeout.peerLastRX[i]) <= self.vehicleState.parameters.config['maxPropagateSeconds']):
 				propagateVehicleState(self.stateVehicles[i], self.fcTime()-self.stateVehicles[i].timestamp)
 #				self.stateVehicles[i].timestamp=self.fcTime()
 			# will propagate from when we received. Other agent propagates forward from
@@ -602,7 +601,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				qd = THIS.parameters.desiredPosition[self.vehicleState.qdIndex] # qd1 ; qd2 ; qd3 ...
 			except IndexError as ex:
 				qd = THIS.parameters.desiredPosition[0]
-				print ex
+				self.pm.p("Exception: " + str(ex))
 			qd = np.asmatrix(qd)
 		else: #only 1 desired position
 			qd = np.asmatrix(THIS.parameters.desiredPosition)
@@ -687,7 +686,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				phiiDot += -GAINS['ka'] * zetaijDot
 		CS.phii=phii
 		pdi=CS.pgTerm+CS.rotFFTerm+GAINS['ki']*sigma(phii)*phii
-		pdiDot = 1*pgDot+1*RgDDot*di + GAINS['ki'] * np.asscalar(sigmaDot(phii).transpose()*phiiDot)*phii+sigma(phii)*phiiDot
+		pdiDot = 1*pgDot+1*RgDDot*di + GAINS['ki'] * (sigmaDot(phii).transpose()*phiiDot).item()*phii+sigma(phii)*phiiDot
 		if (THIS.parameters.config['dimensions'] == 2 and not pdi[2] == 0):
 			print "Warning: pdi not 2D. pdi[2]: " + str(pdi[2])
 
@@ -709,7 +708,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS.command.sdi=sdi
 		CS.ydi = ydi
 
-		sdiDot = np.asscalar( (pdi.transpose() / sdi) * pdiDot)
+		sdiDot =( (pdi.transpose() / sdi) * pdiDot).item()
 		ydiDot = 1.0/sdi * pdiDot - 1.0/sdi**2.0 * sdiDot * pdi
 
 #		sdi = 10
@@ -796,6 +795,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		#write roll rate and pitch rate commands for middle loops
 		THIS.command.thetaDDot = CS.angleRateTarget[1,0]
 		THIS.command.psiDDot = CS.angleRateTarget[2,0]
+		self.pm.p("Desired heading rate" + str(THIS.command.psiDDot))
 		THIS.command.thetaD = m.asin(-pdi[2,0]/sdi)
 		THIS.command.psiD = m.atan2(pdi[1,0],pdi[0,0])
 
@@ -817,7 +817,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else:
 			rollFactor = 1.0
 		self.pm.p("RollFactor: " + str(rollFactor))
-		arg = cmd.psiDDot * THIS.groundspeed / 9.81 * m.cos(THIS.attitude.pitch)
+		arg = (cmd.psiDDot * THIS.groundspeed* m.cos(THIS.pitch.value) ) / 9.81
 		rollFFTerm = THIS.parameters.gains['kRollFF']*m.atan(arg) 
 		#rollFFTerm = rollFFTerm + (THIS.parameters.gains['kRollInversion'] * self.vehicle.parameters['RLL2SRV_TCONST'] * cmd.psiDDDot * 
 		#	1/m.sqrt(arg**2+1)  ) #Attempt to invert the roll/yaw dynamics (that are assumed to be 1 by the agent model)
@@ -828,8 +828,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		#cmd.rollCMD = 50.0*m.pi/180.0 * m.sin(2.0*m.pi/5.0 * (time.time() - self.startTime)  )
 		cmd.timestamp = self.fcTime()
 		self.pm.p("Commanded heading rate (rllctrl): " + str(THIS.command.psiDDot))
-		self.pm.p( "Heading Error: " + str(ePsi) )
-		self.pm.p( "Heading integral: " + str(CS.accHeadingError) )
+		self.pm.p("Heading Error: " + str(ePsi) )
+		self.pm.p("Heading integral: " + str(CS.accHeadingError) )
+		self.pm.p("Roll Command: " + str(cmd.rollCMD*180.0/3.1415))
 
 	def throttleControl(self):
 		THIS = self.vehicleState
@@ -917,7 +918,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	####### RC Input Calibration#####
 	#ROLL
-		params.rollGain = (vp['RC1_MAX'] - vp['RC1_MIN']) / 2 / (vp['LIM_ROLL_CD']/100 /(180/m.pi))  #TODO: update to include out of perfect RC input trim
+		params.rollGain = (vp['RC1_MAX'] - vp['RC1_MIN']) / 2 / (vp['LIM_ROLL_CD']/100 /(180/m.pi))
+					#TODO: update to include out of perfect RC input trim
 		if(vp['RC1_REVERSED'] == 1):
 			params.rollGain = - params.rollGain
 		params.rollOffset = vp['RC1_TRIM']
@@ -1007,8 +1009,10 @@ def propagateVehicleState(state, dtPos): #assumes velocity is constant (single i
 	state.isPropagated = 1
 
 def eul2rotm(psi,theta,phi):
-	R = np.matrix([[m.cos(theta) * m.cos(psi),  m.sin(phi)* m.sin(theta)*m.cos(psi) - m.cos(phi)*m.sin(psi), m.cos(phi)*m.sin(theta)*m.cos(psi) + m.sin(phi)*m.sin(psi)],
-				  [m.cos(theta)*m.sin(psi), m.sin(phi)*m.sin(theta)*m.sin(psi) + m.cos(phi)*m.cos(psi), m.cos(phi)*m.sin(theta)*m.sin(psi) - m.sin(phi)*m.cos(psi)],
+	R = np.matrix([[m.cos(theta) * m.cos(psi),  m.sin(phi)* m.sin(theta)*m.cos(psi) - m.cos(phi)*m.sin(psi),
+						m.cos(phi)*m.sin(theta)*m.cos(psi) + m.sin(phi)*m.sin(psi)],
+				  [m.cos(theta)*m.sin(psi), m.sin(phi)*m.sin(theta)*m.sin(psi) + m.cos(phi)*m.cos(psi),
+				   		m.cos(phi)*m.sin(theta)*m.sin(psi) - m.sin(phi)*m.cos(psi)],
 				  [-m.sin(theta), m.sin(phi)*m.cos(theta), m.cos(phi)*m.cos(theta)]])
 	return R
 def computeQ(psi, theta, phi):
@@ -1081,12 +1085,12 @@ def deadzone(value, width):
 
 def velAndAccelToHeadingRate(v,a):
 	inPlaneVelocity = m.sqrt(v[0] ** 2 + v[1] ** 2)
-	return  (v[0] * a[1] - v[1] * a[0]) / inPlaneVelocity ** 2
+	return  (v[0] * a[1] - v[1] * a[0]).item() / inPlaneVelocity ** 2 #TODO call item
 
 def velAndAccelToPitchRate(v, a):
 	inPlaneVelocity = m.sqrt(v[0] ** 2 + v[1] ** 2)
 	s = m.sqrt(v[0] ** 2 + v[1] ** 2+ v[2] ** 2)
-	return (   (v[0] * a[0] + v[1] * a[1])   * v[2] / inPlaneVelocity - a[2] * inPlaneVelocity) / s ** 2
+	return (   (v[0] * a[0] + v[1] * a[1])   * v[2] / inPlaneVelocity - a[2] * inPlaneVelocity).item() / s ** 2 #TODO call item
 
 def linearToExponential(value,min,max,factor):
 	normalized = (value-min)/(max-min) #0 to 1

@@ -19,7 +19,7 @@ import argparse
 from datetime import datetime
 from servovehicle import ServoVehicle
 
-#get enviromental variables
+#get environmental variables
 AdHocIP = os.environ['ADHOCIP']
 
 #AdHocIP = "127.0.0.1"
@@ -35,7 +35,8 @@ broadcastIP = "10.164.43.255"
 try:
 	SITLFlag = os.environ["SITL"]
 except KeyError:
-	SITLFlag =False
+	SITLFlag =True
+	print "No environmental variable in flightProgram.py defaulting to SITL = " + str(SITLFlag)
 
 import defaultConfig
 

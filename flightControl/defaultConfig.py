@@ -10,6 +10,7 @@ try:
 except KeyError:
 	print "No SITL flag in environment; using false"
 	SITLFlag =True
+	print "No SITL flag in defaultConfig; using " + str(SITLFlag)
 
 def getParams():
 	defaultParams = Parameter()
@@ -40,18 +41,18 @@ def getParams():
 	temp=np.zeros([5,5])
 
 #Directed line
-	temp[2][1]=1 #note: this indexed by mavid-1, where the first follower has mavid 2 and index 1
-	temp[3][2]=1
-	temp[1][0]=1  #Leader and agent 1
+	# temp[2][1]=1 #note: this indexed by mavid-1, where the first follower has mavid 2 and index 1
+	# temp[3][2]=1
+	# temp[1][0]=1  #Leader and agent 1
 
 # Undirected line
-# 	temp[2][1]=temp[1][2]=1 #note: this indexed by mavid-1, where the first follower has mavid 2 and index 1
-# 	temp[3][2]=temp[2][3]=1
-# 	temp[1][0]=1  #Leader and agent 1
+	temp[2][1]=temp[1][2]=1 #note: this indexed by mavid-1, where the first follower has mavid 2 and index 1
+	temp[3][2]=temp[2][3]=1
+	temp[1][0]=1  #Leader and agent 1
 
-	temp[1][0]=1  #Leader
-	temp[2][0]=1
-	temp[3][0]=1
+	# temp[1][0]=1  #Leader
+	# temp[2][0]=1
+	# temp[3][0]=1
 
 	defaultParams.communication=temp
 	defaultParams.Ts = 1.0/50.0

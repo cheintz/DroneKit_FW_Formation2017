@@ -102,12 +102,9 @@ class Logger(multiprocessing.Process):
 
 		thisList =thisState.getCSVLists().keys()
 		self.numItemsPerSelf = len(thisList)
-		if(thisState.parameters.txStateType == 'basic'):
-			temp = BasicVehicleState(copy.deepcopy(thisState)) #not sure why this deepcopy
-			otherList = temp.getCSVLists()
-			self.numItemsPerOther = len(otherList)
-		else:
-			otherList = thisList
+		temp = BasicVehicleState(copy.deepcopy(thisState)) #not sure why this deepcopy
+		otherList = temp.getCSVLists()
+		self.numItemsPerOther = len(otherList)
 
 		for i in range(1,n+1):
 			prefix = "v"+str(i)+"_"
