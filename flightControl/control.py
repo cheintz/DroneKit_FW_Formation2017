@@ -1063,7 +1063,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		CS.rollTerms.p = -GAINS['b1'] * rollPFactor* ePsi
 		CS.rollTerms.i = -GAINS['b2'] * rollIFactor* CS.accHeadingError * self.switchFunction2(ePsi * CS.accHeadingError)
-		CS.rollTerms.ff = psiDDot * self.switchFunction1(-ePsi * cmd.psiDDot)
+		CS.rollTerms.ff = psiDDot * self.switchFunction1(-ePsi * cmd.psiDDot*0.2)
 
 		CS.rollTerms.unsaturatedOutput = CS.rollTerms.p + CS.rollTerms.i + CS.rollTerms.ff
 		CS.rollTerms.unsaturatedOutput = m.atan(CS.rollTerms.unsaturatedOutput* THIS.groundspeed / 9.81 * m.cos(THIS.pitch.value))  # unclear if pitch angle should be included.
