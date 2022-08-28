@@ -532,7 +532,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS.command.sdi = ((self.parameters.gains['vMax']-self.parameters.gains['vMin']) * speedInput
 			+ self.parameters.gains['vMin'] )
 		THIS.command.gsTarget = THIS.command.sdi
-		THIS.command.thetaD = (pitchInput-0.5 ) * self.parameters.gains['pitchLimit'] #Stick controls pitch, center is level flight
+		THIS.command.thetaD = (pitchInput-0.5 ) * self.vehicle.parameters['LIM_PITCH_MAX']/100.0 / (180.0 / m.pi) #Stick controls pitch, center is level flight
 		self.pm.pMsg("Desired pitch: ", THIS.command.thetaD)
 		THIS.command.psiD = wrapToPi(0.35 + m.pi*(2*headingInput-1.0) ) #North is Middle of range
 		THIS.command.psiDDot=0
@@ -940,6 +940,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		#Make actual control if changed
 		temp2 = U - UBar.T
+		self.pm.p("DeltaU: " + str(temp2))
 		CS.QPActive = (np.linalg.norm(U - UBar.T ) > 1e-8)
 		if(CS.QPActive):
 			print "QP active!" + str(temp2)
@@ -1008,8 +1009,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.speedTerms.extraKP = speedPFactor
 		CS.speedTerms.extraKI = speedIFactor
 
-		switchStateDot = self.switchFunction1(-siTilde * sdiDot)
-		switchStateInt = self.switchFunction2(siTilde * CS.accSpeedError)
+		switchStateDot = self.switchFunction1(-siTilde * sdiDot*10)
+		switchStateInt = self.switchFunction2(siTilde * CS.accSpeedError/400.0)
 
 		CS.speedCancelTerm = (-1.0 / gSpeed) * fSpeed
 		CS.speedTerms.p = (-1.0 / gSpeed) * GAINS['a1'] * speedPFactor * siTilde * h / mu
@@ -1062,8 +1063,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.rollTerms.extraKI = rollIFactor
 
 		CS.rollTerms.p = -GAINS['b1'] * rollPFactor* ePsi
-		CS.rollTerms.i = -GAINS['b2'] * rollIFactor* CS.accHeadingError * self.switchFunction2(ePsi * CS.accHeadingError)
-		CS.rollTerms.ff = psiDDot * self.switchFunction1(-ePsi * cmd.psiDDot*0.2)
+		CS.rollTerms.i = -GAINS['b2'] * rollIFactor* CS.accHeadingError * self.switchFunction2(0.5*ePsi * CS.accHeadingError)
+		CS.rollTerms.ff = psiDDot * self.switchFunction1(-ePsi * cmd.psiDDot*2)
 
 		CS.rollTerms.unsaturatedOutput = CS.rollTerms.p + CS.rollTerms.i + CS.rollTerms.ff
 		CS.rollTerms.unsaturatedOutput = m.atan(CS.rollTerms.unsaturatedOutput* THIS.groundspeed / 9.81 * m.cos(THIS.pitch.value))  # unclear if pitch angle should be included.
@@ -1139,7 +1140,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		CS.pitchCancelTerm = -CS.fPitch / CS.gPitch #Add some filtered offset of pitch minus desired pitch here maybe
 		CS.pitchTerms.p = -GAINS['c1'] * pitchPFactor * ePitch / CS.gPitch
-		CS.pitchTerms.i = -GAINS['c2'] * pitchIFactor * CS.accPitchError * self.switchFunction2(CS.accPitchError * eTheta*10) / CS.gPitch
+		CS.pitchTerms.i = -GAINS['c2'] * pitchIFactor * CS.accPitchError * self.switchFunction2(CS.accPitchError * eTheta*2) / CS.gPitch
 		CS.pitchTerms.ff = self.switchFunction1(-cmd.thetaDDot * eTheta*10) * cmd.thetaDDot / CS.gPitch
 		CS.pitchTerms.extraKP = pitchPFactor
 		CS.pitchTerms.extraKI = pitchIFactor
@@ -1159,6 +1160,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		self.pm.p('Desired Pitch: ' + str(cmd.thetaD))
 		self.pm.p('Pitch Error: ' + str(eTheta))
+		self.pm.p('Acc Pitch Error: ' + str(CS.accPitchError))
 		self.pm.p('Pitch I term: ' + str(CS.pitchTerms.i ))
 
 	#altitude control (2D Case)
@@ -1386,7 +1388,7 @@ def linearToLinear(value,min,max,factor):
 	return factor * normalized #returns 0 to factor
 
 def swc(value):
-	eps = 0.1
+	eps = 1
 	return 0.5 * saturate(2.0*value/eps + 1,-1,1)[0] + 0.5
 
 def swp(value):
