@@ -124,7 +124,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 							print "Released Control"
 						print "Counter: " + str(self.vehicleState.counter)
 				t6 = time.time()
-				timeToWait = self.parameters.Ts - (time.time() -loopStartTime)
+				timeToWait = (1.0+1.0 * self.vehicleState.controlState.QPActive) * self.parameters.Ts \
+							- (time.time() -loopStartTime) # Wait 1 or more steps longer if QP is active
 				self.vehicleState.timeToWait = timeToWait
 				self.pm.pMsg('Waiting: ',  "{:.5f}".format(timeToWait))
 				self.pm.increment()
@@ -304,7 +305,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.vehicleState.position = self.vehicle.location.global_relative_frame
 			self.vehicleState.velocity = self.vehicle.velocity
 		self.vehicleState.attitude = self.vehicle.attitude
-		self.pm.p("velocity" + str(self.vehicle.velocity))
+		self.pm.p("velocity: " + str(self.vehicle.velocity))
 		if (self.sitl):
 			self.vehicleState.position.time = self.vehicleState.position.time + self.clockOffset  # use the companion computer's time instead
 			self.vehicleState.attitude.time = self.vehicleState.attitude.time + self.clockOffset  # use the companion computer's time instead
@@ -879,6 +880,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.pitchControl()
 		self.rollControl()
 
+	############################## Setup for safety filter
 		# Make the desired virtual control
 		cmd = THIS.command
 		si = THIS.groundspeed
@@ -918,37 +920,38 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		hSpeed = (vMax-si)*(si-vMin)
 		G = np.vstack([G, np.matrix([0,0,-2*si + vMax + vMin]) ]) # vertcats a 1x3 (for speed)
 		h = np.vstack([h,-ls*hSpeed]) #vertcats a 1x1
+# any(G * UBar - h <0)
+		if any(G * UBar - h <0): #Check constraints before setting up the rest of the QP
+			#Add slack columns
+			G = np.hstack([G, np.vstack([-np.eye(n-1), -np.zeros([1,n-1])]) ])   #horzcat the collision slack parameter "help"
+			G = np.hstack([G, np.vstack([np.zeros([n-1,1]), np.ones([1,1])] )]) #horzcats the speed slack parameter "help"
 
-		#Add slack columns
-		G = np.hstack([G, np.vstack([-np.eye(n-1), -np.zeros([1,n-1])]) ])   #horzcat the collision slack parameter "help"
-		G = np.hstack([G, np.vstack([np.zeros([n-1,1]), np.ones([1,1])] )]) #horzcats the speed slack parameter "help"
 
-		#build objective matrix functions 0.5 x' * P*x + q' * x
-		A = 2* np.diag( np.hstack([np.ones(3), GAINS['hQP']*np.ones(n-1+1)])  ) #Cost is diagonal in 3 controls,  then n slack vars
-	# 	A = 2 * np.diag(np.hstack([np.ones(3), np.array([1000000,.00000001])]))  #Cost is diagonal in 3 controls, some number of slack vars
-		b = np.hstack([-UBar.T, np.zeros([1,n-1+1]) ])
+			#build objective matrix functions 0.5 x' * P*x + q' * x
+			A = 2* np.diag( np.hstack([np.ones(3), GAINS['hQP']*np.ones(n-1+1)])  ) #Cost is diagonal in 3 controls,  then n slack vars
+		# 	A = 2 * np.diag(np.hstack([np.ones(3), np.array([1000000,.00000001])]))  #Cost is diagonal in 3 controls, some number of slack vars
+			b = np.hstack([-UBar.T, np.zeros([1,n-1+1]) ])
 
-		#Solve QP
-		#quadprog calls these G, C, A, b. last arg zero is because no equality constraints
-		temp = quadprog.solve_qp(0.5*A,-np.array(b.T).squeeze(), G.T,np.array(h.T).squeeze(),0 )
-		# temp = quadprog.solve_qp(0.5*A, -np.array(b.T).squeeze()) #unconstrainted for testing
-		U = temp[0][0:3]
-		slack = temp[0][3:]
-		J = temp[1] #minimum cost is not zero because we drop the UBar' * UBar term.
-		# print(U)
-		# print UBar
+			#Solve QP
+			#quadprog calls these G, C, A, b. last arg zero is because no equality constraints
+			temp = quadprog.solve_qp(0.5*A,-np.array(b.T).squeeze(), G.T,np.array(h.T).squeeze(),0 )
+			# temp = quadprog.solve_qp(0.5*A, -np.array(b.T).squeeze()) #unconstrainted for testing
+			U = temp[0][0:3]
+			slack = temp[0][3:]
+			J = temp[1] #minimum cost is not zero because we drop the UBar' * UBar term.
+			# print(U)
+			# print UBar
+		else: #constraints satisfied without intervention
+			U = UBar.T
 
 		#Make actual control if changed
-		temp2 = U - UBar.T
-		self.pm.p("DeltaU: " + str(temp2))
+		deltaU = U - UBar.T
 		CS.QPActive = (np.linalg.norm(U - UBar.T ) > 1e-8)
 		if(CS.QPActive):
-			print "QP active!" + str(temp2)
+			print "QP active!" + str(deltaU)
 			cmd.rollCMD = m.atan(U.item(0) * si * m.cos(THIS.pitch.value) / 9.81)
 			cmd.pitchCMD = (U.item(1) - fPitch)  / gPitch
 			cmd.ui =  (U.item(2) - fSpeed ) / gSpeed
-
-
 
 	#TODO: do not change integrator state if QP is active. Is this the desired behavior, even??
 
@@ -1024,11 +1027,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		#Speed anti-windup handled in throttle, including if QP should stop the integrator
 		CS.accSpeedError = CS.accSpeedError + self.thisTS * siTilde
-
-		uiOld = (-1.0 / gSpeed * (
-			fSpeed + GAINS['a1'] * siTilde * h / mu
-			+ (switchStateDot * sdiDot / mu) * (siTilde * phpsd - h)
-		  	+ GAINS['a2'] * switchStateInt*CS.accSpeedError * h / mu )  )
+		CS.accSpeedError,ignored = saturate(CS.accSpeedError,-6.0,6.0)
 
 		CS.speedTerms.unsaturatedOutput = ui = CS.speedCancelTerm + CS.speedTerms.p + CS.speedTerms.i + CS.speedTerms.ff
 		self.pm.p('ui: ' + "{:.3f}".format(ui))
@@ -1081,6 +1080,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else:
 			CS.accHeadingError += self.thisTS * ePsi
 
+		CS.accHeadingError,ignored = saturate(CS.accHeadingError,-1.0,1.0)
 		cmd.timestamp = self.fcTime()
 		self.pm.p("Commanded heading rate (rllctrl): " + str(THIS.command.psiDDot))
 		self.pm.p("Heading Error: " + str(ePsi) )
@@ -1158,6 +1158,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		else:
 			CS.accPitchError += self.thisTS * ePitch
 
+		CS.accPitchError,ignored = saturate(CS.accPitchError, -1.0,1.0)
 		self.pm.p('Desired Pitch: ' + str(cmd.thetaD))
 		self.pm.p('Pitch Error: ' + str(eTheta))
 		self.pm.p('Acc Pitch Error: ' + str(CS.accPitchError))
@@ -1223,7 +1224,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			# self.pm.p('Using no switch')
 		return out
 	def switchFunction2(self,arg):
-		return 1.0-self.switchFunction1(-arg)
+		# return 1.0-self.switchFunction1(-arg)
+		out, ignored = saturate(arg,-1.0,1.0)
+		return 1
 	def RCToExpo(self,channel, factor):
 		# type: (int, float) -> float
 		prefix = 'RC' + str(channel)
@@ -1400,20 +1403,27 @@ def swp(value):
 def getSpeedF(vs):
 	param=vs.parameters
 	sp = param.config['spdParam']
+	dragProjectionFactor = getForwardProjectionFactor(vs)
 	if(vs.airspeed<3.0):
-		out = -9.81 * m.sin(vs.pitch.value)*param.config['mass']  # out has units force, returns acceleration by dividing by mass
+		outputForce = -9.81 * m.sin(vs.pitch.value)*param.config['mass']  # out has units force, returns acceleration by dividing by mass
 	else:
-		out = (-9.81 * m.sin(vs.pitch.value) *param.config['mass'] # out has units force, returns acceleration by dividing by mass
-		- vs.airspeed ** 2 * (sp['cd0'] + sp['cd_ail'] * abs(linearToLinear(vs.servoOut['1'],982.0, 2006.0,2.0)-1.0)
-		+ sp['cd_ele'] * abs(linearToLinear(vs.servoOut['2'],982.0, 2006.0,2.0)-1.0) )
-		- sp['cdl'] * (vs.imuAccel.z * param.config['mass']) ** 2 / vs.airspeed ** 2)
+		outputForce = (-9.81 * m.sin(vs.pitch.value) *param.config['mass'] # out has units force, returns acceleration by dividing by mass
+		- dragProjectionFactor * ( vs.airspeed ** 2 * (sp['cd0'] + sp['cd_ail'] * abs(linearToLinear(vs.servoOut['1'],1100, 1900,2.0)-1.0)
+		+ sp['cd_ele'] * abs(linearToLinear(vs.servoOut['2'],1100, 1900,2.0)-1.0) )
+		- sp['cdl'] * (vs.imuAccel.z * param.config['mass']) ** 2 / vs.airspeed ** 2) )
 
-	return out / param.config['mass'] #convert force to m/s^2
+	return outputForce / param.config['mass'] #convert force to m/s^2
 
 def getSpeedG(vs):
-	return ((1.0 / vs.parameters.config['mass']) * (m.sin(vs.pitch.value)*m.sin(vs.pitch.value)
-		+ m.cos(vs.pitch.value)*m.cos(vs.attitude.yaw)*m.cos(vs.heading.value)*m.cos(vs.pitch.value)
-		+ m.cos(vs.pitch.value)*m.cos(vs.pitch.value)*m.sin(vs.attitude.yaw)*m.sin(vs.heading.value) )  )
+	thrustProjectionFactor = getForwardProjectionFactor(vs)
+	return (1.0 / vs.parameters.config['mass']) * thrustProjectionFactor
+
+def getForwardProjectionFactor(vs):
+	out = (m.sin(vs.pitch.value) * m.sin(vs.pitch.value)
+	 + m.cos(vs.pitch.value) * m.cos(vs.attitude.yaw) * m.cos(vs.heading.value) * m.cos(vs.pitch.value)
+	 + m.cos(vs.pitch.value) * m.cos(vs.pitch.value) * m.sin(vs.attitude.yaw) * m.sin(vs.heading.value))
+	return out
+
 
 def propellerToThrustAndTorque(params,thrust, airspeed):
 	rpm = (params.config['spdParam']['thrustInterpLin'](thrust,airspeed)).item()
