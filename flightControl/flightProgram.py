@@ -9,8 +9,7 @@ import time
 startTime=time.time() #This early helps the filename match the console log.
 
 import multiprocessing
-import transmit, control, receive, log
-import vehicleState
+
 
 import argparse
 from servovehicle import ServoVehicle
@@ -26,14 +25,16 @@ peerReadPort = int(os.environ['PORT'])
 logPath = os.environ["LOGPATH"]
 broadcastIP= os.environ["BROADCASTIP"]
 
+#os.environ["SITL"]="True" #Only exists if this is running SITL
+
 try:
 	SITLFlag = os.environ["SITL"]
 except KeyError:
 	SITLFlag = False
 	print "No environmental variable in flightProgram.py defaulting to SITL = " + str(SITLFlag)
-
 import defaultConfig
 
+import transmit, control, receive, log #Imported here so they inherit the environmental variable that we created
 transmitAddress = (broadcastIP,peerReadPort)
 
 #create message queues

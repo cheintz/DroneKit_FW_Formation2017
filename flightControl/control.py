@@ -52,6 +52,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.lastLogged=None
 		self.clockOffset = 0.0
 		self.tStart=0.0
+		self.abortReason = None
 		self.pm = PrintManager(self.parameters.config['printEvery'])
 
 	def stop(self):
@@ -133,7 +134,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 					time.sleep(timeToWait) #variable pause
 				else:
 					print "Did not have time to wait!"
-					now=time.time()
 					print ("T1: " +str(t1-loopStartTime) + " T2: " +str(t2-t1) + " T3: " +str(t3-t2) + " T4: "
 						   +str(t4-t3) +" T5: " +str(t5-t4) + " T6: " +str(t6-t5))
 			except Exception as ex:
@@ -421,8 +421,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				self.vehicleState.qdScale = 1.0
 			self.pm.p('Formation Scale:' + str(self.vehicleState.qdScale))
 		if(self.parameters.config['propagateStates']):
-			oldPos = self.vehicleState.position
-			oldqGPS = np.matrix([[oldPos.lat], [oldPos.lon], [-oldPos.alt]])
 
 			if (self.vehicleState.isPropagated == False):
 				self.vehicleState.timestamp=self.vehicleState.position.time
@@ -430,9 +428,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			else:
 				dt = self.fcTime() - self.vehicleState.timestamp
 				propagateVehicleState(self.vehicleState, dt)
-			newPos = self.vehicleState.position
-#			newqGPS = np.matrix([[newPos.lat], [newPos.lon],[-newPos.alt]])
-#			dq = getRelPos(oldqGPS,newqGPS)
 		else: #still have to set set the timestamp...
 			self.vehicleState.timestamp = self.fcTime()
 
@@ -513,7 +508,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 # 		print "T1: "+ str(t1-t0) + " t2: " + str(t2-t1)
 	def PilotMiddleLoopRefs(self):
 		#Let Channel 10 determine if this is a speed, altitude, or heading test:
-		vp = self.vehicle.parameters
 		normInput = (self.vehicle.channels['7'] - 1000.0) / 1000.0  #0 to 1
 		self.pm.pMsg("nominal input:", normInput)
 		THIS = self.vehicleState
@@ -541,7 +535,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS.command.thetaDDot = 0
 
 	def ProgrammedMiddleLoopRefs(self):
-		vp = self.vehicle.parameters
 		THIS = self.vehicleState
 		tRel = THIS.timestamp - self.tStart
 		if THIS.command.sdiDot is None:
@@ -864,10 +857,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	# Compute orientation targets
 		#Pitch
-		thetaI = THIS.pitch.value
-		thetaIDot = THIS.pitch.rate
-		if (THIS.parameters.config['dimensions'] == 2 and not pdi[2] == 0):
-			thetaI = 0
 		THIS.command.thetaD = -m.asin(bdi[2])
 		THIS.command.thetaDDot = velAndAccelToPitchRate(pdi, pdiDot)
 
@@ -1046,7 +1035,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		psiDDot = cmd.psiDDot
 		self.pm.pMsg('Desired heading: ',THIS.command.psiD)
 
-		calcTurnRate = THIS.heading.rate
 		if (self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'All'):
 			rollIFactor = rollPFactor = self.RCToExpo(8,5.0)
 			self.pm.p('Pitch Roll, and speed turning')
@@ -1090,9 +1078,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS = self.vehicleState
 		CS = THIS.controlState
 		cmd = THIS.command
-		gains = THIS.parameters.gains
-
-		vp = self.vehicle.parameters
 
 		[rpmDesired, torqueRequired] = propellerToThrustAndTorque(THIS.parameters,THIS.command.ui, THIS.airspeed)
 		cmd.rpmTarget = rpmDesired
@@ -1134,11 +1119,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.pm.p("PitchPFactor: " + str(pitchPFactor))
 
 		#unity gain low pass in pitch
-		aPitch = 1.0/self.vehicle.parameters['PTCH2SRV_TCONST']
 		CS.fPitch,CS.gPitch =self.getPitchDynamics()
 		ePitch = THIS.pitch.value - THIS.command.thetaD
 
-		CS.pitchCancelTerm = -CS.fPitch / CS.gPitch #Add some filtered offset of pitch minus desired pitch here maybe
+		CS.pitchCancelTerm =  THIS.command.thetaD #Feed-forward instead of cancelling the good dynamics
+		#CS.pitchCancelTerm =  ( CS.fPitch / CS.gPitch ) # Add some filtered offset of pitch minus desired pitch here maybe
 		CS.pitchTerms.p = -GAINS['c1'] * pitchPFactor * ePitch / CS.gPitch
 		CS.pitchTerms.i = -GAINS['c2'] * pitchIFactor * CS.accPitchError * self.switchFunction2(CS.accPitchError * eTheta*2) / CS.gPitch
 		CS.pitchTerms.ff = self.switchFunction1(-cmd.thetaDDot * eTheta*10) * cmd.thetaDDot / CS.gPitch
@@ -1225,7 +1210,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		return out
 	def switchFunction2(self,arg):
 		# return 1.0-self.switchFunction1(-arg)
-		out, ignored = saturate(arg,-1.0,1.0)
+		# out, ignored = saturate(arg,-1.0,1.0)
 		return 1
 	def RCToExpo(self,channel, factor):
 		# type: (int, float) -> float

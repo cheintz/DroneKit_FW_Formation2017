@@ -2,7 +2,6 @@ from vehicleState import Parameter, KPID
 from dronekit import  VehicleMode
 import time
 import numpy as np
-import math as m
 import os
 from scipy.interpolate import LinearNDInterpolator,NearestNDInterpolator
 
@@ -34,14 +33,14 @@ def getParams():
 		,'acceptableEngageMode': (VehicleMode('FBWA'),), 'dimensions': 3, 'maxPropagateSeconds': 5,'mass':7.200 # was 6.766kg without GPS heading
 		,'spdParam':{'cd0':0.0139,'cd_ail':0.0,'cd_ele':0.0195,'cdl':0.0875,'spdThrustScl': 1.04
 		,'thrustScale':1.0,'motork1':0.0023,'motork2': 0.015164,'useBatVolt':True}
-		,'mode':'Formation'  # PilotMiddleLoop ProgrammedMiddleLoop Formation
+		,'mode':'ProgrammedMiddleLoop'  # PilotMiddleLoop ProgrammedMiddleLoop Formation
 		,'LeaderAccelSource':'Accel' #Model, Accel
 		,'LeaderRotationSource':'Gyro' #Gyro, Accel
-		,'enableRCMiddleLoopGainAdjust': False #All, #Switched, False
+		,'enableRCMiddleLoopGainAdjust': "All" #All, #Switched, False
 		,'SwitchedSpeedControl':'Continuous' #Continuous, Pure, None
 		,'uiBarrier':False
 		,'qdScaleChannel': False #only the leader matters
-		,'qdIndChannel': 7} #Ch7 is usually the middle loop tuning switch, False for none Only the leader matters
+		,'qdIndChannel': False} #Ch7 is usually the middle loop tuning switch, False for none Only the leader matters
 	defaultParams.GCSTimeout = 5 #seconds
 	defaultParams.peerTimeout = 5 #seconds
 	defaultParams.localTimeout = 1  # seconds
@@ -91,7 +90,7 @@ def getParams():
 		 'thrustScale': 1.0,'motork1':0.001,'motork2':0.0,'useBatVolt':False}
 		defaultParams.config['spdParam'].update(sp)
 		propellerData = np.genfromtxt('propellerDataSITL.csv', delimiter=',',skip_header=1)
-		print "SITL FLAG ACTIVE in defaultConfig!!"
+		print "SITL flag active in defaultConfig."
 		# defaultParams.config['spdParam']['thrustInterpLin'] = lambda t,s: t/((9.81*2.0/0.7)/1000)
 		# defaultParams.config['spdParam']['thrustInterpNear'] = defaultParams.config['spdParam']['thrustInterpLin']
 	if (not SITLFlag):
