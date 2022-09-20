@@ -28,12 +28,12 @@ def getParams():
 		,'vMin': 16,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941
 		,'kAlt':KPID(.026, .0017,.0105), 'a1':2.0,'a2':0.4,'b1':1.0,'b2':0.2,'c1':0.6,'c2':0.1 #a for speed, b for heading, c for pitch
 		,'maxEAlt':50,'epsD':0.2,'ki':3,'pBarrier':1/255.0
-	    	,'hQP': 1e6, 'deltaC':4, 'l0q':4.0, 'l1q':4.1, 'ls':2}
-	defaultParams.config = {'printEvery':50,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
+	    	,'hQP': 1e6, 'deltaC':6, 'l0q':4.0, 'l1q':4.1, 'ls':2}
+	defaultParams.config = {'printEvery':25,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
 		,'acceptableEngageMode': (VehicleMode('FBWA'),), 'dimensions': 3, 'maxPropagateSeconds': 5,'mass':7.200 # was 6.766kg without GPS heading
 		,'spdParam':{'cd0':0.0139,'cd_ail':0.0,'cd_ele':0.0195,'cdl':0.0875,'spdThrustScl': 1.04
 		,'thrustScale':1.0,'motork1':0.0023,'motork2': 0.015164,'useBatVolt':True}
-		,'mode':'ProgrammedMiddleLoop'  # PilotMiddleLoop ProgrammedMiddleLoop Formation
+		,'mode':'Formation'  # PilotMiddleLoop ProgrammedMiddleLoop Formation
 		,'LeaderAccelSource':'Accel' #Model, Accel
 		,'LeaderRotationSource':'Gyro' #Gyro, Accel
 		,'enableRCMiddleLoopGainAdjust': "All" #All, #Switched, False
@@ -76,7 +76,7 @@ def getParams():
 	temp[3][0]=1
 
 	defaultParams.communication=temp
-	defaultParams.Ts = 1.0/50.0
+	defaultParams.Ts = 1.0/25.0
 
 	propellerData = np.genfromtxt('propellerData.csv', delimiter=',',skip_header=1)
 
