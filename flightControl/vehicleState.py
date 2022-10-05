@@ -3,7 +3,7 @@ import numpy as np
 from collections import OrderedDict
 import dronekit
 
-zeroVect = np.matrix([[0],[0],[0]])
+zeroVect = np.matrix([[0.0],[0.0],[0.0]])
 
 KPID = recordtype('KPID', ['kp','ki','kd'])
 

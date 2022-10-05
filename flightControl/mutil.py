@@ -14,7 +14,7 @@ UAV = 0
 GND = 1
 HBT = 2
 PRM = 3
-LOG=4
+LOG = 4
 
 def vsToLogPrep(vs):
 #	print vs.ID

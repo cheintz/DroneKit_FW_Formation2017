@@ -727,8 +727,11 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		ql_gps = np.matrix([[LEADER.position.lat], [LEADER.position.lon],[-LEADER.position.alt]])
 
 		qiDot = np.matrix([[THIS.velocity[0]],[THIS.velocity[1]],[THIS.velocity[2]]] )
+
+		#pg is filtered
 		pg = np.matrix([[LEADER.velocity[0]],[LEADER.velocity[1]],[LEADER.velocity[2]]] )
-		sg =np.linalg.norm(pg,2)
+		#pg[2] = lowPassFilter(CS.pgTerm[2],pg[2], GAINS['aFiltAccelVert'], CS.pgTerm[2] == 0.0)
+		pg[2] = lowPassFilter(CS.pgTerm[2], pg[2], GAINS['aFiltAccelVert']) #Start at zero to reject large initial condition
 
 		if(THIS.parameters.desiredPosition.ndim==3): #if multiple desired positions
 			try:
@@ -770,17 +773,25 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		RgDot = Rg*OmegaG
 		RgDDot =1*Rg*OmegaG*OmegaG+ 0*Rg*OmegaGDot
 		pgDot = np.matrix(LEADER.accel).transpose()
+
+		chii = Rg * di
+		chiiDot = RgDot * di #chiiDot is not filtered
+		#CS.rotFFTerm[2] = lowPassFilter(chiiDot[2], CS.rotFFTerm[2], GAINS['aFiltAccelVert'],CS.rotFFTerm[2] == 0.0)
+		CS.rotFFTerm[2] = lowPassFilter(chiiDot[2], CS.rotFFTerm[2], GAINS['aFiltAccelVert']) #Start at zero to reject large initial condition
+		CS.rotFFTerm[0:2] = chiiDot[0:2]
+
 		if(THIS.parameters.config['LeaderAccelSource'] == 'Accel'):
 			pass #use pgDot as is
 		elif(THIS.parameters.config['LeaderAccelSource'] == 'Model'):
 			leaderBodyAccel = Rg.transpose() * pgDot
+			sg = np.linalg.norm(pg, 2)
 			pgDot = leaderBodyAccel[0].item() * Rg * e1 + RgDot * e1 * sg * 1
 		CS.pgDot = pgDot
 
-		self.pm.p( 'Time: = ' + str(THIS.timestamp))
+		self.pm.p( 'Time: ' + str(THIS.timestamp))
 	#Compute from leader
-		zetai = zi - Rg* di
-		zetaiDot = (qiDot-pg-RgDot*di)
+		zetai = zi - chii
+		zetaiDot = (qiDot-pg-chiiDot)
 
 		if (THIS.parameters.config['dimensions'] == 2):
 			zetai[2] = 0
@@ -791,7 +802,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		CS.pgTerm = pg
 		self.pm.p('pgTerm: ' + str(CS.pgTerm))
-		CS.rotFFTerm = RgDot*di
 		self.pm.p('F(zetai)' + str( F(zetai)))
 
 		kl = GAINS['kl']
@@ -820,8 +830,14 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				phii += -GAINS['ka'] *zetaij
 				phiiDot += -GAINS['ka'] * zetaijDot
 		CS.phii=phii
-		pdi=CS.pgTerm+CS.rotFFTerm+GAINS['ki']*sigma(phii)*phii
-		pdiDot = 1*pgDot+1*RgDDot*di + GAINS['ki'] * (sigmaDot(phii).transpose()*phiiDot).item()*phii+sigma(phii)*phiiDot
+		phiiNormSquared = (phii.T*phii).item()
+
+		pdi=CS.pgTerm+CS.rotFFTerm+GAINS['ki']*sigma(phiiNormSquared)*phii
+		rhoPrime = sigma(phiiNormSquared)*np.eye(3) + 2* sigmaDot(phiiNormSquared) * phii * phii.T
+
+		pdiDot = 1*pgDot+1*RgDDot*di - GAINS['ki'] * rhoPrime * phiiDot
+		self.pm.p('pdiDot:' + str(pdiDot))
+
 		if (THIS.parameters.config['dimensions'] == 2 and not pdi[2] == 0):
 			print "Warning: pdi not 2D. pdi[2]: " + str(pdi[2])
 
@@ -1170,7 +1186,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	####### RC Input Calibration#####
 	#ROLL
-		params.rollGain = (vp['RC1_MAX'] - vp['RC1_MIN']) / 2 / (vp['LIM_ROLL_CD']/100 /(180/m.pi))
+		params.rollGain = (vp['RC1_MAX'] - vp['RC1_MIN']) / 2.0 / (vp['LIM_ROLL_CD']/100 /(180/m.pi))
 					#TODO: update to include out of perfect RC input trim
 		if(vp['RC1_REVERSED'] == 1):
 			params.rollGain = - params.rollGain
@@ -1231,21 +1247,21 @@ def wrapToPi(value):
 def wrapTo2Pi(value):
 	# type: (float) -> float
 	if(value<0):
-		n=m.ceil(abs(value / (2*m.pi)))
+		n=m.ceil(abs(value / (2.0*m.pi)))
 		value+=n*2.0*m.pi
 		positiveInput=False
 	else:
 		positiveInput=True
-	value = m.fmod(value, 2*m.pi)
+	value = m.fmod(value, 2.0*m.pi)
 	if (value == 0 and positiveInput):
-		value=2*m.pi
+		value=2.0*m.pi
 	return value
 	
 def getRelPos(pos1,pos2): #returns the x y delta position of p2-p1 with x being longitude (east positive)
 	# type: (np.matrix,np.matrix) -> np.matrix
 	c = 40074784 # from https://gis.stackexchange.com/questions/2951/algorithm-for-offsetting-a-latitude-longitude-by-some-amount-of-meters
 	dy = (pos2[1,0]-pos1[1,0]) * c * m.cos(m.radians( (pos1[0,0]+pos2[0,0])/ 2))/360
-	dx = (pos2[0,0]-pos1[0,0]) * c /360
+	dx = (pos2[0,0]-pos1[0,0]) * c /360.0
 	dz = pos2[2,0]-pos1[2,0]
 	return np.matrix([[dx], [dy],[dz]])
 
@@ -1274,7 +1290,7 @@ def propagateVehicleState(state, dtPos): #assumes velocity is constant (single i
 	dz = vz*dtPos
 
 	qGPS = np.matrix([[state.position.lat],[ state.position.lon],[-state.position.alt]])
-	dqGPS = getRelPos(qGPS,qGPS + 1e-6) / 1e-6 #get linearization of the  spherical earth to NED transformation
+	dqGPS = getRelPos(qGPS,qGPS + 1.0e-6) / 1.0e-6 #get linearization of the  spherical earth to NED transformation
 	state.position.lat = (state.position.lat + dx/dqGPS[0]).item()
 	state.position.lon = (state.position.lon + dy/dqGPS[1]).item()
 	state.position.alt = (state.position.alt - dz)
@@ -1328,15 +1344,47 @@ def skew(omega):
 					   [-omega.item(1),omega.item(0),0.0]])
 	return Omega
 
-nu1=50
+
+# Example 1
+''' nu1=50
 nu2=1.0
 def sigma(x):
 	#return 1.0
 	return 1.0/m.sqrt(nu1+nu2*x.transpose()*x)
-
-def sigmaDot(x):
+	
+def sigmaDot(x): #This is actually the partials of rho
 	#return np.matrix(np.zeros((3,1)))
 	return -1.0*x/((nu1+nu2*x.transpose()*x).item()**(3.0/2.0))
+	
+def sigma(x): #As defined
+	return 1.0/m.sqrt(nu1+nu2*x)
+	
+def sigmaDot(x): #As defined
+	return nu2/(2.0*m.sqrt(nu1+nu2*x)
+'''
+
+# Example 2
+aMin = 0.5
+aMax = 1.5
+nu1 = 10.0*m.sqrt(6)/ 9.0 - 3
+nu2 = 2.0-7.0*m.sqrt(6.0)/9.0
+def sigma(x):
+	#return 1.0
+	if x<aMin:
+		return 1.0
+	elif x<aMax:
+		return 1.0+nu1*(x-aMin)**2.0+nu2*(x-aMin)**3.0
+	else:
+		return 1.0/m.sqrt(x)
+def sigmaDot(x): #This is actually the partials of rho
+	if x<aMin:
+		ps =  0.0
+	elif x<aMax:
+		ps = 2.0*nu1*(x-aMin)+3.0*nu2*(x-aMin)**2.0
+	else:
+		ps = -1.0/(2.0*x**1.5)
+
+	return ps
 
 def F(x):
 	return 1.0
@@ -1441,3 +1489,11 @@ def PWMTo3Pos(value, lowThresh=1200, highThresh=1700):
 		return 1
 	else:
 		return 2
+
+#Pole is the discrete time pole of the low pass filter. 1 is a pass-through, 0 is infinitely slow
+def lowPassFilter (oldValue, newValue, pole, directOutput=False):
+	if directOutput:
+		return newValue
+	else:
+		return oldValue * (1.0 - pole) + newValue * pole
+

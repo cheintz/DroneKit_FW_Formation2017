@@ -24,11 +24,11 @@ def getParams():
 	# 										 [[-10, 0, 0], [7, 7, 0],[7, -7, 0]]]) #for QP test
 	#aFiltAccel to 1 for no filtering
 
-	defaultParams.gains = {'kl':1*np.diag([1,1,1]) , 'ka': 1.0*np.diag([1,1,1+0*0.3])
+	defaultParams.gains = {'kl':1.0/7.0*np.diag([1,1,0.3]) , 'ka': 1.0/7.0*np.diag([1,1,1+0*0.3])
 		,'vMin': 16,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941
 		,'kAlt':KPID(.026, .0017,.0105), 'a1':2.0,'a2':0.4,'b1':1.0,'b2':0.2,'c1':0.6,'c2':0.1 #a for speed, b for heading, c for pitch
 		,'maxEAlt':50,'epsD':0.2,'ki':3,'pBarrier':1/255.0
-	    	,'hQP': 1e6, 'deltaC':6, 'l0q':4.0, 'l1q':4.1, 'ls':2}
+	    	,'hQP': 1e6, 'deltaC':4, 'l0q':4.0, 'l1q':4.1, 'ls':2}
 	defaultParams.config = {'printEvery':25,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
 		,'acceptableEngageMode': (VehicleMode('FBWA'),), 'dimensions': 3, 'maxPropagateSeconds': 5,'mass':7.200 # was 6.766kg without GPS heading
 		,'spdParam':{'cd0':0.0139,'cd_ail':0.0,'cd_ele':0.0195,'cdl':0.0875,'spdThrustScl': 1.04
@@ -81,6 +81,7 @@ def getParams():
 	propellerData = np.genfromtxt('propellerData.csv', delimiter=',',skip_header=1)
 
 	if(SITLFlag):
+		print "Using SITL param overrides"
 		defaultParams.Ts = 1.0 / 25.0
 		defaultParams.config['printEvery'] = 25
 		defaultParams.config['mass'] = 2.0
