@@ -26,7 +26,8 @@ def getParams():
 
 	defaultParams.gains = {'kl':1.0/7.0*np.diag([1,1,0.3]) , 'ka': 1.0/7.0*np.diag([1,1,1+0*0.3])
 		,'vMin': 16,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941
-		,'kAlt':KPID(.026, .0017,.0105), 'a1':2.0,'a2':0.4,'b1':1.0,'b2':0.2,'c1':0.6,'c2':0.1 #a for speed, b for heading, c for pitch
+		,'kAlt':KPID(.026, .0017,.0105), 'asi':2.0,'bsi':0.4,'asigmai':1.0,'bsigmai':0.2,'agammai':0.6,'bgammai':0.1 #a for speed, b for heading, c for pitch
+		,'deltasi': 0.1, 'deltasigmai': 0.5, 'deltagammai': 0.1, 'barxsi': 6.0, 'barxsigmai': 1, 'barxgammai': 1 #Switch widths and integrator saturations
 		,'maxEAlt':50,'epsD':0.2,'ki':3,'pBarrier':1/255.0
 	    	,'hQP': 1e6, 'deltaC':4, 'l0q':4.0, 'l1q':4.1, 'ls':2}
 	defaultParams.config = {'printEvery':25,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False

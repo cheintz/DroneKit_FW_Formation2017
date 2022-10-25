@@ -4,12 +4,11 @@ os.environ["OMP_NUM_THREADS"]="1" #Limit numpy to one thread
 #See: https://stackoverflow.com/questions/30791550/limit-number-of-threads-in-numpy top answer
 #Must be before numpy is imported (including in other imports)
 
-from dronekit import connect, VehicleMode
 import time
 startTime=time.time() #This early helps the filename match the console log.
+from dronekit import connect, VehicleMode
 
 import multiprocessing
-
 
 import argparse
 from servovehicle import ServoVehicle
@@ -25,7 +24,7 @@ peerReadPort = int(os.environ['PORT'])
 logPath = os.environ["LOGPATH"]
 broadcastIP= os.environ["BROADCASTIP"]
 
-#os.environ["SITL"]="True" #Only exists if this is running SITL
+os.environ["SITL"]="True" #Only exists if this is running SITL
 
 try:
 	SITLFlag = os.environ["SITL"]
@@ -34,7 +33,7 @@ except KeyError:
 	print "No environmental variable in flightProgram.py defaulting to SITL = " + str(SITLFlag)
 import defaultConfig
 
-import transmit, control, receive, log #Imported here so they inherit the environmental variable that we created
+import transmit, control, receive, log #Imported here so they inherit the SITL environmental variable that we created
 transmitAddress = (broadcastIP,peerReadPort)
 
 #create message queues

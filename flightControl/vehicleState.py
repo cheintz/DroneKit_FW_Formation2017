@@ -15,18 +15,18 @@ Parameter = recordtype('Parameter',['receivedTime','desiredPosition','gains', 'T
 	,'expectedMAVs', 'rollGain', 'config', 'rollOffset', 'pitchGain', 'pitchOffset', 'throttleGain', 'throttleMin'
 	,'communication', 'fns'], default = None)
 
-Command = recordtype('Command',['sdi','sdt','sdiDot','ui','rpmTarget','torqueRequired','gsTarget',('omega',zeroVect),'psiD'
-	,'psiDDot','thetaD','rollCMD','thetaDDot'
+Command = recordtype('Command',['sdi','sdt','sdiDot','usi','rpmTarget','torqueRequired','gsTarget',('omega',zeroVect),'sigmaD'
+	,'sigmaDDot','gammaD','rollCMD','gammaDDot'
 	,'pitchCMD','throttleCMD','timestamp',('qd',zeroVect)], default = None)
 
 CourseAngle = recordtype('CourseAngle',['value','rate','accel'],default=0.0)	
 
-ControlState = recordtype('ControlState',[('pgTerm',zeroVect),('rotFFTerm',zeroVect),('phii',zeroVect),('pdi',zeroVect)
-	,('bdi',zeroVect),('pdiDot',zeroVect), ('pgDot',zeroVect)
+ControlState = recordtype('ControlState',[('pgTerm',zeroVect),('rotFFTerm',zeroVect),('xii',zeroVect),('pdi',zeroVect)
+	,('ydi',zeroVect),('pdiDot',zeroVect), ('pgDot',zeroVect)
   	,'accHeadingError',('rollTerms',PIDTerms()),'accSpeedError'
 	,'accPitchError',('pitchTerms',PIDTerms()),'accAltError','fPitch','gPitch','pitchCancelTerm'
 	,('speedTerms',PIDTerms()),'speedCancelTerm','fSpeed','gSpeed'
-	,'h','phps','phpsd','mu',('QPActive',False)], default = 0.0)
+	,'h','phps','phpsd',('QPActive',False)], default = 0.0)
 
 Message = recordtype('Message','msgType,sendTime,content', default = None)
 

@@ -128,7 +128,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				timeToWait = (1.0+1.0 * self.vehicleState.controlState.QPActive) * self.parameters.Ts \
 							- (time.time() -loopStartTime) # Wait 1 or more steps longer if QP is active
 				self.vehicleState.timeToWait = timeToWait
-				self.pm.pMsg('Waiting: ',  "{:.5f}".format(timeToWait))
+				self.pm.pMsg('Waiting: ', "{:.5f}".format(timeToWait))
 				self.pm.increment()
 				if(timeToWait>0):
 					time.sleep(timeToWait) #variable pause
@@ -529,8 +529,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		THIS.command.gsTarget = THIS.command.sdi
 		THIS.command.thetaD = (pitchInput-0.5 ) * self.vehicle.parameters['LIM_PITCH_MAX']/100.0 / (180.0 / m.pi) #Stick controls pitch, center is level flight
 		self.pm.pMsg("Desired pitch: ", THIS.command.thetaD)
-		THIS.command.psiD = wrapToPi(0.35 + m.pi*(2*headingInput-1.0) ) #North is Middle of range
-		THIS.command.psiDDot=0
+		THIS.command.sigmaD = wrapToPi(0.35 + m.pi*(2*headingInput-1.0) ) #North is Middle of range
+		THIS.command.sigmaDDot=0
 		THIS.command.sdiDot = 0
 		THIS.command.thetaDDot = 0
 
@@ -547,46 +547,46 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			if tRel < 5:
 				THIS.command.thetaD = 0.0
 				THIS.command.sdi= 20.0
-				if THIS.command.psiD is None:
-					THIS.command.psiD = upField
+				if THIS.command.sigmaD is None:
+					THIS.command.sigmaD = upField
 				THIS.command.sdiDot = 0
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 0.0
 			elif tRel < 15:
 				THIS.command.sdiDot	 = 0.5 #ramp up to 25 m/s
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 0.0
 			elif tRel < 20:   #reach steady state (hopefully)
 				THIS.command.sdiDot = 0.0
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 0.0
 			elif tRel < 28:
 				THIS.command.sdiDot = 0.0
 				THIS.command.thetaDDot = 0.0
-				THIS.command.psiDDot = m.pi / 8.0  # 180 deg turn in 8 seconds
+				THIS.command.sigmaDDot = m.pi / 8.0  # 180 deg turn in 8 seconds
 			elif tRel < 32:  #reach steady state
 				THIS.command.sdiDot = 0.0
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 0.0
 			elif tRel < 47:  # reach steady state
 				THIS.command.sdiDot = -0.5  #slow to 15 m/s
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 0.0
 			elif tRel < 55:
 				THIS.command.sdiDot = 0.0
 				THIS.command.thetaDDot = 0.0
-				THIS.command.psiDDot = m.pi / 8.0  # 180 deg turn in 8 seconds
+				THIS.command.sigmaDDot = m.pi / 8.0  # 180 deg turn in 8 seconds
 			elif tRel < 65:  # reach steady state
 				THIS.command.sdiDot = 1.0  #Accelerate to 25 m/s
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 0.0
 			elif tRel<75:
 				THIS.command.sdiDot = 0.0  # Reach steady state
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 0.0
 			else:
 				THIS.command.sdiDot = 0.0
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 0.0
 				self.releaseControl()
 
@@ -594,39 +594,39 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			self.pm.p('Programmed heading routine')
 			if tRel <18:
 				THIS.command.sdi = 20.0
-				THIS.command.psiD = upField
+				THIS.command.sigmaD = upField
 				THIS.command.thetaD = 0.0
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 0.0
 			elif tRel < 22 :
-				THIS.command.psiDDot = m.pi / 2.0 / 4.0  # 90 deg turn in 4 seconds
+				THIS.command.sigmaDDot = m.pi / 2.0 / 4.0  # 90 deg turn in 4 seconds
 				THIS.command.thetaDDot = 00.0
 			elif tRel < 30:
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 00.0
 			elif tRel < 34:
-				THIS.command.psiDDot = m.pi / 2.0 / 4.0   # 90 deg turn in 4 seconds
+				THIS.command.sigmaDDot = m.pi / 2.0 / 4.0   # 90 deg turn in 4 seconds
 				THIS.command.thetaDDot = 00.0
 			elif tRel < 50:
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 00.0
 			elif tRel < 54:
-				THIS.command.psiDDot = m.pi / 2.0 / 4.0   # 90 deg turn in 4 seconds
+				THIS.command.sigmaDDot = m.pi / 2.0 / 4.0   # 90 deg turn in 4 seconds
 				THIS.command.thetaDDot = 0.0
 			elif tRel < 58:
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 0.0
 			elif tRel < 62:
-				THIS.command.psiDDot = m.pi / 2.0 / 4.0   # 90 deg turn in 4 seconds
+				THIS.command.sigmaDDot = m.pi / 2.0 / 4.0   # 90 deg turn in 4 seconds
 				THIS.command.thetaDDot = 0.0
 			elif tRel < 72:
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 0.0
 			elif tRel < 110:
-				THIS.command.psiDDot = m.pi / 8.0  #22.5 deg/sec circles
+				THIS.command.sigmaDDot = m.pi / 8.0  #22.5 deg/sec circles
 				THIS.command.thetaDDot = 0.0
 			else:
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 0.0
 				self.releaseControl()
 
@@ -635,67 +635,67 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			if tRel < 5:
 				THIS.command.sdi=20.0
 				THIS.command.thetaD = 0.0
-				if THIS.command.psiD is None:
-					THIS.command.psiD = THIS.heading.value # hold heading
-				THIS.command.psiDDot = 0.0
+				if THIS.command.sigmaD is None:
+					THIS.command.sigmaD = THIS.heading.value # hold heading
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 0.0
 			elif tRel < 10:
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 0.05 #ramp pitch up to 15 degrees
 			elif tRel < 15:
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 0.0
 			elif tRel < 20:
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = -0.05  # ramp to level
 			elif tRel < 28:
 				THIS.command.thetaDDot = 0.0
-				THIS.command.psiDDot = m.pi  / 8.0  # 180 deg turn in 8 seconds
+				THIS.command.sigmaDDot = m.pi / 8.0  # 180 deg turn in 8 seconds
 			elif tRel < 35:
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 0.0
 			elif tRel < 40 :
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = -0.05  # ramp to -15 degrees pitch
 			elif tRel < 45:
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 0.0 #Descend
 			elif tRel < 50:
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 0.05  # ramp pitch up to level
 			elif tRel < 55:
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 0.0
 			elif tRel < 63:
 				THIS.command.thetaDDot = 0.0
-				THIS.command.psiDDot = m.pi / 8.0  # 180 deg turn in 8 seconds
+				THIS.command.sigmaDDot = m.pi / 8.0  # 180 deg turn in 8 seconds
 			elif tRel < 68:
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				THIS.command.thetaDDot = 0.0 #stablilize
 			elif tRel < 73:
 				THIS.command.thetaD = 0.25 #step nose up
 				THIS.command.thetaDDot = 0.0
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 			elif tRel < 78:
 				THIS.command.thetaD = 0 #step level
 				THIS.command.thetaDDot = 0.0
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 			elif tRel < 83:
 				THIS.command.thetaD = -.25  # step nose down
 				THIS.command.thetaDDot = 0.0
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 			elif tRel < 88:
 				THIS.command.thetaD = 0.0  # step level
 				THIS.command.thetaDDot = 0.0
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 			elif tRel< 93:
 				THIS.command.thetaDDot = 0.0
-				THIS.command.psiDDot = 0.0
+				THIS.command.sigmaDDot = 0.0
 				self.releaseControl()
 
 			#integrate the commands
 		self.pm.pMsg('T Rel: ', tRel)
-		THIS.command.psiD = wrapToPi(THIS.command.psiD  + self.thisTS *THIS.command.psiDDot)
+		THIS.command.sigmaD = wrapToPi(THIS.command.sigmaD + self.thisTS * THIS.command.sigmaDDot)
 		THIS.command.thetaD = THIS.command.thetaD + self.thisTS *THIS.command.thetaDDot
 		THIS.command.sdi = THIS.command.sdi + self.thisTS * THIS.command.sdiDot
 
@@ -750,24 +750,24 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		e1=np.matrix([[1],[0],[0]])
 
-		psiG = LEADER.heading.value
-		thetaG = LEADER.pitch.value
+		sigmaG = LEADER.heading.value
+		gammaG = LEADER.pitch.value
 		phiG = LEADER.roll.value #This should be zero for all time
-		thetaGDot = LEADER.pitch.rate
+		gammaGDot = LEADER.pitch.rate
 
 		if (THIS.parameters.config['dimensions'] == 2):
 			ql_gps[2] = 0
 			pg[2] = 0
-			thetaG = 0
-			thetaGDot = 0
+			gammaG = 0
+			gammaGDot = 0
 			self.pm.p("Formation 2D")
 		else:
 			self.pm.p("Formation 3D")
 
 		zi = getRelPos(ql_gps, qi_gps)
 
-		Rg = eul2rotm(psiG,thetaG,phiG)
-		OmegaG = skew(ERatesToW(psiG,thetaG,phiG,LEADER.heading.rate,thetaGDot,LEADER.roll.rate))
+		Rg = eul2rotm(sigmaG,gammaG,phiG)
+		OmegaG = skew(ERatesToW(sigmaG,gammaG,phiG,LEADER.heading.rate,gammaGDot,LEADER.roll.rate))
 		OmegaGDot = 1*skew(EAccelToAlpha(LEADER.heading,LEADER.pitch,LEADER.roll))
 
 		RgDot = Rg*OmegaG
@@ -790,25 +790,25 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		self.pm.p( 'Time: ' + str(THIS.timestamp))
 	#Compute from leader
-		zetai = zi - chii
-		zetaiDot = (qiDot-pg-chiiDot)
+		qiTilde = zi - chii
+		qiTildeDot = (qiDot-pg-chiiDot)
 
 		if (THIS.parameters.config['dimensions'] == 2):
-			zetai[2] = 0
-			zetaiDot[2]=0
+			qiTilde[2] = 0
+			qiTildeDot[2]=0
 
 		self.pm.p("qil Inertial: " + str(zi))
 		self.pm.p("qil Leader: " + str(Rg.transpose()*zi))
 
 		CS.pgTerm = pg
 		self.pm.p('pgTerm: ' + str(CS.pgTerm))
-		self.pm.p('F(zetai)' + str( F(zetai)))
+		self.pm.p('F(qiTilde)' + str( F(qiTilde)))
 
 		kl = GAINS['kl']
 		kl = kl * self.parameters.communication[ID-1][0]
 		self.pm.p('Leader rel gain: ' + str(self.parameters.communication[ID-1][0]))
-		phii = -kl * zetai
-		phiiDot = -kl * zetaiDot
+		xii = -kl * qiTilde
+		xiiDot = -kl * qiTildeDot
 
 	#compute from peers
 		for j in range(1,n+1): #This loops over mav IDs, not indices in any arrays
@@ -816,26 +816,26 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				self.pm.p( "Processing with mav ID: "+ str(j )+ " and gain: " +str(self.parameters.communication[ID-1][j-1]))
 				JPLANE = self.stateVehicles[(j)]
 				qj_gps = np.matrix([[JPLANE.position.lat], [JPLANE.position.lon],[-JPLANE.position.alt]])
-				qij = getRelPos(qj_gps,qi_gps)
+				zij = getRelPos(qj_gps,qi_gps)
 				qdjl = THIS.qdScale* qd[j-2,0:3]
 				qdjl.shape=(3,1)
 				pj = np.matrix([[JPLANE.velocity[0]],[JPLANE.velocity[1]],[JPLANE.velocity[2]]])
 				dij = (di-qdjl )
-				zetaij = qij-Rg*dij
-				zetaijDot = qiDot - pj - RgDot * dij
+				qTildeij = zij-Rg*dij
+				qTildeijDot = qiDot - pj - RgDot * dij
 
 				if (THIS.parameters.config['dimensions'] == 2):
-					zetaij[2] = 0
-					zetaijDot[2] = 0
-				phii += -GAINS['ka'] *zetaij
-				phiiDot += -GAINS['ka'] * zetaijDot
-		CS.phii=phii
-		phiiNormSquared = (phii.T*phii).item()
+					qTildeij[2] = 0
+					qTildeijDot[2] = 0
+				xii += -GAINS['ka'] *qTildeij
+				xiiDot += -GAINS['ka'] * qTildeijDot
+		CS.xii=xii
+		xiiNormSquared = (xii.T*xii).item()
 
-		pdi=CS.pgTerm+CS.rotFFTerm+GAINS['ki']*sigma(phiiNormSquared)*phii
-		rhoPrime = sigma(phiiNormSquared)*np.eye(3) + 2* sigmaDot(phiiNormSquared) * phii * phii.T
+		pdi= CS.pgTerm + CS.rotFFTerm + GAINS['ki'] * mu(xiiNormSquared) * xii
+		rhoPrime = mu(xiiNormSquared) * np.eye(3) + 2 * muPrime(xiiNormSquared) * xii * xii.T
 
-		pdiDot = 1*pgDot+1*RgDDot*di - GAINS['ki'] * rhoPrime * phiiDot
+		pdiDot = 1*pgDot+1*RgDDot*di - GAINS['ki'] * rhoPrime * xiiDot
 		self.pm.p('pdiDot:' + str(pdiDot))
 
 		if (THIS.parameters.config['dimensions'] == 2 and not pdi[2] == 0):
@@ -845,7 +845,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.pm.p('Formation FFTerm: ' + str(np.linalg.norm(CS.pgTerm+CS.rotFFTerm) ))
 
 ##Compute intermediates
-	#Saturate sdi (and deal with sdiDot and bdiDot)
+	#Saturate sdi (and deal with sdiDot and ydiDot)
 		sdi = np.linalg.norm(pdi,2)
 
 		headwind = (THIS.airspeed - THIS.groundspeed)
@@ -854,18 +854,18 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		sMax = vMax-GAINS['epsD']
 		sMin = vMin+GAINS['epsD']
 		sdt, didSatSd = saturate(sdi, sMin, sMax)
-		bdi = pdi / sdi
+		ydi = pdi / sdi
 
 		THIS.command.sdi=sdi
-		CS.bdi = bdi
+		CS.ydi = ydi
 
 		sdiDot = ( (pdi.transpose() / sdi) * pdiDot).item()
-		bdiDot = 1.0/sdi * pdiDot - 1.0/sdi**2.0 * sdiDot * pdi
+		ydiDot = 1.0/sdi * pdiDot - 1.0/sdi**2.0 * sdiDot * pdi
 
 		if(didSatSd):
 			sdiDot = 0
 			self.pm.p("sdi saturated, was " + str(sdi)+ " Now " + str(sdt))
-		pdiDot = sdiDot*bdi + sdi*bdiDot #Checked good, will saturate with sdi
+		pdiDot = sdiDot*ydi + sdi*ydiDot #Checked good, will saturate with sdi
 		CS.pdiDot = pdiDot
 
 		THIS.command.sdt = sdt  #saturated desired speed and derivative
@@ -873,12 +873,12 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 	# Compute orientation targets
 		#Pitch
-		THIS.command.thetaD = -m.asin(bdi[2])
-		THIS.command.thetaDDot = velAndAccelToPitchRate(pdi, pdiDot)
+		THIS.command.gammaD = -m.asin(ydi[2])
+		THIS.command.gammaDDot = velAndAccelToPitchRate(pdi, pdiDot)
 
 		#Heading
-		THIS.command.psiD = m.atan2(bdi[1],bdi[0])
-		THIS.command.psiDDot = velAndAccelToHeadingRate(pdi,pdiDot)
+		THIS.command.sigmaD = m.atan2(ydi[1],ydi[0])
+		THIS.command.sigmaDDot = velAndAccelToHeadingRate(pdi,pdiDot)
 
 	#compute implementable orientation controls
 		self.speedControl()
@@ -894,7 +894,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		gammaDotCMD = fPitch + gPitch * cmd.pitchCMD
 		fSpeed = getSpeedF(THIS)
 		gSpeed = getSpeedG(THIS)
-		sDotCMD = fSpeed + gSpeed * cmd.ui
+		sDotCMD = fSpeed + gSpeed * cmd.usi
 		UBar = np.matrix([[sigmaDotCMD],[gammaDotCMD],[sDotCMD]])
 		ziDot = qiDot-pg
 
@@ -907,7 +907,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		#Make leader row (standard form is Gx<=h, quadprog takes Gx>=h)
 		G = 2 * zi.T * Fi  # 1x3
-		h = 2*zi.T* np.matrix(LEADER.accel).T - 2*ziDot.T*ziDot - 2 * l1q * zi.T*ziDot - l0q * (zi.T*zi - deltaC**2) #1x1
+		h = 2 * zi.T * np.matrix(LEADER.accel).T - 2*ziDot.T*ziDot - 2 * l1q * zi.T*ziDot - l0q * (zi.T*zi - deltaC**2) #1x1
 
 		#Add agent rows
 		for j in range(1,n+1): #This loops over mav IDs, not indices in any arrays
@@ -956,7 +956,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			print "QP active!" + str(deltaU)
 			cmd.rollCMD = m.atan(U.item(0) * si * m.cos(THIS.pitch.value) / 9.81)
 			cmd.pitchCMD = (U.item(1) - fPitch)  / gPitch
-			cmd.ui =  (U.item(2) - fSpeed ) / gSpeed
+			cmd.usi = (U.item(2) - fSpeed) / gSpeed
 
 	#TODO: do not change integrator state if QP is active. Is this the desired behavior, even??
 
@@ -1017,26 +1017,24 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.speedTerms.extraKP = speedPFactor
 		CS.speedTerms.extraKI = speedIFactor
 
-		switchStateDot = self.switchFunction1(-siTilde * sdiDot*10)
-		switchStateInt = self.switchFunction2(siTilde * CS.accSpeedError/400.0)
+		switchStateDot = self.switchFunction1(-siTilde * sdiDot / GAINS['deltasi'] )
 
 		CS.speedCancelTerm = (-1.0 / gSpeed) * fSpeed
-		CS.speedTerms.p = (-1.0 / gSpeed) * GAINS['a1'] * speedPFactor * siTilde * h / mu
-		CS.speedTerms.i= (-1.0 / gSpeed) * GAINS['a2'] * speedIFactor * switchStateInt*CS.accSpeedError * h / mu
+		CS.speedTerms.p = (-1.0 / gSpeed) * GAINS['asi'] * speedPFactor * siTilde * h / mu
+		CS.speedTerms.i= (-1.0 / gSpeed) * GAINS['bsi'] * speedIFactor * CS.accSpeedError * h / mu
 		CS.speedTerms.ff = (-1.0/ gSpeed) * (switchStateDot * sdiDot / mu) * (siTilde * phpsd - h)
 
 		CS.h = h
 		CS.phps = phps
 		CS.phpsd = phpsd
-		CS.mu = mu
 
 		#Speed anti-windup handled in throttle, including if QP should stop the integrator
 		CS.accSpeedError = CS.accSpeedError + self.thisTS * siTilde
-		CS.accSpeedError,ignored = saturate(CS.accSpeedError,-6.0,6.0)
+		CS.accSpeedError,ignored = saturate(CS.accSpeedError,-GAINS['barxsi'],GAINS['barxsi'])
 
-		CS.speedTerms.unsaturatedOutput = ui = CS.speedCancelTerm + CS.speedTerms.p + CS.speedTerms.i + CS.speedTerms.ff
-		self.pm.p('ui: ' + "{:.3f}".format(ui))
-		THIS.command.ui = ui
+		CS.speedTerms.unsaturatedOutput = usi = CS.speedCancelTerm + CS.speedTerms.p + CS.speedTerms.i + CS.speedTerms.ff
+		self.pm.p('usi: ' + "{:.3f}".format(usi))
+		THIS.command.usi = usi
 		THIS.command.sdt = sdt
 		THIS.command.gsTarget = sdt
 
@@ -1046,10 +1044,10 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS = THIS.controlState
 		GAINS = THIS.parameters.gains
 
-		psi = THIS.heading.value
-		ePsi = wrapToPi(psi-THIS.command.psiD)
-		psiDDot = cmd.psiDDot
-		self.pm.pMsg('Desired heading: ',THIS.command.psiD)
+		sigmai = THIS.heading.value
+		eSigma = wrapToPi(sigmai - THIS.command.sigmaD)
+		sigmaDDot = cmd.sigmaDDot
+		self.pm.pMsg('Desired heading: ', THIS.command.sigmaD)
 
 		if (self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'All'):
 			rollIFactor = rollPFactor = self.RCToExpo(8,5.0)
@@ -1065,9 +1063,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.rollTerms.extraKP = rollPFactor
 		CS.rollTerms.extraKI = rollIFactor
 
-		CS.rollTerms.p = -GAINS['b1'] * rollPFactor* ePsi
-		CS.rollTerms.i = -GAINS['b2'] * rollIFactor* CS.accHeadingError * self.switchFunction2(0.5*ePsi * CS.accHeadingError)
-		CS.rollTerms.ff = psiDDot * self.switchFunction1(-ePsi * cmd.psiDDot*2)
+		CS.rollTerms.p = -GAINS['asigmai'] * rollPFactor* eSigma
+		CS.rollTerms.i = -GAINS['bsigmai'] * rollIFactor* CS.accHeadingError * self.switchFunction2(0.5*eSigma * CS.accHeadingError)
+		CS.rollTerms.ff = sigmaDDot * self.switchFunction1(-eSigma * cmd.sigmaDDot/ GAINS['deltasigmai'])
 
 		CS.rollTerms.unsaturatedOutput = CS.rollTerms.p + CS.rollTerms.i + CS.rollTerms.ff
 		CS.rollTerms.unsaturatedOutput = m.atan(CS.rollTerms.unsaturatedOutput* THIS.groundspeed / 9.81 * m.cos(THIS.pitch.value))  # unclear if pitch angle should be included.
@@ -1077,17 +1075,17 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		#antiwindup
 		delta = cmd.rollCMD - CS.rollTerms.unsaturatedOutput
-		if (delta < 0 and ePsi<0 )   or  (delta>0 and ePsi>0):
+		if (delta < 0 and eSigma<0 )   or  (delta>0 and eSigma>0):
 			pass #Don't change integrator state because output is saturated
 	#	elif (CS.QPActive):
 	#		pass #Don't change integrator state if the QP was active last step
 		else:
-			CS.accHeadingError += self.thisTS * ePsi
+			CS.accHeadingError += self.thisTS * eSigma
 
-		CS.accHeadingError,ignored = saturate(CS.accHeadingError,-1.0,1.0)
+		CS.accHeadingError,ignored = saturate(CS.accHeadingError,-GAINS['barxsigmai'],GAINS['barxsigmai'])
 		cmd.timestamp = self.fcTime()
-		self.pm.p("Commanded heading rate (rllctrl): " + str(THIS.command.psiDDot))
-		self.pm.p("Heading Error: " + str(ePsi) )
+		self.pm.p("Commanded heading rate (rllctrl): " + str(THIS.command.sigmaDDot))
+		self.pm.p("Heading Error: " + str(eSigma) )
 		self.pm.p("Heading integral: " + str(CS.accHeadingError) )
 
 	def throttleControl(self):
@@ -1095,7 +1093,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS = THIS.controlState
 		cmd = THIS.command
 
-		[rpmDesired, torqueRequired] = propellerToThrustAndTorque(THIS.parameters,THIS.command.ui, THIS.airspeed)
+		[rpmDesired, torqueRequired] = propellerToThrustAndTorque(THIS.parameters,THIS.command.usi, THIS.airspeed)
 		cmd.rpmTarget = rpmDesired
 		cmd.torqueRequired = torqueRequired
 		spdParams = THIS.parameters.config['spdParam']
@@ -1108,7 +1106,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		# anti-windup, should probably be in speed control, but that's hard.
 		eSpeed = THIS.groundspeed - cmd.sdt
 		# if (cmd.throttleCMD >= 100 and eSpeed < 0) or (cmd.ui <= 0 and eSpeed > 0) or CS.QPActive:
-		if (cmd.throttleCMD>=100 and eSpeed < 0) or (cmd.ui<=0 and eSpeed > 0):
+		if (cmd.throttleCMD>=100 and eSpeed < 0) or (cmd.usi <= 0 and eSpeed > 0):
 			CS.accSpeedError -= self.thisTS * eSpeed #undo the integrator for anti-windup reasons, and if the QP is active
 
 		self.pm.p('Groundspeed Error: ' + str(eSpeed))
@@ -1120,7 +1118,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS = THIS.controlState
 		vp = self.vehicle.parameters
 		GAINS = THIS.parameters.gains
-		eTheta = (self.vehicleState.pitch.value- cmd.thetaD)
+		eTheta = (self.vehicleState.pitch.value- cmd.gammaD)
 		if(self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'All'):
 			pitchIFactor = pitchPFactor = self.RCToExpo(7,5.0)
 			self.pm.p('Pitch Roll, and speed turning')
@@ -1136,13 +1134,13 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		#unity gain low pass in pitch
 		CS.fPitch,CS.gPitch =self.getPitchDynamics()
-		ePitch = THIS.pitch.value - THIS.command.thetaD
+		eGamma = THIS.pitch.value - THIS.command.gammaD
 
-		CS.pitchCancelTerm =  THIS.command.thetaD #Feed-forward instead of cancelling the good dynamics
+		CS.pitchCancelTerm =  THIS.command.gammaD #Feed-forward instead of cancelling the good dynamics
 		#CS.pitchCancelTerm =  ( CS.fPitch / CS.gPitch ) # Add some filtered offset of pitch minus desired pitch here maybe
-		CS.pitchTerms.p = -GAINS['c1'] * pitchPFactor * ePitch / CS.gPitch
-		CS.pitchTerms.i = -GAINS['c2'] * pitchIFactor * CS.accPitchError * self.switchFunction2(CS.accPitchError * eTheta*2) / CS.gPitch
-		CS.pitchTerms.ff = self.switchFunction1(-cmd.thetaDDot * eTheta*10) * cmd.thetaDDot / CS.gPitch
+		CS.pitchTerms.p = -GAINS['agammai'] * pitchPFactor * eGamma / CS.gPitch
+		CS.pitchTerms.i = -GAINS['bgammai'] * pitchIFactor * CS.accPitchError * self.switchFunction2(CS.accPitchError * eGamma*2) / CS.gPitch
+		CS.pitchTerms.ff = self.switchFunction1(-cmd.gammaDDot * eGamma*GAINS['deltagammai']) * cmd.gammaDDot / CS.gPitch
 		CS.pitchTerms.extraKP = pitchPFactor
 		CS.pitchTerms.extraKI = pitchIFactor
 
@@ -1153,14 +1151,14 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		#antiwindup
 		delta = cmd.pitchCMD - CS.pitchTerms.unsaturatedOutput
-		# if (delta < 0 and ePitch < 0) or (delta > 0 and ePitch > 0) or CS.QPActive:
-		if (delta < 0 and ePitch<0 )   or  (delta>0 and ePitch>0):
+		# if (delta < 0 and eGamma < 0) or (delta > 0 and eGamma > 0) or CS.QPActive:
+		if (delta < 0 and eGamma<0 )   or  (delta>0 and eGamma>0):
 			pass #Don't change integrator state because output is saturated
 		else:
-			CS.accPitchError += self.thisTS * ePitch
+			CS.accPitchError += self.thisTS * eGamma
 
-		CS.accPitchError,ignored = saturate(CS.accPitchError, -1.0,1.0)
-		self.pm.p('Desired Pitch: ' + str(cmd.thetaD))
+		CS.accPitchError,ignored = saturate(CS.accPitchError, -GAINS['barxgammai'],GAINS['barxgammai'])
+		self.pm.p('Desired Pitch: ' + str(cmd.gammaD))
 		self.pm.p('Pitch Error: ' + str(eTheta))
 		self.pm.p('Acc Pitch Error: ' + str(CS.accPitchError))
 		self.pm.p('Pitch I term: ' + str(CS.pitchTerms.i ))
@@ -1317,9 +1315,9 @@ def computeQInv(psi, theta, phi):
 				   [0,m.sin(phi)/m.cos(theta),m.cos(phi)/m.cos(theta)]])
 	return QInv
 
-def ERatesToW(psi,theta,phi,psiDot,thetaDDot,phiDot):
+def ERatesToW(psi,theta,phi,psiDot,thetaDot,phiDot):
 	Q = computeQ(psi,theta,phi)
-	Phi = np.matrix([[phiDot],[thetaDDot],[psiDot]])
+	Phi = np.matrix([[phiDot],[thetaDot],[psiDot]])
 	return Q * Phi
 def WToERates(psi,theta,phi,omega): #accepts, x y z, yields roll, pitch, yaw rates
 	QInv = computeQInv(psi,theta,phi)
@@ -1348,18 +1346,18 @@ def skew(omega):
 # Example 1
 ''' nu1=50
 nu2=1.0
-def sigma(x):
+def mu(x):
 	#return 1.0
 	return 1.0/m.sqrt(nu1+nu2*x.transpose()*x)
 	
-def sigmaDot(x): #This is actually the partials of rho
+def muPrime(x): #This is actually the partials of rho
 	#return np.matrix(np.zeros((3,1)))
 	return -1.0*x/((nu1+nu2*x.transpose()*x).item()**(3.0/2.0))
 	
-def sigma(x): #As defined
+def mu(x): #As defined
 	return 1.0/m.sqrt(nu1+nu2*x)
 	
-def sigmaDot(x): #As defined
+def muPrime(x): #As defined
 	return nu2/(2.0*m.sqrt(nu1+nu2*x)
 '''
 
@@ -1368,7 +1366,7 @@ aMin = 0.5
 aMax = 1.5
 nu1 = 10.0*m.sqrt(6)/ 9.0 - 3
 nu2 = 2.0-7.0*m.sqrt(6.0)/9.0
-def sigma(x):
+def mu(x):
 	#return 1.0
 	if x<aMin:
 		return 1.0
@@ -1376,7 +1374,7 @@ def sigma(x):
 		return 1.0+nu1*(x-aMin)**2.0+nu2*(x-aMin)**3.0
 	else:
 		return 1.0/m.sqrt(x)
-def sigmaDot(x): #This is actually the partials of rho
+def muPrime(x):
 	if x<aMin:
 		ps =  0.0
 	elif x<aMax:
