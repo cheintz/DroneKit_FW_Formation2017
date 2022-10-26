@@ -15,7 +15,7 @@ Parameter = recordtype('Parameter',['receivedTime','desiredPosition','gains', 'T
 	,'expectedMAVs', 'rollGain', 'config', 'rollOffset', 'pitchGain', 'pitchOffset', 'throttleGain', 'throttleMin'
 	,'communication', 'fns'], default = None)
 
-Command = recordtype('Command',['sdi','sdt','sdiDot','usi','rpmTarget','torqueRequired','gsTarget',('omega',zeroVect),'sigmaD'
+Command = recordtype('Command',['sdi','vdi','vdt','vdiDot','usi','rpmTarget','torqueRequired','gsTarget',('omega',zeroVect),'sigmaD'
 	,'sigmaDDot','gammaD','rollCMD','gammaDDot'
 	,'pitchCMD','throttleCMD','timestamp',('qd',zeroVect)], default = None)
 
@@ -25,7 +25,7 @@ ControlState = recordtype('ControlState',[('pgTerm',zeroVect),('rotFFTerm',zeroV
 	,('ydi',zeroVect),('pdiDot',zeroVect), ('pgDot',zeroVect)
   	,'accHeadingError',('rollTerms',PIDTerms()),'accSpeedError'
 	,'accPitchError',('pitchTerms',PIDTerms()),'accAltError','fPitch','gPitch','pitchCancelTerm'
-	,('speedTerms',PIDTerms()),'speedCancelTerm','fSpeed','gSpeed'
+	,('speedTerms',PIDTerms()),'speedWindRateTerm','speedTurnTerm','speedCancelTerm','fSpeed','gSpeed'
 	,'h','phps','phpsd',('QPActive',False)], default = 0.0)
 
 Message = recordtype('Message','msgType,sendTime,content', default = None)
@@ -141,7 +141,7 @@ class FullVehicleState(BasicVehicleState):
 		self.RCLatch = True
 		self.airspeed = 0.0
 		self.groundspeed = 0.0
-		self.wind_estimate = {'vx':None,'vy':None,'vz':None}
+		self.wind_estimate = zeroVect
 		self.batteryV = None
 		self.batteryI = None
 		self.servoOut = None
@@ -171,9 +171,10 @@ class FullVehicleState(BasicVehicleState):
 		values+= [self.attitude.roll, self.attitude.pitch,self.attitude.yaw,
 			self.attitude.rollspeed,self.attitude.pitchspeed,self.attitude.yawspeed, self.attitude.time]
 
-		headers +=['wind_vx','wind_vy','wind_vz']
-		values += [self.wind_estimate['vx'],self.wind_estimate['vy'],self.wind_estimate['vz']]
-		
+		(h,v) = vecToCSV(self.wind_estimate,'wind')
+		headers += h
+		values += v
+
 		headers +=['IMU_ax', 'IMU_ay', 'IMU_az']
 		values+= [ self.imuAccel.x , self.imuAccel.y, self.imuAccel.z]
 		

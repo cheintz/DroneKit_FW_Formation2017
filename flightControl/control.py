@@ -526,7 +526,6 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		THIS.command.sdi = ((self.parameters.gains['vMax']-self.parameters.gains['vMin']) * speedInput
 			+ self.parameters.gains['vMin'] )
-		THIS.command.gsTarget = THIS.command.sdi
 		THIS.command.thetaD = (pitchInput-0.5 ) * self.vehicle.parameters['LIM_PITCH_MAX']/100.0 / (180.0 / m.pi) #Stick controls pitch, center is level flight
 		self.pm.pMsg("Desired pitch: ", THIS.command.thetaD)
 		THIS.command.sigmaD = wrapToPi(0.35 + m.pi*(2*headingInput-1.0) ) #North is Middle of range
@@ -836,40 +835,44 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		rhoPrime = mu(xiiNormSquared) * np.eye(3) + 2 * muPrime(xiiNormSquared) * xii * xii.T
 
 		pdiDot = 1*pgDot+1*RgDDot*di - GAINS['ki'] * rhoPrime * xiiDot
+
 		self.pm.p('pdiDot:' + str(pdiDot))
 
 		if (THIS.parameters.config['dimensions'] == 2 and not pdi[2] == 0):
 			print "Warning: pdi not 2D. pdi[2]: " + str(pdi[2])
 
 		CS.pdi=pdi
+		CS.pdiDot = pdiDot
 		self.pm.p('Formation FFTerm: ' + str(np.linalg.norm(CS.pgTerm+CS.rotFFTerm) ))
 
 ##Compute intermediates
 	#Saturate sdi (and deal with sdiDot and ydiDot)
 		sdi = np.linalg.norm(pdi,2)
-
-		headwind = (THIS.airspeed - THIS.groundspeed)
-		vMin = GAINS['vMin'] - headwind #Subtract headwind to allow slower (safe) flight in strong winds
-		vMax = GAINS['vMax'] - headwind
-		sMax = vMax-GAINS['epsD']
-		sMin = vMin+GAINS['epsD']
-		sdt, didSatSd = saturate(sdi, sMin, sMax)
 		ydi = pdi / sdi
 
 		THIS.command.sdi=sdi
 		CS.ydi = ydi
 
-		sdiDot = ( (pdi.transpose() / sdi) * pdiDot).item()
-		ydiDot = 1.0/sdi * pdiDot - 1.0/sdi**2.0 * sdiDot * pdi
+#Airspeed and wind stuff
+		vMin = GAINS['vMin']
+		vMax = GAINS['vMax']
+		sMax = vMax-GAINS['epsD']
+		sMin = vMin+GAINS['epsD']
 
-		if(didSatSd):
-			sdiDot = 0
-			self.pm.p("sdi saturated, was " + str(sdi)+ " Now " + str(sdt))
-		pdiDot = sdiDot*ydi + sdi*ydiDot #Checked good, will saturate with sdi
-		CS.pdiDot = pdiDot
+		wi = THIS.wind_estimate
+		wiDot = np.matrix(np.zeros([3,1]))
 
-		THIS.command.sdt = sdt  #saturated desired speed and derivative
-		THIS.command.sdiDot=sdiDot
+		vdi = np.linalg.norm(CS.pdi - wi)
+		vdt, didSatVd = saturate(vdi, sMin, sMax)
+
+		vdiDot = 1 / vdi * ((pdi - wi).T * (pdiDot - wiDot)).item()
+		if (didSatVd):
+			vdiDot = 0
+			self.pm.p("sdi saturated, was " + str(vdi) + " Now " + str(vdt))
+
+		THIS.command.vdi = vdi
+		THIS.command.vdt = vdt  #saturated desired speed and derivative
+		THIS.command.vdiDot=vdiDot
 
 	# Compute orientation targets
 		#Pitch
@@ -889,6 +892,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		# Make the desired virtual control
 		cmd = THIS.command
 		si = THIS.groundspeed
+		vi = THIS.airspeed
 		sigmaDotCMD = m.tan(cmd.rollCMD) * 9.81 / (si*m.cos(THIS.pitch.value))
 		fPitch, gPitch = self.getPitchDynamics()
 		gammaDotCMD = fPitch + gPitch * cmd.pitchCMD
@@ -922,8 +926,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				G = np.block([[G],[2*zij.T*Fi]]) #vertcats a 1x3
 				h = np.block([[h],[2*zij.T*np.matrix(JPLANE.accel).T - 2*zijDot.T*zijDot - 2*l1q*zij.T*zijDot - l0q * (zij.T*zij - deltaC**2)  ]]) #vertcats a scalar
 		#Add speed rows
-		hSpeed = (vMax-si)*(si-vMin)
-		G = np.vstack([G, np.matrix([0,0,-2*si + vMax + vMin]) ]) # vertcats a 1x3 (for speed)
+		hSpeed = (vMax-vi)*(vi-vMin)
+		G = np.vstack([G, np.matrix([0,0,-2*vi + vMax + vMin]) ]) # vertcats a 1x3 (for speed)
 		h = np.vstack([h,-ls*hSpeed]) #vertcats a 1x1
 # any(G * UBar - h <0)
 		if any(G * UBar - h <0): #Check constraints before setting up the rest of the QP
@@ -965,15 +969,21 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		GAINS = THIS.parameters.gains
 		CS = THIS.controlState
 
-		headwind = (THIS.airspeed - THIS.groundspeed)
-		vMin = GAINS['vMin'] - headwind  # Subtract headwind to allow slower and faster (safe) flight in strong winds
-		vMax = GAINS['vMax'] - headwind
+		vMin = GAINS['vMin']
+		vMax = GAINS['vMax']
 
+		wi = THIS.wind_estimate
+		vi = THIS.airspeed
 		si = THIS.groundspeed
-#		si = THIS.airspeed #Hack for flying in high winds, saturation below should deal with it
-		sdt, didSatSd = saturate(THIS.command.sdi, vMin, vMax)
-		sdiDot = THIS.command.sdiDot
-		siTilde = si - sdt
+		yi = np.matrix(THIS.velocity).T/ si
+
+		Ri = eul2rotm(THIS.heading.value,THIS.pitch.value,THIS.roll.value)
+		Omegai = skew(ERatesToW(THIS.heading.value, THIS.pitch.value, THIS.roll.value, THIS.heading.rate, THIS.pitch.rate, THIS.roll.rate))
+		yiDot = Omegai * np.matrix([[1],[0],[0]])
+
+		vdt, didSatSd = saturate(THIS.command.vdi, vMin, vMax)
+		vdiDot = THIS.command.vdiDot
+		viTilde = vi - vdt
 
 		# Speed
 		fSpeed = getSpeedF(THIS)
@@ -985,22 +995,22 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		if (THIS.parameters.config['uiBarrier']):
 			print  THIS.parameters.config['uiBarrier']
 			p = GAINS['pBarrier']
-			h = np.real(((vMax - sdt) * (sdt - vMin)) / ((vMax - si) * (si - vMin)) ** p)
-			phps = np.real(-p * (vMax + vMin - 2 * si) / ((vMax - si) * (si - vMin)) * h)
-			phpsd = np.real((vMax + vMin - 2 * sdt) / ((vMax - si) * (si - vMin)) ** p)
+			h = np.real(((vMax - vdt) * (vdt - vMin)) / ((vMax - vi) * (vi - vMin)) ** p)
+			phps = np.real(-p * (vMax + vMin - 2 * vi) / ((vMax - vi) * (vi - vMin)) * h)
+			phpsd = np.real((vMax + vMin - 2 * vdt) / ((vMax - vi) * (vi - vMin)) ** p)
 			self.pm.p('Using speed barrier')
-			mu = h + siTilde * phps
+			mu = h + viTilde * phps
 			if (mu < 0):
 				print "mu<0: " + str(mu)
 		else:
 			h = 1.0
 			phps = 0.0
 			phpsd = 0.0
-			mu=1
+			mu=1.0
 			self.pm.p('Not using speed barrier')
 
-		self.pm.p("sdt: " + str(sdt))
-		self.pm.p("sdi: " + str(THIS.command.sdi))
+		self.pm.p("vdt: " + str(vdt))
+		self.pm.p("vdi: " + str(THIS.command.vdi))
 		if(self.parameters.config['enableRCMiddleLoopGainAdjust'] == 'All'):
 			speedIFactor = speedPFactor =  self.RCToExpo(9,5.0)
 			self.pm.p('Pitch Roll, and speed turning')
@@ -1017,26 +1027,31 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		CS.speedTerms.extraKP = speedPFactor
 		CS.speedTerms.extraKI = speedIFactor
 
-		switchStateDot = self.switchFunction1(-siTilde * sdiDot / GAINS['deltasi'] )
+		switchStateDot = self.switchFunction1(-viTilde * vdiDot / GAINS['deltasi'] )
 
-		CS.speedCancelTerm = (-1.0 / gSpeed) * fSpeed
-		CS.speedTerms.p = (-1.0 / gSpeed) * GAINS['asi'] * speedPFactor * siTilde * h / mu
-		CS.speedTerms.i= (-1.0 / gSpeed) * GAINS['bsi'] * speedIFactor * CS.accSpeedError * h / mu
-		CS.speedTerms.ff = (-1.0/ gSpeed) * (switchStateDot * sdiDot / mu) * (siTilde * phpsd - h)
+		speedFrac = vi / (si- (wi.T * yi).item())
+		self.pm.p('ArspdDifference: '+ "{:.3f}".format(vi - np.linalg.norm(si*yi - wi  )    ))
+
+
+		CS.speedCancelTerm = (-fSpeed / gSpeed)
+		CS.speedWindRateTerm = 0.0
+		CS.speedTurnTerm = (-1.0 / gSpeed) * speedFrac *  (1.0 /vi) * si * (wi.T * yiDot).item()
+		CS.speedTerms.p = (-1.0 / gSpeed) * speedFrac * GAINS['asi'] * speedPFactor * viTilde * h / mu
+		CS.speedTerms.i= (-1.0 / gSpeed) * speedFrac * GAINS['bsi'] * speedIFactor * CS.accSpeedError * h / mu
+		CS.speedTerms.ff = (-1.0/ gSpeed) * speedFrac * (switchStateDot * vdiDot / mu) * (viTilde * phpsd - h)
 
 		CS.h = h
 		CS.phps = phps
 		CS.phpsd = phpsd
 
 		#Speed anti-windup handled in throttle, including if QP should stop the integrator
-		CS.accSpeedError = CS.accSpeedError + self.thisTS * siTilde
+		CS.accSpeedError = CS.accSpeedError + self.thisTS * viTilde
 		CS.accSpeedError,ignored = saturate(CS.accSpeedError,-GAINS['barxsi'],GAINS['barxsi'])
 
 		CS.speedTerms.unsaturatedOutput = usi = CS.speedCancelTerm + CS.speedTerms.p + CS.speedTerms.i + CS.speedTerms.ff
 		self.pm.p('usi: ' + "{:.3f}".format(usi))
 		THIS.command.usi = usi
-		THIS.command.sdt = sdt
-		THIS.command.gsTarget = sdt
+		THIS.command.vdt = vdt
 
 	def rollControl(self):
 		THIS=self.vehicleState
@@ -1080,7 +1095,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 	#	elif (CS.QPActive):
 	#		pass #Don't change integrator state if the QP was active last step
 		else:
-			CS.accHeadingError += self.thisTS * eSigma
+			CS.accHeadingError += self.thisTS * m.sin(eSigma)
 
 		CS.accHeadingError,ignored = saturate(CS.accHeadingError,-GAINS['barxsigmai'],GAINS['barxsigmai'])
 		cmd.timestamp = self.fcTime()
@@ -1104,13 +1119,13 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		cmd.timestamp = self.fcTime()
 
 		# anti-windup, should probably be in speed control, but that's hard.
-		eSpeed = THIS.groundspeed - cmd.sdt
+		eSpeed = THIS.airspeed - cmd.vdt
 		# if (cmd.throttleCMD >= 100 and eSpeed < 0) or (cmd.ui <= 0 and eSpeed > 0) or CS.QPActive:
 		if (cmd.throttleCMD>=100 and eSpeed < 0) or (cmd.usi <= 0 and eSpeed > 0):
 			CS.accSpeedError -= self.thisTS * eSpeed #undo the integrator for anti-windup reasons, and if the QP is active
 
-		self.pm.p('Groundspeed Error: ' + str(eSpeed))
-		self.pm.p('Speed Error Integral: ' + str(CS.accSpeedError))
+		self.pm.p('Airspeed Error: ' + str(eSpeed))
+		self.pm.p('Airspeed Error Integral: ' + str(CS.accSpeedError))
 
 	def pitchControl(self):
 		THIS = self.vehicleState
@@ -1267,7 +1282,7 @@ def windHeadingToInertial(windEstimate):
 	vx = windEstimate.speed * m.cos(m.radians(windEstimate.dir))
 	vy = windEstimate.speed * m.sin(m.radians(windEstimate.dir))
 	vz = windEstimate.speed_z
-	return {'vx':vx,'vy':vy,'vz':vz}
+	return np.matrix([[vx],[vy],[vz]])
 
 def saturate(value, minimum, maximum):
 	# type: (float, float, float) -> (float, bool)
