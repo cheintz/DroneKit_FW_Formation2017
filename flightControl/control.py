@@ -350,7 +350,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		self.vehicleState.channels = dict(zip(self.vehicle.channels.keys(),self.vehicle.channels.values())) #necessary to be able to serialize it
 		self.vehicleState.wind_estimate=windHeadingToInertial(self.vehicle.wind_estimate)
 		self.vehicleState.imuAccel = self.vehicle.acceleration
-		self.vehicleState.imuAccel.x*=9.81/10.0
+		self.vehicleState.imuAccel.x *=9.81/10.0 #Scale to m/s/s
 		self.vehicleState.imuAccel.y *= 9.81/10.0
 		self.vehicleState.imuAccel.z *= 9.81/10.0
 		self.vehicleState.isArmable = self.vehicle.is_armable
@@ -362,6 +362,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		nco = self.vehicle.nav_controller_output
 		self.vehicleState.navOutput = {'navRoll': nco.nav_roll,'navPitch':nco.nav_pitch,'navBearing':nco.nav_bearing}
 		ATT=self.vehicleState.attitude
+
+		self.vehicleState.vi = np.linalg.norm(velocityVector - self.vehicleState.wind_estimate)
 
 
 		#Earth frame Acceleration from accelerometers
@@ -401,11 +403,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 #   	#Velocity orientation acceleration
 		dHeadingRate = self.vehicleState.heading.rate - lastHeadingRate
 		dPitchRate = self.vehicleState.pitch.rate - lastPitchRate
-#		aHdg = self.parameters.gains['aFilterHdg']
-#		#self.vehicleState.heading.accel = (1.0-aHdg) * self.vehicleState.heading.accel + aHdg / Ts * dHeadingRate
-#		#self.vehicleState.pitch.accel = (1.0-aHdg) * self.vehicleState.pitch.accel + aHdg / Ts * dPitchRate
-		self.vehicleState.heading.accel =  deadzone(dHeadingRate / Ts,0.15)
-		self.vehicleState.pitch.accel =  deadzone(dPitchRate / Ts,0.7)
+
+		self.vehicleState.heading.accel = deadzone(dHeadingRate / Ts,0.15)
+		self.vehicleState.pitch.accel = deadzone(dPitchRate / Ts,0.7)
 
 		if(self.parameters.leaderID == self.vehicleState.ID):
 			qdic = self.parameters.config['qdIndChannel']
@@ -428,7 +428,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 			else:
 				dt = self.fcTime() - self.vehicleState.timestamp
 				propagateVehicleState(self.vehicleState, dt)
-		else: #still have to set set the timestamp...
+		else: #still have to set the timestamp...
 			self.vehicleState.timestamp = self.fcTime()
 
 	def pushStateToTxQueue(self):
@@ -892,7 +892,14 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		# Make the desired virtual control
 		cmd = THIS.command
 		si = THIS.groundspeed
-		vi = THIS.airspeed
+		vi = THIS.vi
+		qiDot = np.matrix(THIS.velocity).T
+		yi =  qiDot / si
+
+		sigmaDot = velAndAccelToHeadingRate(qiDot, THIS.accel)
+		gammaDot = velAndAccelToPitchRate(qiDot, THIS.accel)
+		yiDot = computeF (THIS.heading.value,THIS.pitch.value,1) * np.matrix([sigmaDot,gammaDot,0.0]).T
+
 		sigmaDotCMD = m.tan(cmd.rollCMD) * 9.81 / (si*m.cos(THIS.pitch.value))
 		fPitch, gPitch = self.getPitchDynamics()
 		gammaDotCMD = fPitch + gPitch * cmd.pitchCMD
@@ -927,8 +934,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				h = np.block([[h],[2*zij.T*np.matrix(JPLANE.accel).T - 2*zijDot.T*zijDot - 2*l1q*zij.T*zijDot - l0q * (zij.T*zij - deltaC**2)  ]]) #vertcats a scalar
 		#Add speed rows
 		hSpeed = (vMax-vi)*(vi-vMin)
-		G = np.vstack([G, np.matrix([0,0,-2*vi + vMax + vMin]) ]) # vertcats a 1x3 (for speed)
-		h = np.vstack([h,-ls*hSpeed]) #vertcats a 1x1
+		G = np.vstack([G, np.matrix([0,0,(-2.0*vi + vMax + vMin) /vi * (si-wi.T*yi) ]) ]) # vertcats a 1x3 (for speed)
+		h = np.vstack([h,-ls*hSpeed + 1.0/vi * si * wi.T * yiDot ]) #vertcats a 1x1
 # any(G * UBar - h <0)
 		if any(G * UBar - h <0): #Check constraints before setting up the rest of the QP
 			#Add slack columns
@@ -973,13 +980,15 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		vMax = GAINS['vMax']
 
 		wi = THIS.wind_estimate
-		vi = THIS.airspeed
+		vi = THIS.vi
 		si = THIS.groundspeed
-		yi = np.matrix(THIS.velocity).T/ si
+		qiDot = np.matrix(THIS.velocity).T
+		yi = qiDot / si
 
-		Ri = eul2rotm(THIS.heading.value,THIS.pitch.value,THIS.roll.value)
-		Omegai = skew(ERatesToW(THIS.heading.value, THIS.pitch.value, THIS.roll.value, THIS.heading.rate, THIS.pitch.rate, THIS.roll.rate))
-		yiDot = Omegai * np.matrix([[1],[0],[0]])
+		sigmaDot = velAndAccelToHeadingRate(qiDot, THIS.accel)
+		gammaDot = velAndAccelToPitchRate(qiDot, THIS.accel)
+
+		yiDot = computeF (THIS.heading.value,THIS.pitch.value,1) * np.matrix([sigmaDot,gammaDot,0.0]).T
 
 		vdt, didSatSd = saturate(THIS.command.vdi, vMin, vMax)
 		vdiDot = THIS.command.vdiDot
@@ -1113,13 +1122,13 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		cmd.torqueRequired = torqueRequired
 		spdParams = THIS.parameters.config['spdParam']
 		if(spdParams['useBatVolt']):
-			cmd.throttleCMD = 100.0* (spdParams['motork1'] *rpmDesired + spdParams['motork2']*torqueRequired ) / max(THIS.batteryV,15.0)
+			cmd.throttleCMD = 100.0 * (spdParams['motork1'] * rpmDesired + spdParams['motork2']*torqueRequired ) / max(THIS.batteryV,15.0)
 		else:
-			cmd.throttleCMD = 100.0* (spdParams['motork1'] *rpmDesired + spdParams['motork2']*torqueRequired )
+			cmd.throttleCMD = 100.0 * (spdParams['motork1'] * rpmDesired + spdParams['motork2']*torqueRequired )
 		cmd.timestamp = self.fcTime()
 
 		# anti-windup, should probably be in speed control, but that's hard.
-		eSpeed = THIS.airspeed - cmd.vdt
+		eSpeed = THIS.vi - cmd.vdt
 		# if (cmd.throttleCMD >= 100 and eSpeed < 0) or (cmd.ui <= 0 and eSpeed > 0) or CS.QPActive:
 		if (cmd.throttleCMD>=100 and eSpeed < 0) or (cmd.usi <= 0 and eSpeed > 0):
 			CS.accSpeedError -= self.thisTS * eSpeed #undo the integrator for anti-windup reasons, and if the QP is active
@@ -1279,8 +1288,8 @@ def getRelPos(pos1,pos2): #returns the x y delta position of p2-p1 with x being 
 	return np.matrix([[dx], [dy],[dz]])
 
 def windHeadingToInertial(windEstimate):
-	vx = windEstimate.speed * m.cos(m.radians(windEstimate.dir))
-	vy = windEstimate.speed * m.sin(m.radians(windEstimate.dir))
+	vx = windEstimate.speed * m.cos(m.radians(windEstimate.dir+180.0))
+	vy = windEstimate.speed * m.sin(m.radians(windEstimate.dir+180.0))
 	vz = windEstimate.speed_z
 	return np.matrix([[vx],[vy],[vz]])
 

@@ -1,10 +1,7 @@
 import collections
 from vehicleState import *
-import socket
 import Queue
-import logging
 import multiprocessing
-import cPickle
 import os
 import time
 from datetime import datetime

@@ -142,6 +142,7 @@ class FullVehicleState(BasicVehicleState):
 		self.airspeed = 0.0
 		self.groundspeed = 0.0
 		self.wind_estimate = zeroVect
+		self.vi = 0.0
 		self.batteryV = None
 		self.batteryI = None
 		self.servoOut = None
