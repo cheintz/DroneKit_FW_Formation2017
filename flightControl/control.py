@@ -934,8 +934,8 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				h = np.block([[h],[2*zij.T*np.matrix(JPLANE.accel).T - 2*zijDot.T*zijDot - 2*l1q*zij.T*zijDot - l0q * (zij.T*zij - deltaC**2)  ]]) #vertcats a scalar
 		#Add speed rows
 		hSpeed = (vMax-vi)*(vi-vMin)
-		G = np.vstack([G, np.matrix([0,0,(-2.0*vi + vMax + vMin) /vi * (si-wi.T*yi) ]) ]) # vertcats a 1x3 (for speed)
-		h = np.vstack([h,-ls*hSpeed + 1.0/vi * si * wi.T * yiDot ]) #vertcats a 1x1
+		G = np.vstack([G, np.matrix([0,0,(-2.0*vi + vMax + vMin) /vi * (si-wi.T*yi).item() ]) ]) # vertcats a 1x3 (for speed)
+		h = np.vstack([h,-ls*hSpeed + 1.0/vi * si * (wi.T * yiDot).item() ]) #vertcats a 1x1
 # any(G * UBar - h <0)
 		if any(G * UBar - h <0): #Check constraints before setting up the rest of the QP
 			#Add slack columns
