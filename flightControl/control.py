@@ -3,6 +3,7 @@ __requires__ ='numpy==1.15.4'
 import gc
 
 from dronekit import connect, VehicleMode, Vehicle
+import traceback
 import time
 import logging
 from vehicleState import *
@@ -119,7 +120,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 						except Exception as ex:
 							print "Failed to update parameters!!!"
 							self.parameters=self.backupParams
-							print ex
+							traceback.print_exc()
 							print "Reverting to original parameters"
 							self.releaseControl()
 							print "Released Control"
@@ -140,7 +141,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				print "Failed to use new config"
 				self.parameters=self.backupParams
 				self.updateInternalObjects()
-				print ex
+				traceback.print_exc()
 				print "Reverting to original parameters"
 				self.releaseControl()
 				self.commenceRTL()
@@ -1038,9 +1039,17 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		switchStateDot = self.switchFunction1(-viTilde * vdiDot / GAINS['deltasi'] )
 
-		speedFrac = vi / (si- (wi.T * yi).item())
-		self.pm.p('ArspdDifference: '+ "{:.3f}".format(vi - np.linalg.norm(si*yi - wi  )    ))
+		try:
+			speedFrac = vi / (si- (wi.T * yi).item())
+		except ZeroDivisionError:
+			self.pm.p("Speed fraction undefined; using 1.0")
+			speedFrac = 1.0
 
+		if(vi<1e-3):
+			vi = 1.0
+			self.pm.p("Airspeed too low; using 1")
+
+		self.pm.p('ArspdDifference: '+ "{:.3f}".format(vi - np.linalg.norm(si*yi - wi  )    ))
 
 		CS.speedCancelTerm = (-fSpeed / gSpeed)
 		CS.speedWindRateTerm = 0.0
