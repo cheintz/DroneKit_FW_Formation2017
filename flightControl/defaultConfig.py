@@ -31,7 +31,7 @@ def getParams():
 		,'maxEAlt':50,'epsD':0.2,'ki':3,'pBarrier':1/255.0
 	    	,'hQP': 1e6, 'deltaC':4, 'l0q':4.0, 'l1q':4.1, 'ls':2}
 	defaultParams.config = {'printEvery':25,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
-		,'acceptableEngageMode': (VehicleMode('FBWA'),), 'dimensions': 3, 'maxPropagateSeconds': 5,'mass':7.200 # was 6.766kg without GPS heading
+		,'acceptableEngageMode': (VehicleMode('FBWA'),), 'dimensions': 3, 'maxPropagateSeconds': 5,'mass':7.700 # was 6.766kg without GPS heading
 		,'spdParam':{'cd0':0.0139,'cd_ail':0.0,'cd_ele':0.0195,'cdl':0.0875,'spdThrustScl': 1.04
 		,'thrustScale':1.0,'motork1':0.0023,'motork2': 0.015164,'useBatVolt':True}
 		,'mode':'Formation'  # PilotMiddleLoop ProgrammedMiddleLoop Formation

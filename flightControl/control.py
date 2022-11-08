@@ -343,6 +343,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				self.pm.p('Low speed: using attitude pitch and yaw for control')
 			except:
 				self.pm.p('Exception: using zero attitude for ground start')
+				traceback.print_exc()
 				self.vehicleState.heading.value = 0
 				self.vehicleState.pitch.value = 0
 
@@ -738,6 +739,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 				qd = THIS.parameters.desiredPosition[self.vehicleState.qdIndex] # qd1 ; qd2 ; qd3 ...
 			except IndexError as ex:
 				qd = THIS.parameters.desiredPosition[0]
+				traceback.print_exc()
 				self.pm.p("Exception: " + str(ex))
 			qd = np.asmatrix(qd)
 		else: #only 1 desired position
