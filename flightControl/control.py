@@ -868,7 +868,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		vdi = np.linalg.norm(CS.pdi - wi)
 		vdt, didSatVd = saturate(vdi, sMin, sMax)
 
-		vdiDot = 1 / vdi * ((pdi - wi).T * (pdiDot - wiDot)).item()
+		vdiDot = 1.0 / vdi * ((pdi - wi).T * (pdiDot - wiDot)).item()
 		if (didSatVd):
 			vdiDot = 0
 			self.pm.p("sdi saturated, was " + str(vdi) + " Now " + str(vdt))
