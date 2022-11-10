@@ -24,7 +24,7 @@ def getParams():
 	# 										 [[-10, 0, 0], [7, 7, 0],[7, -7, 0]]]) #for QP test
 	#aFiltAccel to 1 for no filtering
 
-	defaultParams.gains = {'kl':1.0/7.0*np.diag([1,1,0.3]) , 'ka': 0.3/7.0*np.diag([1,1,0.3])
+	defaultParams.gains = {'kl':1.0/7.0*np.diag([1,1,0.3]) , 'ka': 1.0/7.0*np.diag([1,1,0.3])
 		,'vMin': 16,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941
 		,'kAlt':KPID(.026, .0017,.0105), 'asi':2.0,'bsi':0.4,'asigmai':1.0,'bsigmai':0.2,'agammai':0.6,'bgammai':0.1 #a for speed, b for heading, c for pitch
 		,'deltasi': 0.1, 'deltasigmai': 0.5, 'deltagammai': 0.1, 'barxsi': 6.0, 'barxsigmai': 1, 'barxgammai': 1.5 #Switch widths and integrator saturations

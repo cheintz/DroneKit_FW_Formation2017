@@ -780,7 +780,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		chiiDot = RgDot * di #chiiDot is not filtered
 		#CS.rotFFTerm[2] = lowPassFilter(chiiDot[2], CS.rotFFTerm[2], GAINS['aFiltAccelVert'],CS.rotFFTerm[2] == 0.0)
 		CS.rotFFTerm[2] = lowPassFilter(chiiDot[2], CS.rotFFTerm[2], GAINS['aFiltAccelVert']) #Start at zero to reject large initial condition
-		CS.rotFFTerm[0:2] = chiiDot[0:2]
+		CS.rotFFTerm[0:2] = chiiDot[0:2] #Only sets the first 2 elements. Silly python indexing is silly.
 
 		if(THIS.parameters.config['LeaderAccelSource'] == 'Accel'):
 			pass #use pgDot as is
@@ -837,7 +837,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 		pdi= CS.pgTerm + CS.rotFFTerm + GAINS['ki'] * mu(xiiNormSquared) * xii
 		rhoPrime = mu(xiiNormSquared) * np.eye(3) + 2 * muPrime(xiiNormSquared) * xii * xii.T
 
-		pdiDot = 1*pgDot+1*RgDDot*di - GAINS['ki'] * rhoPrime * xiiDot
+		pdiDot = 1*pgDot+1*RgDDot*di + GAINS['ki'] * rhoPrime * xiiDot
 
 		self.pm.p('pdiDot:' + str(pdiDot))
 
