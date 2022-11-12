@@ -731,8 +731,7 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		#pg is filtered
 		pg = np.matrix([[LEADER.velocity[0]],[LEADER.velocity[1]],[LEADER.velocity[2]]] )
-		#pg[2] = lowPassFilter(CS.pgTerm[2],pg[2], GAINS['aFiltAccelVert'], CS.pgTerm[2] == 0.0)
-		pg[2] = lowPassFilter(CS.pgTerm[2], pg[2], GAINS['aFiltAccelVert']) #Start at zero to reject large initial condition
+		# pg[2] = lowPassFilter(CS.pgTerm[2], pg[2], GAINS['aFiltAccelVert']) #Start at zero to reject large initial condition
 
 		if(THIS.parameters.desiredPosition.ndim==3): #if multiple desired positions
 			try:
@@ -778,9 +777,9 @@ class Controller(threading.Thread): 	#Note: This is a thread, not a process,  be
 
 		chii = Rg * di
 		chiiDot = RgDot * di #chiiDot is not filtered
-		#CS.rotFFTerm[2] = lowPassFilter(chiiDot[2], CS.rotFFTerm[2], GAINS['aFiltAccelVert'],CS.rotFFTerm[2] == 0.0)
-		CS.rotFFTerm[2] = lowPassFilter(chiiDot[2], CS.rotFFTerm[2], GAINS['aFiltAccelVert']) #Start at zero to reject large initial condition
-		CS.rotFFTerm[0:2] = chiiDot[0:2] #Only sets the first 2 elements. Silly python indexing is silly.
+		# CS.rotFFTerm[2] = lowPassFilter(chiiDot[2], CS.rotFFTerm[2], GAINS['aFiltAccelVert']) #Start at zero to reject large initial condition
+		# CS.rotFFTerm[0:2] = chiiDot[0:2] #Only sets the first 2 elements. Silly python indexing is silly.
+		CS.rotFFTerm = chiiDot
 
 		if(THIS.parameters.config['LeaderAccelSource'] == 'Accel'):
 			pass #use pgDot as is

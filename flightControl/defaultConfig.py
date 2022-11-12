@@ -17,19 +17,19 @@ def getParams():
 	# defaultParams.desiredPosition = np.array([[[-5, 5, 0], [-5, -5, -4], [-5, -5, 4]],
 	# 										 [[-5, 5, 0], [-5, -5, -4], [-5, -5, 4]],
 	# 										 [[-5, 5, 0], [-5, -5, -4], [-5, -5, 4]]])
-	defaultParams.desiredPosition=1.0*np.array( [[[-10,0,-15],[-10,0,15],	[-10,0,30] ],
-						[[0,0,-15], [-10,0,15],[-20,0,30]],
-						[[0,0,-15],[-10,0,15],[-20,0,30]]] )  #Agent, amount forward, amount right, absolute altitude, meters
-	# defaultParams.desiredPosition = np.array([[[10, 0, 0], [-7, -7, 0],[-7, 7, 0]] ,
-	# 										 [[-10, 0, 0], [7, 7, 0],[7, -7, 0]]]) #for QP test
+	# defaultParams.desiredPosition=1.0*np.array( [[[-10,0,-15],[-10,0,15],	[-10,0,30] ],
+	# 					[[0,0,-15], [-10,0,15],[-20,0,30]],
+	# 					[[0,0,-15],[-10,0,15],[-20,0,30]]] )  #Agent, amount forward, amount right, absolute altitude, meters
+	defaultParams.desiredPosition = np.array([[[10, 0, 0], [-7, -7, 0],[-7, 7, 0]] ,
+											 [[-10, 0, 0], [7, 7, 0],[7, -7, 0]]]) #for QP test
 	#aFiltAccel to 1 for no filtering
 
-	defaultParams.gains = {'kl':1.0/7.0*np.diag([1,1,0.3]) , 'ka': 1.0/7.0*np.diag([1,1,0.3])
+	defaultParams.gains = {'kl':1.0/7.0*np.diag([1,1,1]) , 'ka': 1.0/7.0*np.diag([1,1,1])
 		,'vMin': 16,'vMax':35,'aFilterHdg':0.4,'aFiltAccelVert':0.02482,'aFiltAccelHoriz':0.3941
 		,'kAlt':KPID(.026, .0017,.0105), 'asi':2.0,'bsi':0.4,'asigmai':1.0,'bsigmai':0.2,'agammai':0.6,'bgammai':0.1 #a for speed, b for heading, c for pitch
-		,'deltasi': 0.1, 'deltasigmai': 0.5, 'deltagammai': 0.1, 'barxsi': 6.0, 'barxsigmai': 1, 'barxgammai': 1.5 #Switch widths and integrator saturations
+		,'deltasi': 0.1, 'deltasigmai': 0.5, 'deltagammai': 0.1, 'barxsi': 3.0, 'barxsigmai': 1, 'barxgammai': 1.5 #Switch widths and integrator saturation
 		,'maxEAlt':50,'epsD':0.2,'ki':3,'pBarrier':1/255.0
-	    	,'hQP': 1e6, 'deltaC':4, 'l0q':4.0, 'l1q':4.1, 'ls':2}
+	    	,'hQP': 1e6, 'deltaC':5, 'l0q':4.0, 'l1q':4.1, 'ls':2}
 	defaultParams.config = {'printEvery':25,'ignoreSelfPackets':True,'propagateStates':True , 'geofenceAbort':False
 		,'acceptableEngageMode': (VehicleMode('FBWA'),), 'dimensions': 3, 'maxPropagateSeconds': 5,'mass':7.700 # was 6.766kg without GPS heading
 		,'spdParam':{'cd0':0.0139,'cd_ail':0.0,'cd_ele':0.0195,'cdl':0.0875,'spdThrustScl': 1.04
@@ -41,15 +41,15 @@ def getParams():
 		,'SwitchedSpeedControl':'Continuous' #Continuous, Pure, None
 		,'uiBarrier':False
 		,'qdScaleChannel': False #only the leader matters
-		,'qdIndChannel': False} #Ch7 is usually the middle loop tuning switch, False for none Only the leader matters
+		,'qdIndChannel': 7} #Ch7 is usually the middle loop tuning switch, False for none Only the leader matters
 	defaultParams.GCSTimeout = 5 #seconds
 	defaultParams.peerTimeout = 5 #seconds
 	defaultParams.localTimeout = 1  # seconds
 	defaultParams.leaderID = 1   #MAV ID of leader
-	defaultParams.expectedMAVs = 3 #2 MAVs would be 1 agent, plus the leader
+	defaultParams.expectedMAVs = 2#2 MAVs would be 1 agent, plus the leader
 	temp=np.zeros([5,5])
 	#AlltoAll
-	temp =np.ones([5,5]) #all to all
+	# temp =np.ones([5,5]) #all to all
 
 #cycle
 	# temp[2][1]=1 #note: this indexed by mavid-1, where the first follower has mavid 2 and index 1
@@ -58,9 +58,9 @@ def getParams():
 	# temp[1][0]=1 #Leader
 
 #Directed line
-	# temp[2][1]=1 #note: this indexed by mavid-1, where the first follower has mavid 2 and index 1
-	# temp[3][2]=1
-	# temp[1][0]=1  #Leader and agent 1
+	temp[2][1]=1 #note: this indexed by mavid-1, where the first follower has mavid 2 and index 1
+	temp[3][2]=1
+	temp[1][0]=1  #Leader and agent 1
 
 # Undirected line
 # 	temp[2][1]=temp[1][2]=1 #note: this indexed by mavid-1, where the first follower has mavid 2 and index 1

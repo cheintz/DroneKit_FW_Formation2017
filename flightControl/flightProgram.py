@@ -24,7 +24,7 @@ peerReadPort = int(os.environ['PORT'])
 logPath = os.environ["LOGPATH"]
 broadcastIP= os.environ["BROADCASTIP"]
 
-#os.environ["SITL"]="True" #Only exists if this is running SITL
+os.environ["SITL"]="True" #Only exists if this is running SITL
 
 try:
 	SITLFlag = os.environ["SITL"]
